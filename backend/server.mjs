@@ -18,6 +18,7 @@ import { MessageQueue } from './queue.mjs';
 import { CapabilityCatalog } from './capabilities.mjs';
 import { DesktopBridge, trimIdleDesktopSubscriptions, desktopHistory as desktopSnapshotHistory } from './desktop-bridge.mjs';
 import { MobileOrganization } from './organization.mjs';
+import { NativeOrganization } from './native-pins.mjs';
 import { CatalogCache } from './catalog.mjs';
 import { DesktopIntent, ensureDesktopOwner } from './desktop-intent.mjs';
 import { AutomationCatalog } from './automations.mjs';
@@ -56,7 +57,7 @@ const core = await new CodexCore({ cwd }).start();
 const terminals = new TerminalManager();
 const capabilities = new CapabilityCatalog(core);
 const projectManager = new ProjectManager(core);
-const organization = await new MobileOrganization(stateDir).init();
+const organization = new NativeOrganization({core,local:await new MobileOrganization(stateDir).init(),onChanged:()=>publish({method:'bridge/catalogUpdated',params:{}})});
 const desktop = new DesktopBridge();
 const nativeIntent = new DesktopIntent({ desktop });
 const nativeArchive = new NativeArchive({ desktop, readThread: threadRead, stateDir });
@@ -75,6 +76,8 @@ const goals = new GoalReader({ core });
 const desktopHistories = new Map(), desktopActive = new Map(), desktopApprovals = new Map(), desktopAccess = new Map(), desktopStale = new Set(), pendingHistoryResets = new Set();
 const messageQueue = await new MessageQueue({ stateDir, send: dispatchMessage, isActive: id => turnsStarting.has(id) || core.activeTurns.has(id) || desktopActive.has(id) || nativeArchive.isPending(id) }).init();
 function publish(event) { events.push({ id: ++sequence, ...event }); if (events.length > 4000) events.splice(0, events.length - 4000); for (const wake of eventWaiters) wake(); }
+// Poll native pins only while a phone is waiting for change notifications.
+const organizationTimer=setInterval(()=>{if(eventWaiters.size)organization.get().catch(()=>{});},1500);organizationTimer.unref();
 messageQueue.on('change', params => { publish({ method: 'bridge/queueUpdated', params }); pruneDesktopIdle(); });
 function touchDesktop(id) { desktopAccess.delete(id); desktopAccess.set(id, Date.now()); }
 function releaseDesktop(id) {
@@ -347,7 +350,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && pathname === '/api/status') {
         return send(res, 200, { online: !core.closed, desktopOnline: desktop.online, cwd, active: Object.fromEntries([...core.activeTurns, ...[...desktopActive].filter(([id]) => !desktopStale.has(id))]), ownedActive: Object.fromEntries(core.activeTurns), terminal:terminals.summary(), uncertainDesktop: [...desktopStale].filter(id => desktopActive.has(id)), epoch: instance, sequence });
       }
-      if (req.method === 'GET' && pathname === '/api/organize') return send(res, 200, organization.get());
+      if (req.method === 'GET' && pathname === '/api/organize') return send(res, 200, await organization.get());
       if (req.method === 'GET' && pathname === '/api/goal') {
         try { return send(res, 200, await goals.read(u.searchParams.get('threadId'), { fresh:u.searchParams.has('refresh') })); }
         catch (error) { return fail(res, error.statusCode || 500, error.message); }
@@ -648,5 +651,5 @@ if (!process.argv.includes('--no-tunnel') && (gateway || process.argv.includes('
   });
   tunnel.start();
 } else if (!gateway && !process.argv.includes('--no-tunnel')) { tunnelError = '固定服务器尚未配置'; }
-function stop(code = 0) { if (closing) return; closing = true; tunnel?.stop(); desktop.stop(); terminals.closeAll(); core.stop(); server.close(); setTimeout(() => process.exit(code), 500); }
+function stop(code = 0) { if (closing) return; closing = true; clearInterval(organizationTimer); tunnel?.stop(); desktop.stop(); terminals.closeAll(); core.stop(); server.close(); setTimeout(() => process.exit(code), 500); }
 process.on('SIGTERM', () => stop(0)); process.on('SIGINT', () => stop(0));

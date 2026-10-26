@@ -89,7 +89,9 @@ const server=createServer(async(req,res)=>{
       const html=await readFile(path,'utf8');
       const expected='<script type="module" crossorigin src="/remote/v4/3.16.3/assets/index-BsmXQHMM.js"></script>';
       if(!html.includes(expected))throw Error('原版入口结构发生变化');
-      bytes=Buffer.from(html.replace(expected,'<script type="module" crossorigin src="/codex-entry.mjs"></script>'));type=types['.html'];
+      // Before JavaScript starts, show a plain white surface without the legacy logo shell.
+      const startupStyle='<style id="codex-startup-surface">.zcode-boot-loading{background:#fff!important}.zcode-boot-loading__logo-shell{display:none!important}</style>';
+      bytes=Buffer.from(html.replace(expected,'<script type="module" crossorigin src="/codex-entry.mjs"></script>').replace('</head>',startupStyle+'</head>'));type=types['.html'];
     }else if(url.pathname==='/codex-entry.mjs'){path=join(root,'codex-entry.mjs');}
     else if(url.pathname==='/mobile-connection.mjs'){path=join(root,'mobile-connection.mjs');}
     else if(url.pathname==='/codex-browser-adapter.mjs'){path=join(root,'frontend-stage/browser-adapter.mjs');}
