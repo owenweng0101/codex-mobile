@@ -4,7 +4,7 @@
 
 `backend/` 在 127.0.0.1:8787 提供 Codex 能力。它通过 stdio JSON-RPC 启动 Codex CLI app-server，并通过同一系统用户的桌面会话协调通道跟随已有会话。已有桌面会话写入有所有权与状态检查，断连或结果未知时不能假装操作成功。
 
-`adapter/` 在 127.0.0.1:8796 提供手机界面、配对 Cookie、协议转换、模型选择与历史投影。当前 UI 基于 ZCode 3.16.3，入口、原协议模块和补丁版本必须匹配。兼容层把它的数据与命令映射到本机 Codex，不调用 ZCode Agent。
+`adapter/` 在 127.0.0.1:8796 提供手机界面、配对 Cookie、协议转换、模型选择与历史投影。当前 UI 基于 ZCode 3.16.3 的公开网页资源，RPC 从仓库内固定版本的上游开源文件构建。版本与补丁由项目管理，使用者无需安装 ZCode。兼容层把它的数据与命令映射到本机 Codex，不调用 ZCode Agent。
 
 `connection/ingress.mjs` 在 127.0.0.1:8797 提供公网隧道唯一入口。它检查精确的公网 Host / Origin，拦截本机控制路径，限制 HTTP 方法和接口范围，转发经过验证的 WebSocket。首次从微信等站外入口打开首页是一个有限例外：仅允许 GET、顶层 document 导航、无外部 Origin，不向 API 和 Socket 扩大例外。
 

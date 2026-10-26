@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {a as Emitter} from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter} from '../vendor/rpc.mjs';
 import {createFileReadService} from '../read-services/files.mjs';
 
 const reason='This ZCode-only capability is disabled in the paired Codex adapter';

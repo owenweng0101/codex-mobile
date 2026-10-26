@@ -1,4 +1,4 @@
-import {a as Emitter} from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter} from '../vendor/rpc.mjs';
 
 const unavailable=()=>{throw Object.assign(Error('此入口使用已配对的本机 Codex；该 ZCode 账户或模型配置操作未开放'),{code:'CODEX_ADAPTER_UNSUPPORTED'});};
 const noCloudEvent=()=>({dispose(){}});

@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {a as Emitter} from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter} from '../vendor/rpc.mjs';
 import {createOriginalControllerProjection} from './original-controller.mjs';
 
 const unsupported=method=>Object.assign(new Error('Readonly Codex controller does not support '+method),{code:'CODEX_READ_ONLY_METHOD_UNAVAILABLE'});

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createConversationReadServices } from './conversation-read.mjs';
-import { a as Emitter } from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter} from '../vendor/rpc.mjs';
 import { k as applyDeltas, w as frameSchema } from '../../vendor/zcode-web/remote/v4/3.16.3/assets/parts-BD-IKHpw.js';
 
 const sessionId = '00000000-0000-4000-8000-000000000085';

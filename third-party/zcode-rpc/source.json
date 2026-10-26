@@ -1,0 +1,15 @@
+{
+  "repository": "https://github.com/zai-org/ZCode",
+  "revision": "3c5b227649371507ddc4eb46ac5133afe6db1cab",
+  "directory": "packages/rpc/src",
+  "files": {
+    "src/foundation.ts": "b4874401965e7bad7e84245a2fc5960657a349b146f355ac7343562fa724da9f",
+    "src/buffer.ts": "6bc6a44e6abd088f72d57616d9556d78ce078b6f3813bf75402dde386781492c",
+    "src/protocol.ts": "b3e18c273bdfab46daf7b153a060ba7936e993abc1b81246d14b7d2991932594",
+    "src/serialization.ts": "e949418e1cd17cc863c147fc8d1ff15237e1b5f0cb8e3344fd2a9ccfae9d54e7",
+    "src/channels.shared.ts": "d7faaf2affcb028355501e44b0c9bcbc673f7ad4f5c812cbf012d33260517586",
+    "src/channelServer.ts": "e93d30ddd347d2558960072219b5667cc940f39e2955440f4ae3db6a96a726e1",
+    "src/channelClient.ts": "9c5c99acfa173a2986c39619966955ddebe123c3a3882aaea3d835a73bb59068",
+    "src/proxy-channel.ts": "ec5b43e6a3a622a88a8aaa6af9cb37dbfe517932ee7f4a337019ec138bb2d513"
+  }
+}

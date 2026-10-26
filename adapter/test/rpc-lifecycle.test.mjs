@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {createServer} from 'node:http';
 import {WebSocket} from 'ws';import {attachOriginalRpc} from '../rpc-server.mjs';import {Pairing} from '../auth.mjs';
-import {a as Emitter,b as VSBuffer,c as SocketProtocol,f as ChannelClient} from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter,VSBuffer,SocketProtocol,ChannelClient} from '../vendor/rpc.mjs';
 
 test('paired original RPC reconnects with fresh per-connection identity and releases subscriptions on close',{timeout:3000},async()=>{
   const http=createServer((_req,res)=>res.end()),pairing=new Pairing();
@@ -14,6 +14,9 @@ test('paired original RPC reconnects with fresh per-connection identity and rele
     await new Promise((resolve,reject)=>{ws.once('open',resolve);ws.once('error',reject);});
     assert.equal(await client.getChannel('audit').call('hello',[id]),id);
     await assert.rejects(client.getChannel('not-adapted').call('read',[]),error=>error.code==='CODEX_ADAPTER_UNSUPPORTED');
+    const unavailableEvent=client.getChannel('audit').listen('onNotAvailable')(()=>{});
+    assert.equal(await client.getChannel('audit').call('hello',[id]),id,'an unavailable UI event must not break subsequent RPC calls');
+    unavailableEvent.dispose();
     client.dispose();protocol.dispose();data.dispose();const closed=new Promise(resolve=>ws.once('close',resolve));ws.close();await closed;
   }
   try{await connect('first-browser');await connect('refreshed-browser');await Promise.all(disposals);assert.equal(created,2);assert.equal(disposed,2);}

@@ -12,5 +12,5 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: node --test connection/test/*.test.mjs backend/test/core.test.mjs backend/test/message-delivery.test.mjs
+      - run: node --test connection/test/*.test.mjs backend/test/core.test.mjs backend/test/message-delivery.test.mjs adapter/test/rpc-lifecycle.test.mjs
       - run: npm run check:public

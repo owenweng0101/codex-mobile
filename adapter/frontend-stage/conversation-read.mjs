@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
-import {a as Emitter} from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter} from '../vendor/rpc.mjs';
 import {M as snapshotSchema,u as indexSnapshotSchema} from '../../vendor/zcode-web/remote/v4/3.16.3/assets/validation-B6yV_dPD.js';
 import {w as frameSchema,O as indexFrameSchema} from '../../vendor/zcode-web/remote/v4/3.16.3/assets/parts-BD-IKHpw.js';
 import {projectMobileHistory,resolveMobileImagePath,projectAssistantText} from '../mobile-history.mjs';

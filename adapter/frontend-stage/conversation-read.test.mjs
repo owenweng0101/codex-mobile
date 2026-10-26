@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {projectConversationV4,createConversationReadServices} from './conversation-read.mjs';
-import {a as Emitter} from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter} from '../vendor/rpc.mjs';
 import {k as applyDeltas,w as frameSchema,O as indexFrameSchema} from '../../vendor/zcode-web/remote/v4/3.16.3/assets/parts-BD-IKHpw.js';
 import {resolveMobileImagePath} from '../mobile-history.mjs';
 const id='00000000-0000-0000-0000-000000000001',params={workspacePath:'/authorized',sessionId:id};

@@ -14,11 +14,15 @@
     "connection"
   ],
   "scripts": {
-    "prepare": "node scripts/prepare-browser-vendors.mjs",
+    "prepare": "node scripts/prepare-browser-vendors.mjs && node scripts/build-rpc.mjs",
+    "prepare:rpc": "node scripts/build-rpc.mjs",
     "prepare:ui": "node scripts/import-zcode-ui.mjs",
     "start": "node scripts/start.mjs",
     "test": "node scripts/test.mjs",
     "check:public": "node scripts/check-public.mjs",
     "demo": "node scripts/demo.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

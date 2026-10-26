@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {isDeepStrictEqual} from 'node:util';
 import vm from 'node:vm';
-import {a as setName} from '../vendor/chunk-HH7N2YVI.js';
+const setName=(value,name)=>Object.defineProperty(value,'name',{value:name,configurable:true});
 
 // Exact original projection/subscribe/resync implementation, with only pure
 // built-ins and its original debug-name helper in scope. No host entry runs.

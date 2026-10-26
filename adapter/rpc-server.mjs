@@ -1,11 +1,18 @@
 import {WebSocketServer} from 'ws';
-import {a as Emitter,b as VSBuffer,c as SocketProtocol,e as ChannelServer,g as ProxyChannel} from './vendor/chunk-CM2YMK3U.js';
+import {Emitter,VSBuffer,SocketProtocol,ChannelServer,ProxyChannel} from './vendor/rpc.mjs';
 import {sameOrigin} from './auth.mjs';
 
 // This adapter has a fixed channel registry for each connection. Preserve the
 // original framing/dispatch/error encoding, but reject absent capabilities now
 // instead of treating them as services that may register later.
 class FixedChannelServer extends ChannelServer{
+  // The pinned open-source RPC predates the 3.16.3 web client's event-error
+  // response (205). Reject a missing event without closing the whole socket.
+  sendResponse(response){if(response.type===205)return this.send([205,response.id],response.data);return super.sendResponse(response);}
+  onEventListen(request){
+    try{return super.onEventListen(request);}
+    catch(error){this.sendResponse({id:request.id,type:205,data:{name:error.name||'Error',message:String(error.message||error)}});}
+  }
   collectPendingRequest(request){
     this.sendResponse({id:request.id,type:request.type===102?205:202,data:{name:'CodexAdapterUnsupported',message:'此 Codex 版本尚未接入 '+String(request.channelName).slice(0,100),code:'CODEX_ADAPTER_UNSUPPORTED'}});
   }

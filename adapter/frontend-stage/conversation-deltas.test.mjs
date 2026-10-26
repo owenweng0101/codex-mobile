@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createConversationReadServices,projectConversationV4} from './conversation-read.mjs';
-import {a as Emitter} from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter} from '../vendor/rpc.mjs';
 import {k as applyDeltas,w as frameSchema} from '../../vendor/zcode-web/remote/v4/3.16.3/assets/parts-BD-IKHpw.js';
 const id='11111111-1111-4111-8111-111111111111',params={workspacePath:'/fixture',sessionId:id};
 function fixture(t){

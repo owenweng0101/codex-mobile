@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
-import {a as Emitter} from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter} from '../vendor/rpc.mjs';
 // onDynamic* service methods must be (params)=>event factories for the channel
 // protocol; a never-firing event matches optional telemetry the UI subscribes.
 const noopDynamicEvent=()=>new Emitter().event;

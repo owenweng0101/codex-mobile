@@ -1,7 +1,7 @@
 import {MessageChannel} from 'node:worker_threads';
 import {writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import {d as MessagePortProtocol,e as ChannelServer,f as ChannelClient,g as ProxyChannel} from './vendor/chunk-CM2YMK3U.js';
+import {MessagePortProtocol,ChannelServer,ChannelClient,ProxyChannel} from './vendor/rpc.mjs';
 import {CodexReadClient} from './api-client.mjs';
 import {createReadServices} from './read-services/index.mjs';
 

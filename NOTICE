@@ -10,3 +10,9 @@ is derived from ZCode, Copyright 2026 Z.AI Co., Ltd, Apache License 2.0.
 The surrounding adapters, compatibility patch scripts and integration are changes
 made by Codex Mobile contributors. Full third-party UI and RPC bundles are
 imported locally and are not redistributed in this repository. See THIRD_PARTY.md.
+
+The RPC source subset in third-party/zcode-rpc/src is reproduced unchanged from
+zai-org/ZCode, commit 3c5b227649371507ddc4eb46ac5133afe6db1cab.
+Upstream attributes VS Code IPC/common utilities to Microsoft under MIT.
+See third-party/zcode-rpc/LICENSE-APACHE-2.0, LICENSE-MIT, UPSTREAM-NOTICE.md
+and source.json for original notices, exact provenance and checksums.

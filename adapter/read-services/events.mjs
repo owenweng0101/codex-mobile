@@ -1,4 +1,4 @@
-import {a as Emitter} from '../vendor/chunk-CM2YMK3U.js';
+import {Emitter} from '../vendor/rpc.mjs';
 
 const taskMethods=new Map([
   ['onDynamicTaskEvent','task'],['onDynamicStreamEvent','stream'],

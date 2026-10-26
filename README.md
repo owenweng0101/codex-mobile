@@ -65,10 +65,10 @@ flowchart LR
 - **macOS**：当前只完成 Mac 环境开发与验证。Windows / Linux 尚未支持安装和桌面会话连接。
 - **Node.js 24+、Python 3**，以及已经登录、可正常使用的 Codex 桌面环境。
 - 本机 Codex CLI：默认查找桌面应用内置路径，也可在配置中指定 `codexBin`。
-- **ZCode 3.16.3 本地安装包**：用于导入版本匹配的 RPC 运行时；不需要启动或登录 ZCode。网页资源来自官方公开地址。
+- **无需安装 ZCode**：所需 RPC 开源代码已随本项目提供；安装时在本地构建。手机界面的版本固定资源由准备命令自动从官方公开地址下载。
 - 一个已配置好的樱花免费账号、隧道和域名，以及对应平台客户端 `frpc`。
 
-桌面会话协调接口属于兼容性依赖，Codex 或 ZCode 升级可能导致本项目失效。不要把不同版本的前端和协议运行时混用。
+桌面会话协调接口属于兼容性依赖，Codex 升级可能影响本项目。手机界面和 RPC 来源版本由项目固定管理，不依赖电脑上是否安装或更新 ZCode。
 
 ## 安装与运行
 
@@ -77,9 +77,9 @@ git clone https://github.com/owenweng0101/codex-mobile.git
 cd codex-mobile
 npm ci
 
-# 从本机 ZCode 3.16.3 导入匹配的 RPC 运行时，并下载官方网页资源。
-# 导入的第三方构建文件保留在本地，不进入 Git。
-npm run prepare:ui -- --zcode-app /Applications/ZCode.app
+# 构建项目自带的 RPC 开源代码，并自动下载版本固定的官方网页资源。
+# 无需安装、启动或登录 ZCode。
+npm run prepare:ui
 
 cp examples/config.example.json config.local.json
 ```
@@ -137,6 +137,6 @@ node scripts/demo.mjs # 仅演示数据，不读取 ~/.codex，不调用模型
 
 ## 来源与许可
 
-本仓库的适配代码使用 **Apache-2.0**。手机界面及部分协议来自 [ZCode](https://github.com/zai-org/ZCode)，本地准备脚本不将其完整构建产物再分发到本仓库。来源、导入范围和补丁机制见 [THIRD_PARTY.md](THIRD_PARTY.md) 与 [NOTICE](NOTICE)。
+本仓库的适配代码使用 **Apache-2.0**。手机界面及部分协议来自 [ZCode](https://github.com/zai-org/ZCode)。仓库包含固定版本的少量 RPC 开源文件及相应许可证，完整网页构建产物由准备命令下载。来源、依赖范围和补丁机制见 [THIRD_PARTY.md](THIRD_PARTY.md) 与 [NOTICE](NOTICE)。
 
 Codex、OpenAI、微信、ZCode、樱花等名称用于描述兼容对象和服务来源，不表示官方合作或背书。
