@@ -1,0 +1,12 @@
+Codex Mobile
+Copyright 2026 Codex Mobile contributors.
+
+This project contains adapters for local Codex services and compatibility code
+for the ZCode user interface and protocol. It is not affiliated with OpenAI,
+WeChat, Z.AI, or SakuraFrp.
+
+The controller projection in adapter/read-services/original-controller-source.txt
+is derived from ZCode, Copyright 2026 Z.AI Co., Ltd, Apache License 2.0.
+The surrounding adapters, compatibility patch scripts and integration are changes
+made by Codex Mobile contributors. Full third-party UI and RPC bundles are
+imported locally and are not redistributed in this repository. See THIRD_PARTY.md.
