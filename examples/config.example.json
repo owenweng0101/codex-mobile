@@ -1,0 +1,10 @@
+{
+  "publicOrigin": "https://www.example.nyat.app:12345",
+  "tunnel": {
+    "type": "sakura",
+    "binary": "/absolute/path/to/frpc",
+    "configPath": "/absolute/path/to/frpc.ini"
+  },
+  "workspaceRoot": null,
+  "codexBin": null
+}

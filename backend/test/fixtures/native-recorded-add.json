@@ -1,0 +1,44 @@
+{
+  "id": "01a1701d-73ab-79d0-af5b-c67b464b1e44",
+  "cwd": "__FIXTURE_ROOT__",
+  "turns": [],
+  "requests": [],
+  "turnHistory": {
+    "kind": "canonical",
+    "history": {
+      "islands": [
+        {
+          "entries": [
+            {
+              "key": "captured-turn",
+              "value": "captured-turn"
+            }
+          ]
+        }
+      ],
+      "entitiesByKey": {
+        "captured-turn": {
+          "turnId": "01a1702c-3887-72d3-ac50-d797b66cb216",
+          "diff": null,
+          "status": "completed",
+          "items": [
+            {
+              "type": "fileChange",
+              "id": "exec-407380b4-4806-48ef-9fbe-8186842d87d5",
+              "status": "completed",
+              "changes": [
+                {
+                  "path": "__FIXTURE_ROOT__/native-change.txt",
+                  "kind": {
+                    "type": "add"
+                  },
+                  "diff": "NATIVE_TURN_CHANGE\n"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

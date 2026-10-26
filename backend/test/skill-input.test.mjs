@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {skillInputs} from '../skill-input.mjs';
+const catalog={data:[{name:'demo',path:'/skills/demo/SKILL.md',enabled:true},{name:'off',path:'/skills/off/SKILL.md',enabled:false}]};
+test('only enabled exact native skill references become skill input',()=>{assert.deepEqual(skillInputs('[$demo](/skills/demo/SKILL.md) please help',catalog),[{type:'skill',name:'demo',path:'/skills/demo/SKILL.md'}]);assert.deepEqual(skillInputs('[$off](/skills/off/SKILL.md) [$demo](/private/other.md) [demo](/skills/demo/SKILL.md)',catalog),[])});
+test('skill references in code are not invoked and repeated references deduplicate',()=>{assert.deepEqual(skillInputs('`[$demo](/skills/demo/SKILL.md)`',catalog),[]);assert.equal(skillInputs('[$demo](/skills/demo/SKILL.md) [$demo](/skills/demo/SKILL.md)',catalog).length,1)});

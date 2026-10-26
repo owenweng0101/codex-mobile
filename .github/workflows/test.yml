@@ -1,0 +1,16 @@
+name: Core tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node --test connection/test/*.test.mjs backend/test/core.test.mjs backend/test/message-delivery.test.mjs
+      - run: npm run check:public

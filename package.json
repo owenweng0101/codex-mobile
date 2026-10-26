@@ -1,0 +1,24 @@
+{
+  "name": "codex-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Scan a QR code in WeChat to access your local Codex from your phone.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "backend",
+    "adapter",
+    "connection"
+  ],
+  "scripts": {
+    "prepare": "node scripts/prepare-browser-vendors.mjs",
+    "prepare:ui": "node scripts/import-zcode-ui.mjs",
+    "start": "node scripts/start.mjs",
+    "test": "node scripts/test.mjs",
+    "check:public": "node scripts/check-public.mjs",
+    "demo": "node scripts/demo.mjs"
+  }
+}
