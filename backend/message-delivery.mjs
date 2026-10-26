@@ -1,7 +1,7 @@
 export const messageBusy = () => Object.assign(new Error('该会话正在运行或有待发消息，本次消息尚未发送。'), { code:'SESSION_BUSY', statusCode:409, sent:false });
 
 export function hasPendingDelivery(data, queue) {
-  return data.delivery === 'startNow' ? queue.get(data.threadId).items.length > 0 : queue.hasPending(data.threadId);
+  return queue.get(data.threadId).items.length > 0;
 }
 
 // startNow is a strict delivery contract. It must never create a queue item;

@@ -19,7 +19,7 @@ test('writable snapshots use native send routing and reject a revision when nati
  current.activeTurn='new-native-turn';
  assert.equal(await service.validateRevision(guard),false);
  await service.refreshWorkspace(params);
- assert.equal(applyDeltas(snapshot,frames.at(-1).frame.payload.deltas).inputRouting.mode,'guide');
+ assert.equal(applyDeltas(snapshot,frames.at(-1).frame.payload.deltas).inputRouting.mode,'enqueue');
  listener.dispose();service.dispose();
 });
 function fixture(){const native=new Emitter(),catalog=new Emitter(),gets=[];const baseServices={project:{readTree:async()=>({projects:[],tasks:[{taskId:id,workspacePath:'/authorized',title:'Fixture only',createdAt:1000,updatedAt:2000,status:'completed'}]})},'zcode-task':{onDynamicTaskEvent:()=>native.event},'zcode-agent':{helloConversationV4:()=>({originalSupport:true})}};
@@ -85,7 +85,7 @@ test('streamed reasoning and commentary preserve only the native supplied progre
 
 test('running and paused native queues remain visible and allow follow-up input',()=>{
  const current={...page,activeTurn:'turn1',queue:{paused:true,items:[{id:'q1',requestId:'q1',text:'follow up',createdAt:1234,status:'queued'}]}};
- const result=projectConversationV4(current,{writable:true});assert.equal(result.inputRouting.mode,'guide');assert.equal(result.queue.items[0].text,'follow up');assert.equal(result.queue.items[0].queueItemId,'q1');assert.equal(result.queue.autoDrain,false);assert.equal(result.queue.pauseReason,'manual');assert.equal(result.availability.queueEdit.allowed,true);
+ const result=projectConversationV4(current,{writable:true});assert.equal(result.inputRouting.mode,'enqueue');assert.equal(result.queue.items[0].text,'follow up');assert.equal(result.queue.items[0].queueItemId,'q1');assert.equal(result.queue.autoDrain,false);assert.equal(result.queue.pauseReason,'manual');assert.equal(result.availability.queueEdit.allowed,true);
 });
 
 test('queued image restores after withdrawal and retains the original ref for resend; cached chunks reauthorize',async t=>{
@@ -126,14 +126,13 @@ test('agent commentary and plan remain visible assistant text while native reaso
  assert.deepEqual(projectConversationV4(current).rows.window.map(row=>[row.kind,row.text]),[['assistantText','运行中上翻历史也验到了'],['assistantText','下一步验证'],['reasoning','native summary']]);
 });
 
-// Native automatic append briefly enters the queue before sendNow acknowledges it.
-// Present that intermediate state in the timeline, without hiding failures.
-test('automatic appends use pending timeline messages and retain failed or external queue controls',()=>{
+// Only dispatched native messages belong in the timeline; queued messages stay editable.
+test('active appends and failed or external inputs retain their queue controls',()=>{
  const id='zcv4_'+'a'.repeat(48);
  const current=status=>({...page,activeTurn:'turn1',queue:{paused:false,items:[{id,requestId:id,text:'追加说明',status,createdAt:1234}]}});
  for(const status of ['queued','sending']){
   const snapshot=projectConversationV4(current(status),{writable:true});
-  assert.equal(snapshot.queue.items[0].delivery.admitted,'guide');
+  assert.equal(snapshot.queue.items[0].delivery.admitted,'queue');
   assert.equal(snapshot.queue.items[0].text,'追加说明');
   assert.equal(snapshot.rows.window.filter(row=>row.text==='追加说明').length,0);
  }
@@ -145,7 +144,7 @@ test('automatic appends use pending timeline messages and retain failed or exter
  const complete=current('sending');complete.queue.items=[];
  assert.equal(projectConversationV4(complete,{writable:true}).queue.items.length,0);
 });
-test('Codex renderer keeps every delivery state inline while other hosts retain queue controls',async()=>{
+test('Codex renderer restores editable queue cards while other hosts retain their delivery split',async()=>{
  const {readFile}=await import('node:fs/promises');
  const {runInNewContext}=await import('node:vm');
  const bundle=await readFile(new URL('./assets/index-BsmXQHMM.js',import.meta.url),'utf8');
@@ -155,12 +154,12 @@ test('Codex renderer keeps every delivery state inline while other hosts retain 
  const requestId='zcv4_'+'b'.repeat(48);
  const snapshot=projectConversationV4({...page,activeTurn:'turn1',queue:{items:[{id:requestId,status:'sending',text:'追加正文',createdAt:1234}]}},{writable:true});
  const view=split(snapshot.queue);
- assert.equal(view.visibleQueue.items.length,0);
- assert.equal(view.pendingGuides.length,1);
- assert.equal(view.pendingGuides[0].text,'追加正文');
+ assert.equal(view.visibleQueue.items.length,1);
+ assert.equal(view.pendingGuides.length,0);
+ assert.equal(view.visibleQueue.items[0].text,'追加正文');
  const waiting={...snapshot.queue,autoDrain:false,items:[{...snapshot.queue.items[0],delivery:{requested:'auto',admitted:'queue'}}]};
- assert.equal(split(waiting).visibleQueue.items.length,0);
- assert.equal(split(waiting).pendingGuides.length,1);
+ assert.equal(split(waiting).visibleQueue.items.length,1);
+ assert.equal(split(waiting).pendingGuides.length,0);
  const original=runInNewContext(bundle.slice(start,end)+';Y8t',{__codexIsMobile:()=>false});
  assert.equal(original(waiting).visibleQueue.items.length,1);
 });

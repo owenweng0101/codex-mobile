@@ -59,7 +59,8 @@ export class MessageQueue extends EventEmitter {
   async deliver(threadId, item, steer) {
     const q = this.ensure(threadId); item.status = 'sending'; item.error = null; await this.changed(threadId);
     try {
-      await this.send({ ...item, threadId }, { steer });
+      try { await this.send({ ...item, threadId }, { steer }); }
+      catch (error) { if(!steer || error.code!=='TURN_ENDED' || error.sent!==false || error.outcomeUnknown)throw error;await this.send({ ...item, threadId }, { steer:false }); }
       q.items = q.items.filter(i => i.id !== item.id); q.error = null;
       this.delivered.push({ threadId, requestId: item.requestId, time: Date.now() }); if (this.delivered.length > 500) this.delivered.splice(0, this.delivered.length - 500);
       await this.changed(threadId);

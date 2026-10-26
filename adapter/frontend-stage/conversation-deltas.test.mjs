@@ -45,7 +45,7 @@ test('native change during an in-flight read is emitted by trailing refresh with
 test('native turn timing uses seconds, keeps header IDs through completion and never freezes running time',()=>{
  const page={thread:{id,cwd:params.workspacePath},activeTurn:'t',turns:[{id:'t',startedAt:1700000000,durationMs:1,status:'inProgress',items:[{id:'u',type:'userMessage',content:[{type:'text',text:'question'}]},{id:'a',type:'agentMessage',text:'answer'}]}]};
  const initial=projectConversationV4(page,{writable:true});const header=initial.rows.window[0];
- assert.equal(header.kind,'turnHeader');assert.equal(header.origin,'userInput');assert.equal(header.startedAt,1700000000000);assert.equal(header.activeMs,undefined);assert.equal(header.endedAt,undefined);assert.equal(initial.inputRouting.mode,'guide');assert.equal(initial.config.followupMode,'guide');
+ assert.equal(header.kind,'turnHeader');assert.equal(header.origin,'userInput');assert.equal(header.startedAt,1700000000000);assert.equal(header.activeMs,undefined);assert.equal(header.endedAt,undefined);assert.equal(initial.inputRouting.mode,'enqueue');assert.equal(initial.config.followupMode,'queue');
  Object.assign(page.turns[0],{status:'completed',completedAt:1700000005,durationMs:4500});page.activeTurn=null;page.queue={items:[{id:'q',text:'pending'}]};
  const done=projectConversationV4(page,{writable:true});assert.deepEqual(done.rows.window.map(r=>[r.rowId,r.entityId]),initial.rows.window.map(r=>[r.rowId,r.entityId]));
  assert.equal(done.rows.window[0].activeMs,4500);assert.equal(done.rows.window[0].endedAt,1700000005000);assert.equal(done.rows.window[0].state,'completedSuccess');assert.equal(done.inputRouting.mode,'enqueue');

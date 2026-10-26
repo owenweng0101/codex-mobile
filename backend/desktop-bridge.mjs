@@ -374,7 +374,7 @@ export class DesktopBridge extends EventEmitter {
     const requestId=options.requestId||randomUUID();
     return this.onceMutation(`steer:${threadId}:${requestId}`,async()=>{
       const state=await this.snapshot(threadId);if(!state)throw bridgeError('此会话尚未由 Codex 桌面打开','DESKTOP_NO_OWNER');
-      const active=desktopHistory(state).activeTurn;if(!active)throw new Error('当前任务已结束，请重新发送');
+      const active=desktopHistory(state).activeTurn;if(!active)throw Object.assign(new Error('当前任务已结束，本次尚未插入'),{code:'TURN_ENDED',sent:false});
       const result=await this.follower(threadId,'thread-follower-steer-turn',{input:normalizeDesktopInput(options.input),clientUserMessageId:requestId,restoreMessage:{text:options.input.filter(i=>i.type==='text').map(i=>i.text).join('\n'),cwd:state.cwd,context:{workspaceRoots:state.cwd?[state.cwd]:[],collaborationMode:state.latestCollaborationMode,fileAttachments:[],pastedTextAttachments:[],uploadedFileAttachments:[],addedFiles:[],commentAttachments:[]}},...(options.serviceTier!==undefined?{serviceTier:options.serviceTier}:{}),attachments:[]},{mutation:true,timeout:120000});
       if(typeof result?.result?.turn?.id==='string'&&result.result.turn.id)return result.result;
       if(typeof result?.result?.turnId==='string'&&result.result.turnId)return {turnId:result.result.turnId};

@@ -42,3 +42,5 @@ test('send now uses steer for an active turn without changing queue pause', asyn
     await assert.rejects(queue.enqueue('__proto__', { requestId: 'x', text: 'x' }), /无效/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+for(const unknown of [false,true])test('send now falls back only when the active turn ended with definite non-delivery, unknown='+unknown,async t=>{const dir=await mkdtemp(join(tmpdir(),'codex-queue-race-'));t.after(()=>rm(dir,{recursive:true,force:true}));const calls=[],queue=await new MessageQueue({stateDir:dir,isActive:()=>true,send:async(data,{steer})=>{calls.push({requestId:data.requestId,steer});if(steer)throw Object.assign(Error('ended'),{code:'TURN_ENDED',sent:false,outcomeUnknown:unknown});}}).init();await queue.enqueue('task',{requestId:'same-request',text:'next'});await queue.handle('task',{action:'sendNow',id:'same-request'});assert.equal(calls.length,unknown?1:2);assert(calls.every(c=>c.requestId==='same-request'));assert.deepEqual(queue.get('task').items.map(i=>i.status),unknown?['uncertain']:[]);if(!unknown)assert.equal(calls[1].steer,false);});

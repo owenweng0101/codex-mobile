@@ -54,7 +54,7 @@ test('strict explicit send can continue an idle thread with an empty paused queu
   assert.equal(result.turn.id,'native-continuation');
   assert.equal(queue.get('fixture-thread').paused,true);
   assert.equal(queue.get('fixture-thread').items.length,0);
-  assert.equal(hasPendingDelivery({...input,delivery:undefined},queue),true);
+  assert.equal(hasPendingDelivery({...input,delivery:undefined},queue),false);
 });
 
 test('late dispatch busy rejection or unknown native receipt never falls back to queue', async () => {
@@ -65,3 +65,5 @@ test('late dispatch busy rejection or unknown native receipt never falls back to
   await assert.rejects(deliverMessage({delivery:'startNow'},dependencies),{code:'DESKTOP_TIMEOUT',outcomeUnknown:true});
   assert.equal(queued,0);
 });
+
+test('automatic admission continues an idle conversation with an empty paused queue without creating a card',async t=>{const stateDir=await mkdtemp(join(tmpdir(),'codex-idle-admission-'));t.after(()=>rm(stateDir,{recursive:true,force:true}));const queue=await new MessageQueue({stateDir,send:async()=>{},isActive:()=>false}).init();await queue.handle('task',{action:'pause'});const input={threadId:'task',requestId:'idle',text:'next'},calls=[];const result=await deliverMessage(input,{receipt:()=>null,prepare:async()=>{},isBusy:data=>hasPendingDelivery(data,queue),enqueue:async()=>assert.fail('must not queue'),dispatch:async data=>{calls.push(data.requestId);return{turn:{id:'next'}};}});assert.equal(result.turn.id,'next');assert.deepEqual(calls,['idle']);assert.equal(queue.get('task').items.length,0);});

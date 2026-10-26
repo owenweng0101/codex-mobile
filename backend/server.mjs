@@ -302,7 +302,7 @@ const pending = (async () => {
   const titleCandidate = autoTitleCandidate({title:thread.name || settings.name,isFirstUserInput:settings.autoTitlePending===true,customTitle:settings.customTitle===true,text:data.text,input,attachments:data.attachments,files:data.files});
   const activeTurnId = desktopActive.get(data.threadId);
   if(!steer&&(activeTurnId || data.delivery === 'startNow' && (core.activeTurns.has(data.threadId) || hasPendingDelivery(data,messageQueue))))throw data.delivery === 'startNow' ? messageBusy() : new Error('接管后的会话正在运行，本次消息尚未发送，请加入发送队列');
-  if (steer && !activeTurnId) throw new Error('当前任务已结束，请重新发送');
+  if (steer && !activeTurnId) throw Object.assign(new Error('当前任务已结束，本次尚未插入'),{code:'TURN_ENDED',sent:false});
   const sandboxPolicy = settings.sandbox === 'danger-full-access' ? { type: 'dangerFullAccess' } : settings.sandbox === 'read-only' ? { type: 'readOnly', networkAccess: true } : settings.sandbox === 'workspace-write' ? { type: 'workspaceWrite', writableRoots: [thread.cwd], networkAccess: true } : null;
   const result = await desktop[steer ? 'steer' : 'send'](data.threadId, { input, requestId: data.requestId, collaborationMode, ...(data.delivery === 'startNow' ? { delivery:'startNow' } : {}), ...(settings.model ? { model: settings.model } : {}), ...(settings.effort ? { effort: settings.effort } : {}), ...(settings.approvalPolicy ? { approvalPolicy: settings.approvalPolicy } : {}), ...(sandboxPolicy ? { sandboxPolicy } : {}) });
   const nativeRunning=!['completed','interrupted','failed'].includes(result.turn?.status);
@@ -583,7 +583,7 @@ const server = http.createServer(async (req, res) => {
           },
           isBusy:value=>turnsStarting.has(value.threadId) || core.activeTurns.has(value.threadId) || desktopActive.has(value.threadId) || hasPendingDelivery(value,messageQueue),
           enqueue:value=>messageQueue.enqueue(value.threadId,value),
-          dispatch:dispatchMessage,
+          dispatch:async value=>{const queue=messageQueue.get(value.threadId);if(queue.paused&&!queue.items.length)await messageQueue.handle(value.threadId,{action:'resume'});return dispatchMessage(value);},
         }));
       }
       if (req.method === 'POST' && pathname === '/api/interrupt') {
