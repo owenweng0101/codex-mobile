@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { TerminalManager } from '../terminal.mjs';
+import { realpath } from 'node:fs/promises';
 
 function fixture(options = {}) {
   const children = [];
@@ -63,7 +64,8 @@ test('live supervisor blocks update even after shell exit or explicit close unti
 test('get-or-create is guarded but reads of existing terminal output remain available during drain', async () => {
   const { manager } = fixture();
   const prepared = manager.prepareUpdate();
-  manager.sessions.set('existing', { id: 'existing', root: '/private/tmp', scope: '/private/tmp', sequence: 1, frames: [{ id: 1, data: 'b2s=' }], exited: false, code: null });
+  const root = await realpath('/tmp');
+  manager.sessions.set('existing', { id: 'existing', root, scope: root, sequence: 1, frames: [{ id: 1, data: 'b2s=' }], exited: false, code: null });
   await assert.rejects(manager.handle('POST', new URLSearchParams(), { action: 'create' }, () => '/tmp'), { code: 'UPDATE_DRAIN_ACTIVE' });
   const result = await manager.handle('GET', new URLSearchParams({ id: 'existing', wait: '0' }), {}, () => '/tmp');
   assert.equal(result.frames[0].data, 'b2s=');
