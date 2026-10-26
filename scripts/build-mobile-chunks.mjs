@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {brotliCompressSync,constants,gzipSync} from 'node:zlib';
 import {inlineInputEdits} from '../adapter/frontend-stage/build-inline-inputs.mjs';
+import {scrollAnchorEdits} from '../adapter/frontend-stage/build-scroll-anchor.mjs';
 import {applyMobileSplit,bundleSha as sha} from '../adapter/frontend-stage/mobile-split-rebuild.mjs';
 const root=path.resolve(import.meta.dirname,'..'),frontend=path.join(root,'adapter/frontend-stage');
 const assets=path.join(root,'vendor/zcode-web/remote/v4/3.16.3/assets'),mainPath=path.join(frontend,'assets/index-BsmXQHMM.js');
@@ -147,6 +148,7 @@ for(const[name,code]of outputs){
 // separately recorded stage intentionally changes input presentation and exact
 // command-ID reconciliation; its slices and output are covered by replay tests.
 applyStage('inline-mobile-inputs',inlineInputEdits(source));
+applyStage('mobile-history-scroll-anchor',scrollAnchorEdits(source));
 const split={schema:1,basePatchCount,inputSha256:sha(initial),outputSha256:sha(source),offsets:'UTF-16 [start,end)',stages,assets:[...outputs].map(([name,code])=>({name,sha256:sha(code),bytes:Buffer.byteLength(code)})),proofs};
 assert.equal(applyMobileSplit(initial,split),source,'Pure rebuild mismatch');
 manifest.mobileSplit=split;manifest.compatSHA256=sha(source);

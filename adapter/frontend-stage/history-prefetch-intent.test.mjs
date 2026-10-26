@@ -23,7 +23,7 @@ function harness(source=bundle,{scrollTop=0,lastTop=scrollTop,height=752,content
  const element={scrollTop,clientHeight:height,scrollHeight:contentHeight,dispatchEvent(event){assert.equal(event.type,'scroll');scroll();}};
  const state={B:{current:element},Me:{current:programmatic?1:null},Ve:{current:lastTop},Ie:{current:layout?20000:0},Ne:{current:{intent:'none',observedAt:0}},Re:{current:false},Be:{current:null},Le:{current:false},je:{current:true},Ue:{current:null},
   Ae:{current:{canLoadOlder,loadingOlder,onLoadOlder(){calls++;}}},
-  dt:{getVirtualItemForOffset:()=>({index:0,key:'row:500',start:900})},be:{current:[{key:'row:500'}]},
+  __codexIsMobile:()=>false,dt:{getVirtualItemForOffset:()=>({index:0,key:'row:500',start:900})},be:{current:[{key:'row:500'}]},
   _t(){},At(){},Lt(){},Bbn:()=>false,Date:{now:()=>10000},J:{debug(){}},Event:class{constructor(type){this.type=type;}}};
  state.yt=()=>state.Ne.current.intent;
  const context=vm.createContext(state);
