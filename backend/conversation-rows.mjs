@@ -33,7 +33,7 @@ export function projectConversationRows(page,{rowOffset=0,includeTurnHeader=true
     const images=itemImages(page,turn,item),attachments=images.map((image,index)=>({ref:image.url,fileName:attachmentName(image.name,index),mime:'image/*',bytes:0}));
     // Original V4 requires mime/bytes. A generic image MIME and zero denote
     // unknown metadata; the authenticated image response supplies its real type.
-    rows.push({...common(),kind:'userInput',entityId:item.id,origin:'realUser',text:text(item,images),...(attachments.length?{attachments}:{})});
+    rows.push({...common(),kind:'userInput',entityId:item.id,origin:'realUser',text:text(item,images),...(/^zcv4_[a-f0-9]{48}(?:_input)?$/.test(item.clientUserMessageId||'')?{sourceCommandId:item.clientUserMessageId}:{}),...(attachments.length?{attachments}:{})});
    }
    else if(item.type==='agentMessage'||item.type==='plan')rows.push({...common(),kind:'assistantText',entityId:item.id,text:projectAssistantText(item,itemImages(page,turn,item)),state:state==='running'?'streaming':state==='completedInterrupted'?'interrupted':state==='error'&&item.phase!=='commentary'?'failed':'complete',...(thread.model?{model:thread.model}:{})});
    else if(item.type==='reasoning'){

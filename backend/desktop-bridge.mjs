@@ -83,15 +83,16 @@ function normalizeTurn(turn, index) {
   const requestId=typeof turn.params?.clientUserMessageId==='string'&&turn.params.clientUserMessageId?turn.params.clientUserMessageId:null;
   const steeringIds=new Set((turn.items||[]).filter(item=>item.type==='steeringUserMessage').flatMap(item=>[item.id,item.serverUserMessageId]).filter(Boolean));
   const initialUser=(turn.items||[]).find(item=>item.type==='userMessage'&&!steeringIds.has(item.id));
+  const steeringRequests=new Map((turn.items||[]).filter(item=>item.type==='steeringUserMessage'&&typeof item.serverUserMessageId==='string'&&/^zcv4_[a-f0-9]{48}$/.test(item.clientUserMessageId||item.id||'')).map(item=>[item.serverUserMessageId,item.clientUserMessageId||item.id]));
   const serverUserIds = new Set((turn.items || []).filter(i => i.type === 'userMessage').map(i => i.id));
   for (const item of turn.items || []) {
     if (item.type === 'steeringUserMessage') {
-      if (item.status !== 'failed' && !serverUserIds.has(item.serverUserMessageId)) items.push({ id: item.serverUserMessageId || item.id, type: 'userMessage', content: item.input || [] });
+      if (item.status !== 'failed' && !serverUserIds.has(item.serverUserMessageId)) items.push({ id: item.serverUserMessageId || item.id, type: 'userMessage', content: item.input || [], ...(/^zcv4_[a-f0-9]{48}$/.test(item.clientUserMessageId||item.id||'')?{clientUserMessageId:item.clientUserMessageId||item.id}:{}) });
     } else if (item.type === 'subAgentActivity') {
       items.push({ id: item.id, type: 'collabAgentToolCall', tool: '子任务', status: item.kind === 'started' ? 'inProgress' : 'completed', agentsStates: item.agentThreadId ? { [item.agentThreadId]: { status: item.kind === 'started' ? 'running' : item.kind } } : {} });
     } else if (item.type === 'error') {
       // Turn-level error is retained below; do not emit internal protocol rows.
-    } else if (['userMessage','agentMessage','imageGeneration','reasoning','commandExecution','fileChange','mcpToolCall','dynamicToolCall','webSearch','collabAgentToolCall','plan','contextCompaction'].includes(item.type)) items.push(item===initialUser&&requestId&&input.length&&!item.clientUserMessageId?{...item,clientUserMessageId:requestId}:item);
+    } else if (['userMessage','agentMessage','imageGeneration','reasoning','commandExecution','fileChange','mcpToolCall','dynamicToolCall','webSearch','collabAgentToolCall','plan','contextCompaction'].includes(item.type)) items.push(item.type==='userMessage'&&steeringRequests.has(item.id)?{...item,clientUserMessageId:steeringRequests.get(item.id)}:item===initialUser&&requestId&&input.length&&!item.clientUserMessageId?{...item,clientUserMessageId:requestId}:item);
   }
   if ((!items.some(i => i.type === 'userMessage')||requestId&&!initialUser) && input.length) items.unshift({ id: requestId || `desktop-input-${turn.turnId || index}`, type: 'userMessage', content: input, ...(requestId?{clientUserMessageId:requestId}:{}) });
   return { id: turn.turnId || turn.params?.clientUserMessageId || `desktop-turn-${index}`, status: turn.status || 'completed', items, error: turn.error || null, startedAt: turn.turnStartedAtMs ? turn.turnStartedAtMs / 1000 : null, completedAt: turn.durationMs != null && turn.turnStartedAtMs ? (turn.turnStartedAtMs + turn.durationMs) / 1000 : null, durationMs: turn.durationMs ?? null };

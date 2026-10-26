@@ -145,17 +145,22 @@ test('automatic appends use pending timeline messages and retain failed or exter
  const complete=current('sending');complete.queue.items=[];
  assert.equal(projectConversationV4(complete,{writable:true}).queue.items.length,0);
 });
-test('original ZCode renderer places automatic append in conversation, not editable queue bar',async()=>{
+test('Codex renderer keeps every delivery state inline while other hosts retain queue controls',async()=>{
  const {readFile}=await import('node:fs/promises');
  const {runInNewContext}=await import('node:vm');
  const bundle=await readFile(new URL('./assets/index-BsmXQHMM.js',import.meta.url),'utf8');
  const start=bundle.indexOf('function Y8t('),end=bundle.indexOf('var X8t=',start);
  assert(start>=0&&end>start);
- const split=runInNewContext(bundle.slice(start,end)+';Y8t');
+ const split=runInNewContext(bundle.slice(start,end)+';Y8t',{__codexIsMobile:()=>true});
  const requestId='zcv4_'+'b'.repeat(48);
  const snapshot=projectConversationV4({...page,activeTurn:'turn1',queue:{items:[{id:requestId,status:'sending',text:'追加正文',createdAt:1234}]}},{writable:true});
  const view=split(snapshot.queue);
  assert.equal(view.visibleQueue.items.length,0);
  assert.equal(view.pendingGuides.length,1);
  assert.equal(view.pendingGuides[0].text,'追加正文');
+ const waiting={...snapshot.queue,autoDrain:false,items:[{...snapshot.queue.items[0],delivery:{requested:'auto',admitted:'queue'}}]};
+ assert.equal(split(waiting).visibleQueue.items.length,0);
+ assert.equal(split(waiting).pendingGuides.length,1);
+ const original=runInNewContext(bundle.slice(start,end)+';Y8t',{__codexIsMobile:()=>false});
+ assert.equal(original(waiting).visibleQueue.items.length,1);
 });
