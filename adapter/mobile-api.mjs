@@ -1,4 +1,5 @@
 import {Readable} from 'node:stream';
+import {pipeline} from 'node:stream/promises';
 import {digest} from './write-services/ledger.mjs';
 import {createImagePreview} from './mobile-image.mjs';
 import {createWriteServices} from './write-services/index.mjs';
@@ -20,8 +21,29 @@ const workspacePath=value=>{if(typeof value!=='string'||!value.startsWith('/')||
 const unknown=id=>Object.assign(Error('原操作的结果正在核对，请查看该会话，不要重复新建或发送。'),{statusCode:409,code:'NATIVE_OUTCOME_UNKNOWN',outcomeUnknown:true,...(id?{threadId:id}:{})});
 const queueTypes={sendNow:'sendQueuedNow',delete:'deleteQueueItem',edit:'editQueueItem',resume:'setAutoDrain',pause:'setAutoDrain'};
 
-export function createMobileApi({api,baseServices,ledgerDir,uploads,resolveAttachment,modelSelections,conversationWorkspacePath}={}){
+export function createMobileApi({api,baseServices,ledgerDir,uploads,resolveAttachment,modelSelections,conversationWorkspacePath,imagePreview=createImagePreview,imageTimeoutMs=18000,imageIdleTimeoutMs=20000}={}){
+ // Finish before the ingress's 20-second inactive-upstream timeout.
+ if(!Number.isSafeInteger(imageTimeoutMs)||imageTimeoutMs<1||imageTimeoutMs>19000)throw Error('Image timeout exceeds its budget');
+ if(!Number.isSafeInteger(imageIdleTimeoutMs)||imageIdleTimeoutMs<1||imageIdleTimeoutMs>20000)throw Error('Image idle timeout exceeds its budget');
  const writes=createWriteServices({api,baseServices,ledgerDir,resolveAttachment,modelSelections,autoSteerActive:true});
+ // Images on one page share only the in-flight history authorization read.
+ // Each response can cancel independently; the last consumer aborts native work.
+ const imageHistoryReads=new Map();
+ function imageHistory(path,signal){
+  signal.throwIfAborted();let entry=imageHistoryReads.get(path);
+  if(!entry){
+   const controller=new AbortController();entry={controller,consumers:0,pending:true};
+   entry.promise=Promise.resolve().then(()=>{controller.signal.throwIfAborted();return api.get(path,{signal:controller.signal});});
+   if(imageHistoryReads.size<32)imageHistoryReads.set(path,entry);
+   const done=()=>{entry.pending=false;if(imageHistoryReads.get(path)===entry)imageHistoryReads.delete(path);};entry.promise.then(done,done);
+  }
+  entry.consumers++;
+  let cancelled;const aborted=new Promise((_,reject)=>{cancelled=()=>reject(signal.reason);signal.addEventListener('abort',cancelled,{once:true});});
+  return Promise.race([entry.promise,aborted]).finally(()=>{
+   signal.removeEventListener('abort',cancelled);entry.consumers--;
+   if(!entry.consumers&&entry.pending){if(imageHistoryReads.get(path)===entry)imageHistoryReads.delete(path);entry.controller.abort();}
+  });
+ }
  // Cache whole projected pages, never shortened messages or a truncated timeline.
  const snapshots=new Map();let snapshotBytes=0;
  function historyResponse(page,{cursor,since}){
@@ -216,27 +238,47 @@ export function createMobileApi({api,baseServices,ledgerDir,uploads,resolveAttac
     return json(res,200,historyResponse(page,{cursor,since}));
    }
    if(req.method==='GET'&&path==='/mobile/api/image'){
-    const id=threadId(url.searchParams.get('threadId')),cursor=url.searchParams.get('cursor');
-    if(cursor&&cursor.length>4000)throw fault('历史游标无效');
-    const page=await api.get('/api/history?threadId='+encodeURIComponent(id)+(cursor?'&cursor='+encodeURIComponent(cursor):''));
-    const query=new URLSearchParams(url.searchParams);const preview=query.get('preview')==='1';if(query.has('preview')&&(query.getAll('preview').length!==1||!preview))throw fault('图片预览参数无效');query.delete('preview');
-    const resource=resolveMobileImagePath(page,query);
-    if(!api.bearer)await api.credentials();
-    const upstream=await api.fetch(api.origin+resource,{headers:{authorization:'Bearer '+api.bearer},redirect:'error',signal:AbortSignal.timeout(20000)});
-    if(!upstream.ok)throw fault('图片暂时无法读取',upstream.status);
-    const contentType=upstream.headers.get('content-type')||'';
-    if(!/^image\/(png|jpeg|gif|webp|avif|bmp)(?:;|$)/i.test(contentType))throw fault('不支持此图片格式',415);
-    const length=Number(upstream.headers.get('content-length'));
-    if(preview&&length>128*1024&&length<=20*1024*1024){
-     const value=await createImagePreview(Buffer.from(await upstream.arrayBuffer()),contentType);
-     res.writeHead(200,{'content-type':value.contentType,'content-length':value.bytes.length,'cache-control':'private, max-age=300','x-content-type-options':'nosniff'});res.end(value.bytes);return;
-    }
-    res.writeHead(200,{'content-type':contentType,'cache-control':'private, max-age=300','x-content-type-options':'nosniff','referrer-policy':'no-referrer'});
-    const stream=Readable.fromWeb(upstream.body);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);return;
+    const controller=new AbortController(),closed=()=>{if(!res.writableFinished)controller.abort(fault('图片请求已结束',499,'IMAGE_CANCELLED'));};
+    const timer=setTimeout(()=>controller.abort(fault('图片读取超时，请重试',504,'MOBILE_IMAGE_TIMEOUT')),imageTimeoutMs);
+    let rejectAbort,stopIdle=()=>{};const aborted=new Promise((_,reject)=>{rejectAbort=()=>reject(controller.signal.reason);controller.signal.addEventListener('abort',rejectAbort,{once:true});});
+    res.once('close',closed);
+    try{return await Promise.race([aborted,(async()=>{
+     const signal=controller.signal,id=threadId(url.searchParams.get('threadId')),cursor=url.searchParams.get('cursor');
+     if(cursor&&cursor.length>4000)throw fault('历史游标无效');
+     const page=await imageHistory('/api/history?threadId='+encodeURIComponent(id)+(cursor?'&cursor='+encodeURIComponent(cursor):''),signal);signal.throwIfAborted();
+     const query=new URLSearchParams(url.searchParams);const preview=query.get('preview')==='1';if(query.has('preview')&&(query.getAll('preview').length!==1||!preview))throw fault('图片预览参数无效');query.delete('preview');
+     const resource=resolveMobileImagePath(page,query);
+     if(!api.bearer)await api.credentials();signal.throwIfAborted();
+     const upstream=await api.fetch(api.origin+resource,{headers:{authorization:'Bearer '+api.bearer},redirect:'error',signal});signal.throwIfAborted();
+     if(!upstream.ok)throw fault('图片暂时无法读取',upstream.status);
+     const contentType=upstream.headers.get('content-type')||'';
+     if(!/^image\/(png|jpeg|gif|webp|avif|bmp)(?:;|$)/i.test(contentType))throw fault('不支持此图片格式',415);
+     const length=Number(upstream.headers.get('content-length'));
+     if(preview&&length<=20*1024*1024){
+      // Chunked responses have no Content-Length. Still produce their preview,
+      // with a strict buffer budget rather than silently forwarding the original.
+      const chunks=[];let bytes=0;
+      for await(const chunk of upstream.body){signal.throwIfAborted();bytes+=chunk.length;if(bytes>20*1024*1024)throw fault('图片超过预览大小限制',413,'MOBILE_IMAGE_TOO_LARGE');chunks.push(chunk);}
+      signal.throwIfAborted();const value=await imagePreview(Buffer.concat(chunks,bytes),contentType);signal.throwIfAborted();
+      res.writeHead(200,{'content-type':value.contentType,'content-length':value.bytes.length,'cache-control':'private, max-age=300','x-content-type-options':'nosniff'});res.end(value.bytes);return;
+     }
+     // Original-image delivery can legitimately take longer on a slow phone.
+     // Bound idle time after headers, rather than the total download duration.
+     clearTimeout(timer);
+     // Node's socket idle timer also observes native write-queue progress, so
+     // even one large write can keep progressing under downstream backpressure.
+     const idle=()=>controller.abort(fault('图片传输暂时中断，请重试',504,'MOBILE_IMAGE_IDLE_TIMEOUT'));
+     res.setTimeout(imageIdleTimeoutMs,idle);
+     // HTTP owns the socket's keepalive timeout after finish; do not reset it.
+     stopIdle=()=>res.off('timeout',idle);
+     res.writeHead(200,{'content-type':contentType,'cache-control':'private, max-age=300','x-content-type-options':'nosniff','referrer-policy':'no-referrer'});
+     try{await pipeline(Readable.fromWeb(upstream.body),res,{signal});}finally{stopIdle();}
+    })()]);}finally{clearTimeout(timer);stopIdle();res.off('close',closed);controller.signal.removeEventListener('abort',rejectAbort);if(!res.writableEnded&&!controller.signal.aborted)controller.abort();}
    }
    if(req.method==='POST'&&['/mobile/api/create','/mobile/api/message'].includes(path))return json(res,200,await write(path.endsWith('/create')?'createSession':'sendText',await body(req)));
    return json(res,404,{error:'没有这个手机接口'});
   }catch(error){
+   if(res.destroyed||res.writableEnded)return;
    if(res.headersSent){res.destroy();return;}
    const status=error.statusCode||(error.outcomeUnknown||['NATIVE_OUTCOME_UNKNOWN','COMMAND_ID_COLLISION','COMMAND_LOCKED','CODEX_ATTACHMENT_CONFLICT'].includes(error.code)?409:error.code==='CODEX_ATTACHMENT_SCOPE'?403:error.code==='CODEX_ATTACHMENT_NOT_FOUND'||error.code==='QUEUE_ITEM_MISSING'?404:error.code==='CODEX_ATTACHMENT_BUSY'?429:400);
    return json(res,status,{error:error.message,code:error.code||'MOBILE_OPERATION_FAILED',...(error.sent===false?{sent:false}:{}),...(error.outcomeUnknown?{outcomeUnknown:true}:{}),...((error.threadId||error.nativeId)?{threadId:error.threadId||error.nativeId,recoverable:true}:{})});

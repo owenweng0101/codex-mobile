@@ -65,7 +65,7 @@ test('only cpolar HTTPS endpoints are extracted, not dashboard/help or random ex
 });
 test('a live HTTPS page is insufficient: verification checks exact local instance and binary round-trip',{timeout:3000},async()=>{
  await assert.rejects(verifyPublic(origin,'ours',{fetchImpl:async()=>({ok:true,json:async()=>({service:'codex-cpolar-ingress',instance:'wrong'})})}),/Wrong/);
- let sends=0;assert.equal(await verifyPublic(origin,'ours',{fetchImpl:async()=>({ok:true,json:async()=>({service:'codex-cpolar-ingress',instance:'ours'})}),wsConnect:()=>{const ws=new EventEmitter();ws.terminate=()=>{};ws.send=bytes=>{sends++;queueMicrotask(()=>ws.emit('message',bytes));};queueMicrotask(()=>ws.emit('open'));return ws;}}),true);assert.equal(sends,1);
+ let sends=0;assert.equal(await verifyPublic(origin,'ours',{fetchImpl:async()=>({ok:true,json:async()=>({service:'codex-cpolar-ingress',instance:'ours'})}),wsConnect:(_url,options)=>{assert.equal(options.perMessageDeflate,false);const ws=new EventEmitter();ws.terminate=()=>{};ws.send=bytes=>{sends++;queueMicrotask(()=>ws.emit('message',bytes));};queueMicrotask(()=>ws.emit('open'));return ws;}}),true);assert.equal(sends,1);
 });
 test('reconnect hides stale QR, scopes China region, disables inspection and restarts only owned child',{timeout:3000},async()=>{
  const children=[],seen=[],args=[];let healthy=true;

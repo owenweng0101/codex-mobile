@@ -1,4 +1,5 @@
 import {Emitter} from '../vendor/rpc.mjs';
+import {INVALIDATE_READS} from './shared-reads.mjs';
 
 const taskMethods=new Map([
   ['onDynamicTaskEvent','task'],['onDynamicStreamEvent','stream'],
@@ -44,7 +45,8 @@ export function wrapReadEvents(input,{api,pollMs=1000,autoStart=true,useLongPoll
       else if(record.kind==='changed'&&(reset||catalogSource))record.emitter.fire(list);
     }
   }
-  function emitCatalog(source){
+  function emitCatalog(source,invalidate=true){
+    if(invalidate)api[INVALIDATE_READS]?.({catalog:true});
     const payload={channel:'state:projects',payload:{source:'codex-app',method:source?.method||'bridge/eventsReset'}};
     for(const record of active){if(record.kind==='broadcast')record.emitter.fire(payload);else if(record.kind==='project')record.emitter.fire(payload.payload);}
     changes.fire(payload.payload);
@@ -57,9 +59,11 @@ export function wrapReadEvents(input,{api,pollMs=1000,autoStart=true,useLongPoll
     if(sequence===null){sequence=page.sequence;epoch=page.epoch;state.connected=true;state.sequence=sequence;state.epoch=epoch;state.lastError=null;return;}
     const reset=page.reset||epoch!==page.epoch;
     const fresh=page.events.filter(value=>Number.isSafeInteger(value.id)&&value.id>sequence);
+    // Readers after an event must not join a GET begun before that event.
+    if(reset||fresh.length)api[INVALIDATE_READS]?.({catalog:reset||fresh.some(source=>catalogMethods.has(source.method))});
     if(reset){
       metadata.clear();const ids=[...active].map(value=>targetId(value.params)).filter(Boolean);await refreshMetadata(ids,signal);
-      if(disposed)return;for(const id of new Set(ids))emitSnapshot(id,null,true);emitCatalog(null);
+      if(disposed)return;for(const id of new Set(ids))emitSnapshot(id,null,true);emitCatalog(null,false);
     }else{
       const changed=new Map(),catalogSources=new Map();let catalogSource=null;
       const snapshotIds=new Set([...active].filter(record=>record.kind==='task'||record.kind==='stream').map(record=>targetId(record.params)));
@@ -77,7 +81,7 @@ export function wrapReadEvents(input,{api,pollMs=1000,autoStart=true,useLongPoll
         const id=source.params?.threadId,status=source.params?.turn?.status;if(status!=='completed'&&status!=='failed')continue;
         for(const record of active)if(record.kind==='terminal'&&targetId(record.params)===id)record.emitter.fire({taskId:id,outcome:status==='completed'?'succeeded':'failed'});
       }
-      if(catalogSource)emitCatalog(catalogSource);
+      if(catalogSource)emitCatalog(catalogSource,false);
     }
     sequence=page.sequence;epoch=page.epoch;state.connected=true;state.sequence=sequence;state.epoch=epoch;state.lastError=null;
   }

@@ -5,6 +5,7 @@ import {homedir} from 'node:os';
 import {randomBytes,createHash} from 'node:crypto';
 import {createAttachmentUploadServices} from './attachment-upload.mjs';
 import {CodexWriteClient} from './write-client.mjs';
+import {shareReadApi} from './read-services/shared-reads.mjs';
 import {createWriteServices} from './write-services/index.mjs';
 import {ModelSelections} from './write-services/model-selections.mjs';
 import {createMobileApi} from './mobile-api.mjs';
@@ -24,7 +25,7 @@ const web=resolve(root,'../vendor/zcode-web');
 const stateDir=process.env.CODEX_MOBILE_ADAPTER_STATE_DIR||join(homedir(),'Library/Application Support/ZCodeCodexBridge');
 await mkdir(stateDir,{recursive:true,mode:0o700});
 let token;try{token=(await readFile(join(stateDir,'pair-token'),'utf8')).trim();if(!/^[A-Za-z0-9_-]{43}$/.test(token))throw Error();}catch{token=randomBytes(32).toString('base64url');await writeFile(join(stateDir,'pair-token'),token,{mode:0o600});}
-const pairing=new Pairing({token}),api=new CodexWriteClient(),calls=[],modelSelections=new ModelSelections(stateDir);
+const pairing=new Pairing({token}),api=shareReadApi(new CodexWriteClient()),calls=[],modelSelections=new ModelSelections(stateDir);
 const {createReadServices}=await import('./read-services/index.mjs');
 const {createPlatformServices}=await import('./frontend-stage/platform-services.mjs');
 const sharedServices={...await createPlatformServices({api,stateDir}),...await createReadServices({api})};
@@ -49,7 +50,7 @@ function createConnection(){
   const controller=wrapReadControllers(supported,{api});
   const readEvents=wrapReadEvents(controller.channels,{api,pollMs:250,useLongPolling:true});
   const controllerChanges=readEvents.changes(()=>controller.refresh().catch(()=>{}));
-  const conversations=createConversationReadServices({deferInitialFrame:true,api,baseServices:readEvents.channels,eventAdapter:readEvents,writable:true,modelSelections,resolveAttachment});
+  const conversations=createConversationReadServices({indexedHistory:true,deferInitialFrame:true,api,baseServices:readEvents.channels,eventAdapter:readEvents,writable:true,modelSelections,resolveAttachment});
   const writes=createWriteServices({autoSteerActive:true,api,baseServices:conversations.channels,ledgerDir:join(stateDir,'commands'),modelSelections,resolveAttachment,revisionGuard:params=>conversations.validateRevision(params),onChanged:async params=>{await sharedServices.project.readTree({refresh:true});await readEvents.pollNow();await conversations.refreshWorkspace(params);}});
   return{services:rejectMissingChannels(writes.channels),dispose(){conversations.dispose();controllerChanges.dispose();readEvents.dispose();controller.dispose();}};
 }
@@ -90,6 +91,7 @@ const server=createServer(async(req,res)=>{
       if(!html.includes(expected))throw Error('原版入口结构发生变化');
       bytes=Buffer.from(html.replace(expected,'<script type="module" crossorigin src="/codex-entry.mjs"></script>'));type=types['.html'];
     }else if(url.pathname==='/codex-entry.mjs'){path=join(root,'codex-entry.mjs');}
+    else if(url.pathname==='/mobile-connection.mjs'){path=join(root,'mobile-connection.mjs');}
     else if(url.pathname==='/codex-browser-adapter.mjs'){path=join(root,'frontend-stage/browser-adapter.mjs');}
     else if(url.pathname==='/remote/v4/3.16.3/assets/IntlProvider-itolvRb2.js'){path=join(root,'frontend-stage/assets/IntlProvider-itolvRb2.js');}
     else if(url.pathname==='/remote/v4/3.16.3/assets/index-BsmXQHMM.js'){path=join(root,'frontend-stage/assets/index-BsmXQHMM.js');}

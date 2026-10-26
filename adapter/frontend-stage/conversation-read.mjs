@@ -2,26 +2,12 @@ import {createHash,randomUUID} from 'node:crypto';
 import {Emitter} from '../vendor/rpc.mjs';
 import {M as snapshotSchema,u as indexSnapshotSchema} from '../../vendor/zcode-web/remote/v4/3.16.3/assets/validation-B6yV_dPD.js';
 import {w as frameSchema,O as indexFrameSchema} from '../../vendor/zcode-web/remote/v4/3.16.3/assets/parts-BD-IKHpw.js';
-import {projectMobileHistory,resolveMobileImagePath,projectAssistantText} from '../mobile-history.mjs';
+import {resolveMobileImagePath} from '../mobile-history.mjs';
+import {projectConversationRows,phase,attachmentName} from '../../backend/conversation-rows.mjs';
 import {createImagePreview} from '../mobile-image.mjs';
 const unavailable=method=>Object.assign(new Error('Codex 只读适配器未开放 '+method),{code:'CODEX_READ_ONLY_METHOD_UNAVAILABLE'});
 const denied={allowed:false,reasonCode:'codex.adapter.readOnly'};
 const time=v=>Number.isFinite(v)?v<1e11?Math.round(v*1000):Math.round(v):0;
-function imageKey(value){
- const reference=value?.reference;
- if(reference)return JSON.stringify([reference.threadId,reference.turnId,reference.itemId,String(reference.index)]);
- const source=value?.url??value?.ref;if(typeof source!=='string'||!source.startsWith('/'))return null;
- try{const params=new URL(source,'http://codex.invalid').searchParams;if(params.has('attachmentId')||params.has('id'))return'attachment:'+(params.get('attachmentId')||params.get('id'));if(['threadId','turnId','itemId','index'].every(key=>params.has(key)))return JSON.stringify(['threadId','turnId','itemId','index'].map(key=>params.get(key)));}catch{}
- return null;
-}
-const text=(item,images=[])=>{const represented=new Set(images.map(imageKey).filter(Boolean));return(item.content||[]).map(x=>x.type==='text'?x.text||'':represented.has(imageKey(x))?'':['image','localImage','local_image'].includes(x.type)?'[图片]':x.type==='attachment'?'[附件：'+(x.name||'文件')+']':'').filter(Boolean).join('\n');};
-function itemImages(page,turn,item){
- // Reuse the image proxy's exact native-reference validation. Rows carry only
- // a same-origin authenticated URL, never image bytes or a local file path.
- return projectMobileHistory({thread:page.thread,turns:[{id:turn.id,items:[item.phase==='commentary'?{...item,phase:undefined}:item]}]},{cursor:page.imageCursors?.[turn.id]}).messages.flatMap(message=>message.images);
-}
-const attachmentName=(name,index)=>typeof name==='string'&&name.split(/[\\/]/).at(-1)?.trim()?name.split(/[\\/]/).at(-1).replace(/[\u0000-\u001f]/g,'').slice(0,150):'图片 '+(index+1);
-const phase=turn=>turn?.status==='inProgress'?'running':turn?.status==='failed'?'error':turn?.status==='interrupted'?'completedInterrupted':turn?.status==='completed'?'completedSuccess':'draft';
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const stateKeys=new Set(Object.keys(frameSchema.shape.payload.options.find(option=>option.shape.deltas).shape.deltas.element.options.find(option=>option.shape.op.value==='state.updated').shape.patch.shape));
@@ -48,39 +34,8 @@ function conversationDeltas(previous,next){
 }
 /** Protocol translation only. Original UI, logical frame validation and replay
  * remain original ZCode code. No model/command execution is reachable here. */
-export function projectConversationV4(page,{logEpoch='codex-'+hash(page),seq=0,writable=false,selection=null}={}){
- const thread=page.thread,rows=[];let rowId=0;
- for(const turn of page.turns||[]){
-  const createdAt=time(turn.startedAt),state=phase(turn);
-  const common=()=>({rowId:++rowId,turnId:turn.id,createdAt,createdAtSeq:0});
-  if(Number.isFinite(turn.startedAt)&&turn.startedAt>0&&['running','error','completedInterrupted','completedSuccess'].includes(state)){
-   const startedAt=time(turn.startedAt),endedAt=time(turn.completedAt??turn.endedAt);
-   rows.push({...common(),kind:'turnHeader',entityId:'turn-header:'+turn.id,origin:(turn.items||[]).some(item=>item.type==='userMessage')?'userInput':'backgroundResult',executionKind:'agent',state:state==='error'?'failed':state,startedAt,...(state!=='running'?{...(endedAt>=startedAt?{endedAt}:{}),...(Number.isFinite(turn.durationMs)&&turn.durationMs>=0?{activeMs:turn.durationMs}:{})}:{})});
-  }
-  // A native turn is not necessarily a fresh user request (background turns
-  // exist). Preserve only native message/item rows rather than invent headers.
-  for(const item of turn.items||[]){
-   if(item.type==='userMessage'){
-    const images=itemImages(page,turn,item),attachments=images.map((image,index)=>({ref:image.url,fileName:attachmentName(image.name,index),mime:'image/*',bytes:0}));
-    // Original V4 requires mime/bytes. A generic image MIME and zero denote
-    // unknown metadata; the authenticated image response supplies its real type.
-    rows.push({...common(),kind:'userInput',entityId:item.id,origin:'realUser',text:text(item,images),...(attachments.length?{attachments}:{})});
-   }
-   else if(item.type==='agentMessage'||item.type==='plan')rows.push({...common(),kind:'assistantText',entityId:item.id,text:projectAssistantText(item,itemImages(page,turn,item)),state:state==='running'?'streaming':state==='completedInterrupted'?'interrupted':state==='error'&&item.phase!=='commentary'?'failed':'complete',...(thread.model?{model:thread.model}:{})});
-   else if(item.type==='reasoning'){
-    const value=(item.summary||[]).map(x=>typeof x==='string'?x:x.text||'').filter(Boolean).join('\n');
-    if(value)rows.push({...common(),kind:'reasoning',entityId:item.id,text:value,state:state==='running'?'streaming':state==='completedInterrupted'?'interrupted':'complete'});
-   }else if(item.type==='imageGeneration'){
-    const images=itemImages(page,turn,item);
-    if(images.length)rows.push({...common(),kind:'assistantText',entityId:item.id,text:images.map(image=>'![生成的图片]('+image.url+')').join('\n\n'),state:state==='running'?'streaming':state==='completedInterrupted'?'interrupted':state==='error'?'failed':'complete'});
-   }else if(['commandExecution','fileChange','mcpToolCall','dynamicToolCall','webSearch','collabAgentToolCall','contextCompaction'].includes(item.type)){
-    if(!['inProgress','completed','failed','declined'].includes(item.status))continue;
-    const input=item.type==='commandExecution'?{command:item.command||'',...(item.cwd?{cwd:item.cwd}:{})}:item.type==='fileChange'?{paths:(item.changes||[]).map(x=>x.path)}:item.arguments??item.input??{};
-    const output=item.type==='commandExecution'?item.aggregatedOutput:item.type==='fileChange'?(item.changes||[]).map(x=>x.diff||'').join('\n'):undefined;
-    rows.push({...common(),kind:'toolCall',entityId:item.id,toolCallId:item.id,toolName:item.tool||(item.type==='commandExecution'?'shell':item.type),input,inputText:JSON.stringify(input),status:item.status==='inProgress'?'running':item.status==='failed'||(item.type==='commandExecution'&&Number.isInteger(item.exitCode)&&item.exitCode!==0)?'error':item.status==='declined'?'cancelled':'success',...(typeof output==='string'?{output:{text:output}}:{})});
-   }
-  }
- }
+export function projectConversationV4(page,{logEpoch='codex-'+hash(page),seq=0,writable=false,selection=null,rowWindow,totalCount,firstRowId}={}){
+ const thread=page.thread,rows=rowWindow??projectConversationRows(page);
  const last=page.turns?.at(-1),currentPhase=phase(last);
  const snapshot={protocolVersion:1,sessionId:thread.id,logEpoch,seq,revision:seq,
   control:{phase:currentPhase,sessionEnded:false,canStop:false,stopState:'idle',stopTargetKind:'unknown',activeWorks:[],lastError:null,apiRetry:null},
@@ -91,12 +46,21 @@ export function projectConversationV4(page,{logEpoch='codex-'+hash(page),seq=0,w
   // are only adapter-local (zero); never advertise native token accounting.
   usage:{contextWindow:null,cumulative:{inputTokens:0,outputTokens:0,cacheReadTokens:0,cacheWriteTokens:0}},
   queue:{items:(page.queue?.items||[]).map((item,index)=>({sourceCommandId:item.requestId||item.id,queueItemId:item.id,clientId:'codex-mobile',kind:'sendText',text:item.text||'',...(item.attachments?.length?{attachments:item.attachments.map((id,index)=>({ref:'/api/attachment?id='+id,fileName:attachmentName(null,index),mime:'image/*',bytes:0}))}:{}),delivery:{requested:'auto',admitted:writable&&!page.queue?.paused&&/^zcv4_[a-f0-9]{48}$/.test(item.id||'')&&['queued','sending'].includes(item.status)?'guide':'queue'},order:{admissionSeq:index},steer:{state:'notRequested'},dispatch:{state:item.status==='sending'?'promoting':'queued'},admittedAt:time(item.createdAt)})),autoDrain:!page.queue?.paused,...(page.queue?.paused?{pauseReason:page.queue.error?'error':'manual'}:{})},pendingInteractions:[],pendingCommands:[],backgroundWorks:[],goal:null,plan:null,
-  rows:{window:rows,totalCount:rows.length,firstRowId:rows[0]?.rowId??null}};
+  rows:{window:rows,totalCount:totalCount??rows.length,firstRowId:firstRowId===undefined?(rows[0]?.rowId??null):firstRowId}};
  return snapshotSchema.parse(snapshot);
 }
-export function createConversationReadServices({api,baseServices,maxHistoryPages=30,eventAdapter,writable=false,modelSelections,resolveAttachment,deferInitialFrame=false}={}){
+export function createConversationReadServices({api,baseServices,maxHistoryPages=30,eventAdapter,writable=false,modelSelections,resolveAttachment,deferInitialFrame=false,historyTimeoutMs=30000,mediaTimeoutMs=25000,indexedHistory=false}={}){
  if(!api?.get||!baseServices?.project?.readTree)throw Error('Conversation read adapter needs scoped read services');
- const subscriptions=new Map(),emitters=new Map();let disposed=false;
+ const subscriptions=new Map(),emitters=new Map(),historyPending=new Map(),mediaPending=new Map(),readControllers=new Set();let disposed=false;
+ for(const value of [historyTimeoutMs,mediaTimeoutMs])if(!Number.isSafeInteger(value)||value<1)throw Error('Read timeout must be a positive integer');
+ function boundedRead(work,ms,code){
+  if(disposed)return Promise.reject(Object.assign(new Error('连接已关闭'),{code:'CODEX_CONNECTION_CLOSED'}));
+  const controller=new AbortController();readControllers.add(controller);
+  const timeout=Object.assign(new Error(code==='CODEX_HISTORY_TIMEOUT'?'历史读取超时，请重试':'图片读取超时，请重试'),{code});
+  let timer;const aborted=new Promise((_,reject)=>{controller.signal.addEventListener('abort',()=>reject(controller.signal.reason),{once:true});timer=setTimeout(()=>controller.abort(timeout),ms);});
+  return Promise.race([Promise.resolve().then(()=>work(controller.signal)),aborted]).finally(()=>{clearTimeout(timer);readControllers.delete(controller);});
+ }
+ const historyKey=p=>JSON.stringify([p.workspacePath,p.sessionId]);
  const getEmitter=(kind,p)=>{const key=kind+':'+p.workspacePath;if(!emitters.has(key))emitters.set(key,new Emitter());return emitters.get(key);};
  async function scope(p,session=false){
   if(!p||typeof p.workspacePath!=='string'||p.workspaceIdentity||p.remoteSessionId)throw unavailable('remote workspace');
@@ -113,8 +77,15 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
  // (first) page must stay fresh. Caching older pages keeps refresh/resync from
  // re-reading the whole thread after every change event.
  const historyPages=new Map();
- async function history(p){
-  await scope(p,true);const page=await api.get('/api/history?threadId='+encodeURIComponent(p.sessionId));
+ function history(p,{shareRead=true}={}){
+  const key=historyKey(p);if(shareRead&&historyPending.has(key))return historyPending.get(key);
+  const pending=boundedRead(signal=>readHistory(p,signal),historyTimeoutMs,'CODEX_HISTORY_TIMEOUT');
+  if(shareRead){historyPending.set(key,pending);const done=()=>{if(historyPending.get(key)===pending)historyPending.delete(key);};pending.then(done,done);}
+  return pending;
+ }
+ async function readHistory(p,signal){
+  await scope(p,true);signal.throwIfAborted();const options={signal,shareRead:false};
+  const page=await api.get('/api/history?threadId='+encodeURIComponent(p.sessionId),options);signal.throwIfAborted();
   if(page.thread?.id!==p.sessionId||page.thread.cwd!==p.workspacePath)throw unavailable('conversation scope mismatch');
   let store=historyPages.get(p.sessionId);
   if(!store){store=new Map();historyPages.set(p.sessionId,store);while(historyPages.size>8)historyPages.delete(historyPages.keys().next().value);}
@@ -123,11 +94,11 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
   while(cursor){
    if(reads++>=maxHistoryPages)throw Object.assign(new Error('历史超过只读适配器分页上限'),{code:'CODEX_HISTORY_LIMIT'});
    let older=store.get(cursor);
-   if(!older){older=verify(await api.get('/api/history?threadId='+encodeURIComponent(p.sessionId)+'&cursor='+encodeURIComponent(cursor)));store.set(cursor,older);}
+   if(!older){older=verify(await api.get('/api/history?threadId='+encodeURIComponent(p.sessionId)+'&cursor='+encodeURIComponent(cursor),options));signal.throwIfAborted();if(!disposed)store.set(cursor,older);}
    const fresh=(older.turns||[]).filter(t=>!seen.has(t.id));for(const t of fresh){seen.add(t.id);imageCursors[t.id]=cursor;}turns.unshift(...fresh);
    if(older.nextCursor===cursor)throw Error('Codex history cursor did not advance');cursor=older.nextCursor;
   }
-  return {...page,turns,nextCursor:null,imageCursors};
+  signal.throwIfAborted();return {...page,turns,nextCursor:null,imageCursors};
  }
  // Original H5 renders user-message images through attachmentReadV4 chunked
  // reads ({dataBase64,totalBytes,mediaType,nextOffset}); it never fetches the
@@ -157,24 +128,53 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
   }
   // Cached uploaded bytes never bypass the per-request scope/ref authorization.
   const cached=mediaCache.get(p.ref);if(cached)return cached;
-  if(!api.bearer)await api.credentials();
-  const upstream=await api.fetch(api.origin+backendPath,{headers:{authorization:'Bearer '+api.bearer},redirect:'error',signal:AbortSignal.timeout(20000)});
-  if(!upstream.ok)throw Object.assign(new Error('图片暂时无法读取'),{code:'CODEX_MEDIA_UNAVAILABLE'});
-  const contentType=(upstream.headers.get('content-type')||'').split(';')[0].trim();
-  if(!/^image\/(?:png|jpeg|gif|webp|avif|bmp)$/.test(contentType))throw Object.assign(new Error('不支持此图片格式'),{code:'CODEX_MEDIA_TYPE'});
-  const raw=Buffer.from(await upstream.arrayBuffer());
-  const preview=raw.length>128*1024?await createImagePreview(raw,contentType):{bytes:raw,contentType};
-  const entry={bytes:preview.bytes,mediaType:String(preview.contentType||contentType).split(';')[0]};
-  mediaCache.set(p.ref,entry);while(mediaCache.size>16)mediaCache.delete(mediaCache.keys().next().value);
-  return entry;
+  // Each caller has passed scope/ref authorization before joining in-flight bytes.
+  if(mediaPending.has(p.ref))return mediaPending.get(p.ref);
+  const pending=boundedRead(async signal=>{
+   if(!api.bearer)await api.credentials();signal.throwIfAborted();
+   const upstream=await api.fetch(api.origin+backendPath,{headers:{authorization:'Bearer '+api.bearer},redirect:'error',signal});
+   if(!upstream.ok)throw Object.assign(new Error('图片暂时无法读取'),{code:'CODEX_MEDIA_UNAVAILABLE'});
+   const contentType=(upstream.headers.get('content-type')||'').split(';')[0].trim();
+   if(!/^image\/(?:png|jpeg|gif|webp|avif|bmp)$/.test(contentType))throw Object.assign(new Error('不支持此图片格式'),{code:'CODEX_MEDIA_TYPE'});
+   const raw=Buffer.from(await upstream.arrayBuffer());signal.throwIfAborted();
+   const preview=raw.length>128*1024?await createImagePreview(raw,contentType):{bytes:raw,contentType};signal.throwIfAborted();
+   const entry={bytes:preview.bytes,mediaType:String(preview.contentType||contentType).split(';')[0]};
+   if(!disposed){mediaCache.set(p.ref,entry);while(mediaCache.size>16)mediaCache.delete(mediaCache.keys().next().value);}
+   return entry;
+  },mediaTimeoutMs,'CODEX_MEDIA_TIMEOUT');
+  mediaPending.set(p.ref,pending);const done=()=>{if(mediaPending.get(p.ref)===pending)mediaPending.delete(p.ref);};pending.then(done,done);
+  return pending;
+ }
+ const unavailableWindow=error=>error?.code==='HISTORY_WINDOW_UNSUPPORTED'||[404,405,501].includes(error?.statusCode);
+ function windowPage(p,query={}){
+  return boundedRead(async signal=>{
+   await scope(p,true);signal.throwIfAborted();
+   const params=new URLSearchParams({threadId:p.sessionId,limit:'60'});
+   for(const[key,value]of Object.entries(query))if(value!==undefined)params.set(key,String(value));
+   const page=await api.get('/api/history-window?'+params,{signal,shareRead:false});signal.throwIfAborted();
+   if(page.thread?.id!==p.sessionId||page.thread.cwd!==p.workspacePath||typeof page.sourceEpoch!=='string'||typeof page.revision!=='string'||!page.rows||!Array.isArray(page.rows.window)||!Number.isSafeInteger(page.rows.totalCount)||page.rows.totalCount<0)throw unavailable('invalid indexed history window');
+   return page;
+  },historyTimeoutMs,'CODEX_HISTORY_TIMEOUT');
+ }
+ async function indexedSnapshot(record){
+  let page;
+  try{page=await windowPage(record.params,{fromRowId:record.firstRetainedRowId??undefined,sourceEpoch:record.sourceEpoch});}
+  catch(error){if(error?.code!=='HISTORY_WINDOW_CHANGED')throw error;page=await windowPage(record.params);record.firstRetainedRowId=null;}
+  if(record.sourceEpoch!==undefined&&record.sourceEpoch!==page.sourceEpoch){record.logEpoch='codex-'+randomUUID();record.seq=0;record.firstRetainedRowId=null;}
+  record.sourceEpoch=page.sourceEpoch;record.indexed=true;record.fingerprint=page.revision;
+  return projectConversationV4(page,{logEpoch:record.logEpoch,seq:record.seq+1,writable,selection:await modelSelections?.get(record.params.workspacePath,record.params.sessionId),rowWindow:page.rows.window,totalCount:page.rows.totalCount,firstRowId:page.rows.firstRowId});
  }
  async function build(record){
-  if(record.kind==='conversation'){const page=await history(record.params);record.fingerprint=hash({turns:page.turns,activeTurn:page.activeTurn||null});return projectConversationV4(page,{logEpoch:record.logEpoch,seq:record.seq+1,writable,selection:await modelSelections?.get(record.params.workspacePath,record.params.sessionId)});}
+  if(record.kind==='conversation'){
+   if(indexedHistory&&record.indexed!==false){try{return await indexedSnapshot(record);}catch(error){if(!unavailableWindow(error))throw error;if(record.indexed){record.logEpoch='codex-'+randomUUID();record.seq=0;record.firstRetainedRowId=null;}record.indexed=false;record.sourceEpoch=undefined;}}
+   const page=await history(record.params);record.fingerprint=hash({turns:page.turns,activeTurn:page.activeTurn||null});return projectConversationV4(page,{logEpoch:record.logEpoch,seq:record.seq+1,writable,selection:await modelSelections?.get(record.params.workspacePath,record.params.sessionId)});
+  }
   const tree=await scope(record.params),tasks=tree.tasks.filter(t=>t.workspacePath===record.params.workspacePath);
   return indexSnapshotSchema.parse({protocolVersion:1,workspaceId:record.params.workspacePath,logEpoch:record.logEpoch,sessions:tasks.map(t=>({sessionId:t.taskId,workspaceId:t.workspacePath,title:t.title,titleSource:t.titleOverridden?'custom':'default',phase:t.status==='running'?'running':t.status==='error'?'error':t.status==='completed'?'completedSuccess':'draft',sessionEnded:false,hasBackgroundWork:false,createdAt:t.createdAt,lastActivityAt:t.updatedAt}))});
  }
  async function publishNow(record,forceSnapshot=false){
-  const snapshot=await build(record);if(disposed||!subscriptions.has(record.id))return;
+  let snapshot;try{snapshot=await build(record);}finally{record.lastRefreshAt=Date.now();}
+  if(disposed||!subscriptions.has(record.id))return;
   if(record.kind==='conversation'&&record.firstRetainedRowId==null)record.firstRetainedRowId=snapshot.rows.window.slice(-60)[0]?.rowId??null;
   const visible=record.kind==='conversation'?{...snapshot,rows:{...snapshot.rows,window:record.firstRetainedRowId==null?snapshot.rows.window.slice(-60):snapshot.rows.window.filter(row=>row.rowId>=record.firstRetainedRowId)}}:snapshot;
   const deltas=!forceSnapshot&&record.sent&&record.kind==='conversation'?conversationDeltas(record.sent,visible):null;
@@ -195,10 +195,11 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
  }
  async function subscribe(kind,p){
   await scope(p,kind==='conversation');if(eventAdapter?.pollNow)await eventAdapter.pollNow();
+  if(disposed)throw Object.assign(new Error('连接已关闭'),{code:'CODEX_CONNECTION_CLOSED'});
   const id=randomUUID(),record={id,kind,params:{...p},logEpoch:'codex-'+randomUUID(),seq:0,ordinal:0,topic:kind==='conversation'?'conversation/'+p.sessionId:'sessions-index/'+p.workspacePath};
   subscriptions.set(id,record);
   try{
-   if(kind==='conversation')record.nativeListener=baseServices['zcode-task'].onDynamicTaskEvent({taskId:p.sessionId,workspacePath:p.workspacePath})(()=>refresh(record));
+   if(kind==='conversation')record.nativeListener=baseServices['zcode-task'].onDynamicTaskEvent({taskId:p.sessionId,workspacePath:p.workspacePath})(()=>{historyPending.delete(historyKey(p));refresh(record);});
    else if(eventAdapter?.changes)record.nativeListener=eventAdapter.changes(()=>refresh(record));
    // Publish before ACK is supported by the original activation buffer.
    await publish(record,true);return{ack:{subscriptionId:id,mode:'snapshot',logEpoch:record.logEpoch}};
@@ -217,7 +218,7 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
    try{
     await record.serial;
     if(disposed||!subscriptions.has(record.id))return;
-    const remaining=1000-(Date.now()-(record.lastPublishedAt||0));
+    const remaining=1000-(Date.now()-Math.max(record.lastPublishedAt||0,record.lastRefreshAt||0));
     if(remaining>0)return;
     record.dirty=false;await publish(record);
    }catch{}finally{
@@ -225,7 +226,7 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
     if(record.dirty&&!disposed&&subscriptions.has(record.id))scheduleRefresh(record);
     else{record.resolveRefresh?.();record.refreshPromise=null;record.resolveRefresh=null;}
    }
-  },Math.max(0,1000-(Date.now()-(record.lastPublishedAt||0))));
+  },Math.max(0,1000-(Date.now()-Math.max(record.lastPublishedAt||0,record.lastRefreshAt||0))));
  }
  function cancelRefresh(record){clearTimeout(record.initialTimer);clearTimeout(record.timer);record.timer=null;record.resolveRefresh?.();record.refreshPromise=null;record.resolveRefresh=null;}
  async function owned(p,kind){const r=subscriptions.get(p.subscriptionId);if(!r||r.kind!==kind||r.params.workspacePath!==p.workspacePath)throw unavailable('subscription not owned');await scope(p);return r;}
@@ -233,19 +234,43 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
  async function unsubscribe(kind,p){const r=await owned(p,kind);r.nativeListener?.dispose();cancelRefresh(r);subscriptions.delete(r.id);}
  async function validateRevision(p){
   if(p.baseRevision===undefined&&p.baseLogEpoch===undefined)return true;
-  if(p.baseRevision===0&&p.baseLogEpoch===undefined&&p.sessionId){const page=await history(p);if(!page.activeTurn&&!page.turns?.length)return true;}
+  if(p.baseRevision===0&&p.baseLogEpoch===undefined&&p.sessionId){
+   if(indexedHistory){try{const page=await windowPage(p,{metadataOnly:1});return !page.activeTurn&&page.rows.totalCount===0;}catch(error){if(!unavailableWindow(error))throw error;}}
+   const page=await history(p,{shareRead:false});if(!page.activeTurn&&!page.turns?.length)return true;
+  }
   const r=[...subscriptions.values()].find(r=>r.kind==='conversation'&&r.params.workspacePath===p.workspacePath&&r.params.sessionId===p.sessionId&&(!p.baseLogEpoch||r.logEpoch===p.baseLogEpoch));
   if(!r?.snapshot||p.baseRevision!==undefined&&p.baseRevision!==r.snapshot.revision)return false;
-  const page=await history(r.params);
+  if(r.indexed){try{const page=await windowPage(r.params,{sourceEpoch:r.sourceEpoch,metadataOnly:1});return r.fingerprint===page.revision;}catch(error){if(error?.code==='HISTORY_WINDOW_CHANGED')return false;throw error;}}
+  const page=await history(r.params,{shareRead:false});
   return r.fingerprint===hash({turns:page.turns,activeTurn:page.activeTurn||null});
  }
  async function refreshWorkspace(p){
+  for(const record of subscriptions.values())if(record.params.workspacePath===p.workspacePath)historyPending.delete(historyKey(record.params));
   await Promise.all([...subscriptions.values()].filter(r=>r.params.workspacePath===p.workspacePath).map(r=>refresh(r)));
+ }
+ async function rowsRange(p){
+   await scope(p,true);const r=[...subscriptions.values()].find(x=>x.kind==='conversation'&&x.params.workspacePath===p.workspacePath&&x.params.sessionId===p.sessionId);if(!r?.snapshot)throw unavailable('unsubscribed rows range');
+
+   const work=async()=>{
+    if(disposed||!subscriptions.has(r.id))throw Object.assign(new Error('连接已关闭'),{code:'CODEX_CONNECTION_CLOSED'});
+   const limit=Number.isInteger(p.limit)&&p.limit>0?Math.min(200,p.limit):60;
+   if(r.indexed){
+    const epoch=r.logEpoch,source=r.sourceEpoch;let page;
+    try{page=await windowPage(r.params,{beforeRowId:p.beforeRowId,limit,sourceEpoch:source});}
+    catch(error){if(error?.code==='HISTORY_WINDOW_CHANGED'&&!disposed&&subscriptions.has(r.id))await publishNow(r,true);throw error;}
+    if(disposed||!subscriptions.has(r.id)||r.logEpoch!==epoch||r.sourceEpoch!==source||page.sourceEpoch!==source)throw Object.assign(new Error('历史窗口已切换，请重试'),{code:'HISTORY_WINDOW_CHANGED'});
+    const rows=page.rows.window;
+    if(rows.length){r.firstRetainedRowId=Math.min(r.firstRetainedRowId??rows[0].rowId,rows[0].rowId);const merged=new Map(r.snapshot.rows.window.map(row=>[row.rowId,row]));for(const row of rows)merged.set(row.rowId,row);r.snapshot={...r.snapshot,rows:{...r.snapshot.rows,window:[...merged.values()].sort((a,b)=>a.rowId-b.rowId)}};}
+    return{rows,atSeq:r.snapshot.seq,atRevision:r.snapshot.revision,atLogEpoch:epoch,hasMore:page.hasMore};
+   }
+   const all=r.snapshot.rows.window,before=p.beforeRowId===undefined?all:all.filter(x=>x.rowId<p.beforeRowId),rows=before.slice(-limit);if(rows.length)r.firstRetainedRowId=Math.min(r.firstRetainedRowId??rows[0].rowId,rows[0].rowId);return{rows,atSeq:r.snapshot.seq,atRevision:r.snapshot.revision,atLogEpoch:r.logEpoch,hasMore:before.length>limit};
+   };
+   const pending=(r.serial||Promise.resolve()).then(work);r.serial=pending.catch(()=>{});return pending;
  }
  const methods={
   subscribeConversationV4:p=>subscribe('conversation',p),resyncConversationV4:p=>resync('conversation',p),unsubscribeConversationV4:p=>unsubscribe('conversation',p),onDynamicConversationFrame:p=>getEmitter('conversation',p).event,
   subscribeSessionsIndexV4:p=>subscribe('index',p),resyncSessionsIndexV4:p=>resync('index',p),unsubscribeSessionsIndexV4:p=>unsubscribe('index',p),onDynamicSessionsIndexFrame:p=>getEmitter('index',p).event,
-  async conversationRowsRangeV4(p){await scope(p,true);const r=[...subscriptions.values()].find(x=>x.kind==='conversation'&&x.params.workspacePath===p.workspacePath&&x.params.sessionId===p.sessionId);if(!r?.snapshot)throw unavailable('unsubscribed rows range');const all=r.snapshot.rows.window,before=p.beforeRowId===undefined?all:all.filter(x=>x.rowId<p.beforeRowId),limit=Number.isInteger(p.limit)&&p.limit>0?Math.min(200,p.limit):60;const rows=before.slice(-limit);if(rows.length)r.firstRetainedRowId=Math.min(r.firstRetainedRowId??rows[0].rowId,rows[0].rowId);return{rows,atSeq:r.snapshot.seq,atRevision:r.snapshot.revision,atLogEpoch:r.logEpoch,hasMore:before.length>limit};},
+  conversationRowsRangeV4:rowsRange,
   async attachmentReadV4(p){
    const resource=await attachmentResource(p),offset=p?.offset,limit=p?.limit;
    if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>4*1024*1024)throw unavailable('attachment range');
@@ -260,5 +285,5 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
  // onDynamic* methods become never-firing subscriptions instead of errors.
  const noopEvent=()=>new Emitter().event;
  const agent=new Proxy(baseServices['zcode-agent']||{},{get(target,key,receiver){if(key in methods)return methods[key];if(typeof key==='string'&&key.startsWith('onDynamic'))return noopEvent;return Reflect.get(target,key,receiver);}});
- return{channels:{...baseServices,'zcode-agent':agent},validateRevision,refreshWorkspace,capabilities:{readOnly:true,history:'native GET -> original validated V4 snapshot',updates:'native events -> snapshot reread',tokenAccounting:false,backgroundAndApprovals:false},dispose(){disposed=true;for(const r of subscriptions.values()){r.nativeListener?.dispose();cancelRefresh(r);}subscriptions.clear();for(const e of emitters.values())e.dispose();emitters.clear();}};
+ return{channels:{...baseServices,'zcode-agent':agent},validateRevision,refreshWorkspace,capabilities:{readOnly:true,history:'native GET -> original validated V4 snapshot',updates:'native events -> snapshot reread',tokenAccounting:false,backgroundAndApprovals:false},dispose(){disposed=true;for(const controller of readControllers)controller.abort(Object.assign(new Error('连接已关闭'),{code:'CODEX_CONNECTION_CLOSED'}));readControllers.clear();historyPending.clear();mediaPending.clear();mediaCache.clear();historyPages.clear();for(const r of subscriptions.values()){r.nativeListener?.dispose();cancelRefresh(r);}subscriptions.clear();for(const e of emitters.values())e.dispose();emitters.clear();}};
 }

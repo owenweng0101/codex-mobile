@@ -57,4 +57,5 @@ if(replacements!==3)throw Error('Original schema imports changed; expected 3 loc
 schemas+='\n// Export original existing schemas for server adapter contract validation.\nexport {An as originalCommandPayloads,In as originalCommandAck,jn as originalCommandTypes};\n';
 await writeFile(join(schemaDir,'original-command-schemas.mjs'),schemas);
 const build=spawnSync(process.execPath,['adapter/frontend-stage/build-compat.mjs'],{cwd:root,stdio:'inherit'});if(build.status)process.exit(build.status);
+const split=spawnSync(process.execPath,['--expose-gc','scripts/build-mobile-chunks.mjs'],{cwd:root,stdio:'inherit'});if(split.status!==0)process.exit(split.status??1);
 console.log('UI prepared locally. Imported bundles remain gitignored.');

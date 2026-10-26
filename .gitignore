@@ -19,3 +19,6 @@ config.local.json
 *.pem
 access-token
 cpolar.yml
+
+# Generated mobile split metrics and bundles
+/build/

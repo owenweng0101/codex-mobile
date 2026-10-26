@@ -1,3 +1,73 @@
+// Only overlapping, byte-identical JSON reads share an RPC. Settled data is not cached.
+// Subscription ACKs, resync, row ranges, commands and writes always remain independent.
+export function shareStartupReads(services, {maxPending = 128} = {}) {
+ const reads = {
+  projectService: new Set(['readTree', 'readProjects', 'resolveSessionDirectories']),
+  remoteProjectService: new Set(['readDirectory']),
+  taskGroupService: new Set(['read']),
+  zcodeTaskService: new Set(['getTaskMeta', 'getTaskModelSelection', 'listTasks', 'listPinnedTasks', 'listPinnedTaskIds', 'listActiveTaskIds', 'listTaskList', 'getTaskSnapshot', 'getTaskSnapshotWithEtag']),
+  windowControllerService: new Set(['getTaskMeta', 'listTaskList']),
+  modelSelectionService: new Set(['getView']),
+  providerSettingsService: new Set(['getView']),
+ };
+ const pending = new Map(); let disposed = false;
+ const clear = () => pending.clear();
+ // JSON.stringify silently folds undefined, NaN and tokens into other keys. Bypass them.
+ function jsonKey(args) {
+  const seen = new Set();
+  function valid(value) {
+   if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+   if (typeof value === 'number') return Number.isFinite(value);
+   if (!value || typeof value !== 'object' || seen.has(value)) return false;
+   if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return false;
+   seen.add(value);
+   const descriptors = Object.getOwnPropertyDescriptors(value);
+   for (const key of Reflect.ownKeys(descriptors)) {
+    if (typeof key !== 'string' || !('value' in descriptors[key]) || !valid(descriptors[key].value)) { seen.delete(value); return false; }
+   }
+   // Sparse arrays serialize as null entries; do not merge them with real nulls.
+   const dense = !Array.isArray(value) || Object.keys(value).length === value.length;
+   seen.delete(value); return dense;
+  }
+  return valid(args) ? JSON.stringify(args) : null;
+ }
+ const output = {...services};
+ for (const [serviceName, service] of Object.entries(services)) {
+  if (!service || typeof service !== 'object') continue;
+  output[serviceName] = new Proxy(service, {get(target, method, receiver) {
+   const fn = Reflect.get(target, method, receiver);
+   if (typeof fn !== 'function' || typeof method !== 'string') return fn;
+   // Wrap existing listeners only: no extra remote subscriptions or event payloads.
+   const listener = event => (callback, ...rest) => event.call(target, function(...args) {clear();return callback.apply(this, args);}, ...rest);
+   if (/^onDynamic/.test(method)) return (...args) => listener(fn.apply(target, args));
+   if (/^on[A-Z]/.test(method)) return listener(fn);
+   if (reads[serviceName]?.has(method)) return (...args) => {
+    if (method === 'readTree' && args[0]?.refresh === true) {clear();return fn.apply(target, args);}
+    const key = jsonKey(args);
+    if (disposed || key === null) return fn.apply(target, args);
+    const id = JSON.stringify([serviceName, method, key]);
+    let entry = pending.get(id);
+    const joined = !!entry;
+    if (!entry) {
+     entry = Promise.resolve().then(() => fn.apply(target, args)).then(original => ({original, snapshot:structuredClone(original)}));
+     if (pending.size < maxPending) pending.set(id, entry);
+     const done = () => {if (pending.get(id) === entry) pending.delete(id);};
+     entry.then(done, done);
+    }
+    return entry.then(value => joined ? structuredClone(value.snapshot) : value.original);
+   };
+   if (/^(set|update|mutate|archive|unarchive|create|delete|send|start|stop|remove|add|admit|refresh)/.test(method)) return (...args) => {
+    clear();let result;
+    try {result = fn.apply(target, args);} catch(error) {clear();throw error;}
+    if (result && typeof result.then === 'function') return result.finally(clear);
+    clear();return result;
+   };
+   return fn.bind(target);
+  }});
+ }
+ return {services:output,clear,dispose(){disposed=true;clear();}};
+}
+
 function workspaceEntries(info){
  if(info?.authenticated!==true||!Array.isArray(info.workspaces))throw Error('需要先完成 Codex 手机配对');
  return info.workspaces.map(value=>{
@@ -43,19 +113,46 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
  };
  verify(active);
  let mountKey='codex-original:'+keyOf(active)+':'+(active.initialTaskId||'home'),preparedContext;
+ let disposed=false,viewGeneration=0,prepareVersion=0,renderedGeneration=-1,viewSwitcher,viewServices,renderedServices;
+ const currentView=generation=>!disposed&&generation===viewGeneration;
+ const staleNavigation=()=>Object.assign(Error('导航已切换，请在当前视图重试'),{code:'CODEX_NAVIGATION_STALE'});
  // The original detach-project action resolves a directory, then moves the
  // composer itself. Do not remount here or call a native task-creation method.
- const prepareSession=async(project={})=>{
-  const context=verify(await resolveNavigation({action:'project-draft',project}));
+ const prepareSession=async(project={},generation=viewGeneration)=>{
+  if(!currentView(generation))throw staleNavigation();
+  const navigationEpoch=epoch,version=++prepareVersion;
+  const result=await resolveNavigation({action:'project-draft',project});
+  if(!currentView(generation)||navigationEpoch!==epoch||version!==prepareVersion)throw staleNavigation();
+  const context=verify(result);
   preparedContext=context;
   return{workspacePath:context.workspacePath,projectId:context.initialTaskDraft.projectId,hostId:'local'};
  };
- const modelCache=cacheNavigationModels(services);
- const mountedServices={...modelCache.services,projectService:new Proxy(services.projectService||{},{get(target,property,receiver){return property==='prepareSession'?prepareSession:Reflect.get(target,property,receiver);}})};
+ let startupReads,modelCache,mountedServices;
+ const replaceServices=next=>{
+  if(disposed)return;
+  modelCache?.dispose();startupReads?.dispose();services=next;
+  startupReads=shareStartupReads(services);modelCache=cacheNavigationModels(startupReads.services);
+  mountedServices={...modelCache.services,projectService:new Proxy(modelCache.services.projectService||{},{get(target,property,receiver){return property==='prepareSession'?prepareSession:Reflect.get(target,property,receiver);}})};
+ };
+ replaceServices(services);
  const platform=compat.__codexOriginalPlatform();
  // No third-party account identity or JWT is supplied. Authentication is the
  // local paired Codex service's same-origin session cookie.
- const render=()=>compat.__codexOriginalMount({services:mountedServices,platform,key:mountKey,props:{
+ const render=()=>{
+  if(disposed)return;
+  const generation=viewGeneration;
+  if(renderedGeneration!==generation){
+   // Navigation owns its reporters; reconnects keep that owner and composer.
+   viewSwitcher={...switcher,
+    updateMobileViewState:async(...args)=>{if(currentView(generation))return switcher.updateMobileViewState(...args);},
+    updateMobileTaskView:async(...args)=>{if(currentView(generation))return switcher.updateMobileTaskView(...args);},
+   };
+  }
+  if(renderedGeneration!==generation||renderedServices!==mountedServices){
+   viewServices={...mountedServices,projectService:new Proxy(mountedServices.projectService,{get(target,property,receiver){return property==='prepareSession'?(project=>prepareSession(project,generation)):Reflect.get(target,property,receiver);}})};
+   renderedServices=mountedServices;renderedGeneration=generation;
+  }
+  return compat.__codexOriginalMount({services:viewServices,platform,key:mountKey,props:{
   composerClientNamespace:'codex-local:'+String(info.deviceId||'paired-mac'),
   initialWorkspaceAbsPath:active.workspacePath,
   initialWorkspaceIdentity:active.workspaceIdentity,
@@ -65,17 +162,19 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
   initialWebRemoteControlMobileNavigationIntent:active.navigationIntent,
   webRemoteControlTerminalTransportState:transportState,
   restoreSession:false,supportsSettings:false,supportsTerminal:false,supportsReview:false,allowOpenWorkspace:false,preferDirectoryBrowser:true,supportsEmbeddedBrowser:false,allowRemoteWorkspace:false,
-  webRemoteControlWorkspaceSwitcher:switcher,
+  webRemoteControlWorkspaceSwitcher:viewSwitcher,
  }});
+ };
  const navigate=async(request,initialComposerDraft)=>{
+  if(disposed)throw staleNavigation();
   const current=++epoch,result=await resolveNavigation(request);
-  if(current!==epoch)return;
+  if(disposed||current!==epoch)return;
   const next=verify(result);
   if(initialComposerDraft&&next.initialTaskDraft)next.initialTaskDraft={...next.initialTaskDraft,initialComposerDraft};
   // Repeated taps on the same draft must not tear down a pending first send.
   const sameDraft=!active.initialTaskId&&active.initialTaskDraft&&next.initialTaskDraft&&keyOf(active)===keyOf(next)&&['projectId','provider','taskGroupId'].every(field=>active.initialTaskDraft[field]===next.initialTaskDraft[field])&&!next.initialTaskDraft.initialComposerDraft&&!next.initialTaskDraft.initialPrompt;
   if(sameDraft){if(next.navigationIntent==='chat')for(const listener of mobileNavigationListeners)listener('chat');return;}
-  active=next;preparedContext=undefined;mountKey='codex-original:'+keyOf(active)+':'+(active.navigationKey||active.initialTaskId||'home')+':'+current;render();
+  active=next;preparedContext=undefined;viewGeneration++;prepareVersion++;mountKey='codex-original:'+keyOf(active)+':'+(active.navigationKey||active.initialTaskId||'home')+':'+current;render();
   if(next.navigationIntent==='chat')for(const listener of mobileNavigationListeners)listener('chat');
   for(const listener of listeners)listener(await switcher.listWorkspaces());
  };
@@ -99,14 +198,24 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
   },
   async reconnectWorkspace(workspaceKey){return navigate({action:'reconnect',workspaceKey});},
   async updateMobileViewState(workspaceKey,taskId){
+   if(disposed)return;
    const workspace=workspaces.find(value=>keyOf(value)===workspaceKey);
    if(!workspace||keyOf(active)!==workspaceKey&&(!preparedContext||keyOf(preparedContext)!==workspaceKey))return;
    const moved=keyOf(active)!==workspaceKey;
-   active={...active,workspacePath:workspace.workspacePath,workspaceIdentity:workspace.workspaceIdentity,initialTaskId:taskId||undefined,...(moved||taskId?{initialTaskDraft:taskId?undefined:preparedContext?.initialTaskDraft}:{})};
+   const prepared=preparedContext&&keyOf(preparedContext)===workspaceKey;
+   if(!moved&&(taskId||undefined)===active.initialTaskId&&(!prepared||taskId))return;
+   // Empty passive reports cannot undo a selected task or first-send promotion.
+   if(!taskId&&active.initialTaskId&&!prepared)return;
+   if(moved||(taskId||undefined)!==active.initialTaskId||prepared)prepareVersion++;
+   active={...active,workspacePath:workspace.workspacePath,workspaceIdentity:workspace.workspaceIdentity,initialTaskId:taskId||undefined,...(moved||taskId||prepared?{initialTaskDraft:taskId?undefined:preparedContext?.initialTaskDraft}:{})};
    preparedContext=undefined;
   },
-  async updateMobileTaskView(view){active={...active,localMobileView:view};},
+  async updateMobileTaskView(view){
+   if(disposed)return;
+   if(view&&(keyOf(view)!==keyOf(active)||view.taskId!==active.initialTaskId))return;
+   active={...active,localMobileView:view};
+  },
  };
  render();
- return{switcher,getContext:()=>({...active}),setTransportState(value){if(!['idle','connecting','authenticating','waiting_terminal','paired','kicked','error'].includes(value))throw Error('连接状态无效');if(value!==transportState)modelCache.clear();transportState=value;render();},dispose(){epoch++;listeners.clear();mobileNavigationListeners.clear();modelCache.dispose();}};
+ return{get switcher(){return viewSwitcher;},replaceServices(next){replaceServices(next);render();},getContext:()=>({...active}),setTransportState(value){if(!['idle','connecting','authenticating','waiting_terminal','paired','kicked','error'].includes(value))throw Error('连接状态无效');if(value!==transportState){modelCache.clear();startupReads.clear();}transportState=value;render();},dispose(){disposed=true;epoch++;viewGeneration++;prepareVersion++;preparedContext=undefined;listeners.clear();mobileNavigationListeners.clear();modelCache.dispose();startupReads.dispose();}};
 }

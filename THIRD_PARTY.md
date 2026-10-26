@@ -12,7 +12,7 @@
 
 `scripts/import-zcode-ui.mjs` 从 `https://zcode.z.ai/remote/v4/3.16.3/` 自动下载固定版本的网页资源并生成命令 schema。完整网页构建产物、生成的命令 schema、RPC bundle 和修改后的 UI bundle 均在 Git 忽略目录中。准备过程需要网络；下载资源不可用时会报错，不会转而读取本机 ZCode。
 
-`adapter/frontend-stage/build-compat.mjs` 对固定构建做可复现的精确替换：暴露挂载接口、注入 Codex 数据与模型目录、适配草稿导航、图片与历史行为、隐藏不适用的第三方账号入口。预期片段匹配失败时停止，避免悄悄套用到不兼容版本。补丁清单与校验值在本机生成。
+`adapter/frontend-stage/build-compat.mjs` 对固定构建做可复现的精确替换：暴露挂载接口、注入 Codex 数据与模型目录、适配草稿导航、图片与历史行为、隐藏不适用的第三方账号入口。预期片段匹配失败时停止，避免悄悄套用到不兼容版本。补丁清单与校验值在本机生成。 `mobile-compat-patches.json` 保存移动端的增量兼容补丁；`scripts/build-mobile-chunks.mjs` 使用 Babel 在构建时分析依赖，将非核心页面、终端和 Mermaid 拆成按需加载模块。完整界面及拆分后的模块仍在本机生成并保持 Git 忽略；运行时没有新增 Babel 依赖。
 
 `adapter/read-services/original-controller-source.txt` 是少量保留的上游控制器投影代码，来源归属 ZCode，使用 Apache-2.0；周边模块提供本机 Codex 数据适配。参见 NOTICE 与 LICENSE。
 

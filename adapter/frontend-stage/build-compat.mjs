@@ -94,6 +94,12 @@ patch('codex-wordmark',section('function fNt({className:e}){','function kz(e){')
 const literals=[...new Set([...compat.matchAll(/`(?:\\.|[^`\\])*`/g)].map(match=>match[0]).filter(value=>/\bZCode\b/.test(value)))];
 for(const [index,literal] of literals.entries())patch('shell-brand-literal-'+index,literal,literal.replace(/\bZCode\b/g,'Codex'),compat.split(literal).length-1);
 patch('codex-logo-identifier','"data-app-logo":`zcode`','"data-app-logo":`codex`');
+// Reviewed mobile recovery, scroll and highlighter patches follow the original
+// compatibility layer. Verify its exact identity before the split build runs.
+const mobile=JSON.parse(await readFile(new URL('./mobile-compat-patches.json',import.meta.url),'utf8'));
+if(patches.length!==mobile.inputPatchCount)throw Error('Original compatibility patch count changed');
+for(const item of mobile.patches)patch(item.name,item.needle,item.replacement,item.count);
+if(patches.length!==mobile.outputPatchCount||createHash('sha256').update(compat).digest('hex')!==mobile.outputSha256)throw Error('Mobile compatibility input changed; review the pinned patches before rebuilding');
 await mkdir(new URL('./assets/',import.meta.url),{recursive:true});
 await writeFile(new URL('./assets/index-BsmXQHMM.js',import.meta.url),compat);
 // Keep canonical locale imports intact; adapt dictionaries before the first

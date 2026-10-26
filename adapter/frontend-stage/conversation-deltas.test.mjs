@@ -13,7 +13,7 @@ function fixture(t){
   const frame=wire.frame;assert.equal(frameSchema.safeParse(frame).success,true);
   if(frame.payload.kind==='deltas'){assert.equal(frame.fromSeq,applied.seq);applied={...applyDeltas(applied,frame.payload.deltas),seq:frame.toSeq};}
   else applied=frame.payload.snapshot;
-  frames.push(wire);times.push(Date.now());
+  frames.push(wire);times.push(frame.sentAt);
  });
  t.after(()=>{service.dispose();native.dispose();});
  return{page,frames,times,service,agent,native,get applied(){return applied;},set afterRead(value){afterRead=value;}};

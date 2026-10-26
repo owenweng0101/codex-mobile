@@ -23,6 +23,9 @@
     "demo": "node scripts/demo.mjs"
   },
   "devDependencies": {
+    "@babel/generator": "7.28.5",
+    "@babel/parser": "7.28.5",
+    "@babel/traverse": "7.28.5",
     "esbuild": "0.28.2"
   }
 }

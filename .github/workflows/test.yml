@@ -11,6 +11,13 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
       - run: npm ci
-      - run: node --test connection/test/*.test.mjs backend/test/core.test.mjs backend/test/message-delivery.test.mjs adapter/test/rpc-lifecycle.test.mjs
+      - run: npm run prepare:ui
+      - run: npm test
       - run: npm run check:public

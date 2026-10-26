@@ -4,6 +4,7 @@ import {Emitter} from '../vendor/rpc.mjs';
 // protocol; a never-firing event matches optional telemetry the UI subscribes.
 const noopDynamicEvent=()=>new Emitter().event;
 import {normalize} from 'node:path';
+import {INVALIDATE_READS,CATALOG_GENERATION} from './shared-reads.mjs';
 
 const HOST='local';
 // Original ZCode's agent renderer normalizes every legacy engine tag to glm.
@@ -71,7 +72,7 @@ export function projectMessages(turns){
 
 export function createReadServices({api,cacheMs=500,maxCatalogPages=100,maxHistoryPages=30}={}){
   if(!api?.get)throw Error('需要只读 Codex API');
-  let catalogPromise,catalogAt=0;
+  let catalogPromise,catalogAt=0,catalogPending=false,catalogGeneration=0;
   const catalogChanged=new Emitter();
   // Shared across RPC reconnects with the shared read service. An uncertain
   // native request is only polled, never replaced by another archive send.
@@ -82,9 +83,10 @@ export function createReadServices({api,cacheMs=500,maxCatalogPages=100,maxHisto
     return p;
   }
   const archivePending=(requestId,cause)=>Object.assign(new Error('归档结果仍待核对，请稍后刷新；不会重复发送原生归档请求'),{code:'CODEX_ARCHIVE_PENDING',requestId,outcomeUnknown:true,...(cause?{cause}:{})});
+  function invalidateCatalog(){catalogPromise=null;catalogAt=0;catalogPending=false;api[INVALIDATE_READS]?.({catalog:true});}
   async function catalog(){
-    if(catalogPromise&&Date.now()-catalogAt<cacheMs)return catalogPromise;
-    catalogAt=Date.now();catalogPromise=(async()=>{
+    if(catalogPromise&&catalogGeneration===(api[CATALOG_GENERATION]??0)&&(catalogPending||Date.now()-catalogAt<cacheMs))return catalogPromise;
+    catalogGeneration=api[CATALOG_GENERATION]??0;catalogPending=true;catalogPromise=(async()=>{
       const [projectResult,organization]=await Promise.all([api.get('/api/projects'),api.get('/api/organize')]);
       if(projectResult.truncated)throw Object.assign(new Error('Codex 项目目录尚未完整读取'),{code:'CODEX_CATALOG_TRUNCATED'});
       const threads=[],seen=new Set();let cursor=null;
@@ -95,7 +97,8 @@ export function createReadServices({api,cacheMs=500,maxCatalogPages=100,maxHisto
         if(page.nextCursor===cursor)throw Error('Codex 列表游标未前进');cursor=page.nextCursor;
       }
       throw Object.assign(new Error('Codex 会话列表超出当前读取上限'),{code:'CODEX_CATALOG_LIMIT'});
-    })();const current=catalogPromise;current.catch(()=>{if(catalogPromise===current)catalogPromise=null;});return current;
+    })();const current=catalogPromise;
+    current.then(()=>{if(catalogPromise===current){catalogPending=false;catalogAt=Date.now();}},()=>{if(catalogPromise===current){catalogPromise=null;catalogPending=false;}});return current;
   }
   async function list(params={},kind='active'){
     host(params);const c=await catalog();let threads=c.threads;
@@ -164,7 +167,7 @@ export function createReadServices({api,cacheMs=500,maxCatalogPages=100,maxHisto
       const meta=await task.getTaskMeta(p);
       if(!meta||meta.archived)throw Object.assign(Error('会话不存在或已归档，请刷新后重试'),{code:'CODEX_INVALID_TASK_ID'});
       const result=await api.post('/api/organize',{action:'pin',threadId:id,enabled:p.pinned});
-      catalogPromise=null;catalogAt=0;
+      invalidateCatalog();
       if(!Array.isArray(result?.pins)||result.pins.includes(id)!==p.pinned)throw Error('置顶结果未确认，请刷新后重试');
       catalogChanged.fire({method:'bridge/catalogUpdated',taskId:id});
       return{...meta,pinned:p.pinned};
@@ -187,7 +190,7 @@ export function createReadServices({api,cacheMs=500,maxCatalogPages=100,maxHisto
         while(true){
           if(result?.threadId!==id||result?.requestId!==requestId)throw archivePending(requestId);
           if(result.archived===true&&result.verified===true&&result.pending===false&&result.status==='archived'){
-            archiveRequests.delete(id);catalogPromise=null;catalogAt=0;return{...meta,archived:true};
+            archiveRequests.delete(id);invalidateCatalog();return{...meta,archived:true};
           }
           if(result.pending!==true){
             if(result.archived===false&&['blocked','notArchived'].includes(result.status)){
@@ -209,7 +212,7 @@ export function createReadServices({api,cacheMs=500,maxCatalogPages=100,maxHisto
       const requestId='munar'+randomUUID().replaceAll('-','').slice(0,20);
       const result=await api.post('/api/thread/unarchive',{threadId:id,requestId});
       if(result?.unarchived!==true||result.verified!==true||result.threadId!==id||result.requestId!==requestId)throw Object.assign(new Error(result?.error||result?.message||'恢复归档未完成，请稍后刷新'),{code:'CODEX_UNARCHIVE_FAILED'});
-      archiveRequests.delete(id);catalogPromise=null;catalogAt=0;
+      archiveRequests.delete(id);invalidateCatalog();
       const meta=await task.getTaskMeta(p).catch(()=>null);
       return{...(meta||before),archived:false};
     },
@@ -218,7 +221,7 @@ export function createReadServices({api,cacheMs=500,maxCatalogPages=100,maxHisto
     project:{
       onDidChange:catalogChanged.event,
       async readProjects(params={}){host(params);return(await catalog()).projects.map(projectProject);},
-      async readTree(params={}){host(params);if(params.refresh===true){catalogPromise=null;catalogAt=0;}const c=await catalog();return{projects:c.projects.map(projectProject),tasks:c.threads.map(thread=>projectTask(thread,{organization:c.organization}))};},
+      async readTree(params={}){host(params);if(params.refresh===true){invalidateCatalog();}const c=await catalog();return{projects:c.projects.map(projectProject),tasks:c.threads.map(thread=>projectTask(thread,{organization:c.organization}))};},
       async resolveSessionDirectories(params){const meta=await task.getTaskMeta(params);if(!meta)throw Error('会话不存在');return{workspacePath:meta.workspacePath,projectId:meta.projectId,additionalDirectories:[]};},
     },
     'remote-projects':{async readDirectory(){return{hosts:[],entries:[]};}},

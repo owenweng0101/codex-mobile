@@ -1,10 +1,11 @@
-const allowed=new Set(['/api/file','/api/skills','/api/projects','/api/threads','/api/history','/api/models','/api/status','/api/events','/api/organize','/api/goal','/api/archived','/api/archived/history','/api/thread/archive/status']);
+const allowed=new Set(['/api/file','/api/skills','/api/projects','/api/threads','/api/history','/api/history-window','/api/models','/api/status','/api/events','/api/organize','/api/goal','/api/archived','/api/archived/history','/api/thread/archive/status']);
 
 // The existing Mac service owns its bearer. It is never sent to the web client.
 export class CodexReadClient{
-  constructor({origin='http://127.0.0.1:8787',fetchImpl=fetch}={}){
+  constructor({origin=process.env.CODEX_MOBILE_BACKEND_ORIGIN||'http://127.0.0.1:8787',fetchImpl=fetch}={}){
     const parsed=new URL(origin);
-    if(parsed.origin!=='http://127.0.0.1:8787')throw Error('Only the existing local Codex service is allowed');
+    const configured=process.env.CODEX_MOBILE_BACKEND_ORIGIN||'http://127.0.0.1:8787';
+    const trusted=new URL(configured);if(trusted.protocol!=='http:'||trusted.hostname!=='127.0.0.1'||trusted.username||trusted.password||trusted.pathname!=='/'||trusted.search||trusted.hash||!Number.isInteger(Number(trusted.port))||Number(trusted.port)<1024||Number(trusted.port)>65535||parsed.origin!==trusted.origin)throw Error('Only the existing local Codex service is allowed');
     this.origin=parsed.origin;this.fetch=fetchImpl;this.bearer=null;this.requests=0;
   }
   async credentials(){
@@ -24,7 +25,7 @@ export class CodexReadClient{
       const response=await this.fetch(target.href,{headers:{authorization:'Bearer '+this.bearer},redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(target.pathname==='/api/events'?25000:20000)]):AbortSignal.timeout(target.pathname==='/api/events'?25000:20000)});
       if(response.status===401&&attempt===0){await this.credentials();continue;}
       const value=await response.json();
-      if(!response.ok)throw Object.assign(Error(value.error||'Codex 读取失败'),{code:'CODEX_READ_FAILED',statusCode:response.status});
+      if(!response.ok)throw Object.assign(Error(value.error||'Codex 读取失败'),{code:target.pathname==='/api/history-window'&&typeof value.code==='string'?value.code:'CODEX_READ_FAILED',statusCode:response.status});
       return value;
     }
   }

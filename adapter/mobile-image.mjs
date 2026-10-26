@@ -38,8 +38,31 @@ function animated(bytes, format) {
 export function createImagePreviewer({ run = execute, maxCacheBytes = 64 * MiB, timeoutMs = 5000, maxConcurrent = 2 } = {}) {
   if (!Number.isSafeInteger(maxCacheBytes) || maxCacheBytes < 0 || maxCacheBytes > 64 * MiB) throw Error('Preview cache exceeds its memory budget');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) throw Error('Preview timeout exceeds its budget');
-  const cache = new Map(), inflight = new Map();
-  let cachedBytes = 0;
+  if (!Number.isSafeInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 4) throw Error('Preview concurrency exceeds its budget');
+  const cache = new Map(), inflight = new Map(), waiting = [];
+  let cachedBytes = 0, active = 0, waitingBytes = 0;
+  function releaseSlot() {
+    active--;
+    while (active < maxConcurrent && waiting.length) {
+      const entry = waiting.shift(); clearTimeout(entry.timer); waitingBytes -= entry.bytes;
+      if (entry.deadline <= Date.now()) { entry.resolve(null); continue; }
+      active++; entry.resolve(releaseSlot);
+    }
+  }
+  function acquireSlot(deadline, bytes) {
+    if (deadline <= Date.now()) return Promise.resolve(null);
+    if (active < maxConcurrent) { active++; return Promise.resolve(releaseSlot); }
+    // Briefly queue normal multi-image pages instead of immediately forwarding
+    // their largest originals. Waiting shares the same total conversion budget.
+    if (waiting.length >= 4 || waitingBytes + bytes > 40 * MiB) return Promise.resolve(null);
+    return new Promise(resolve => {
+      const entry = { deadline, bytes, resolve }; waiting.push(entry); waitingBytes += bytes;
+      entry.timer = setTimeout(() => {
+        const index = waiting.indexOf(entry); if (index < 0) return;
+        waiting.splice(index, 1); waitingBytes -= bytes; resolve(null);
+      }, Math.max(1, deadline - Date.now()));
+    });
+  }
   function remember(key, value) {
     const cost = value?.bytes.length || 0;
     if (cost > maxCacheBytes) return;
@@ -49,9 +72,9 @@ export function createImagePreviewer({ run = execute, maxCacheBytes = 64 * MiB, 
       cachedBytes -= cache.get(oldest).cost; cache.delete(oldest);
     }
   }
-  async function resize(bytes, format) {
+  async function resize(bytes, format, deadline) {
     let directory;
-    const signal = AbortSignal.timeout(timeoutMs), deadline = Date.now() + timeoutMs;
+    const signal = AbortSignal.timeout(Math.max(1, deadline - Date.now()));
     const call = args => run('/usr/bin/sips', args, { timeout: Math.max(1, deadline - Date.now()), signal, killSignal: 'SIGKILL', maxBuffer: 16384, encoding: 'utf8' });
     try {
       directory = await mkdtemp(join(tmpdir(), 'codex-mobile-image-'));
@@ -90,12 +113,16 @@ export function createImagePreviewer({ run = execute, maxCacheBytes = 64 * MiB, 
     const key = format + ':' + createHash('sha256').update(bytes).digest('hex');
     if (cache.has(key)) { const entry = cache.get(key); cache.delete(key); cache.set(key, entry); return entry.value || original; }
     if (inflight.has(key)) return (await inflight.get(key)) || original;
-    if (inflight.size >= maxConcurrent) return original;
-    const operation = resize(bytes, format).then(result => { remember(key, result); return result; }).finally(() => inflight.delete(key));
+    const deadline = Date.now() + timeoutMs;
+    const operation = (async () => {
+      const release = await acquireSlot(deadline, bytes.length);
+      if (!release) return null;
+      try { return await resize(bytes, format, deadline); } finally { release(); }
+    })().then(result => { if (result) remember(key, result); return result; }).finally(() => inflight.delete(key));
     inflight.set(key, operation);
     return (await operation) || original;
   };
-  preview.cacheInfo = () => ({ entries: cache.size, bytes: cachedBytes, inflight: inflight.size, maxBytes: maxCacheBytes });
+  preview.cacheInfo = () => ({ entries: cache.size, bytes: cachedBytes, inflight: inflight.size, maxBytes: maxCacheBytes, active, queued: waiting.length });
   preview.clearCache = () => { cache.clear(); cachedBytes = 0; };
   return preview;
 }

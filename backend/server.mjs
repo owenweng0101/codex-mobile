@@ -1,3 +1,4 @@
+import {RolloutConversationIndex} from './conversation-index.mjs';
 import {skillInputs} from './skill-input.mjs';
 import {autoTitleCandidate,isDefaultThreadTitle} from './auto-title.mjs';
 import http from 'node:http';
@@ -256,9 +257,24 @@ async function readHistory(id, cursor) {
     thread = { ...thread, turns: undefined };
   }
   const native = await nativeRequest;
+  return {...historyMetadata(id,thread,native,page.settings),turns:(native&&!cursor?mergeDesktopTurns(page.data,native.turns):page.data).map(turn=>displayTurn(turn,{threadId:id})),nextCursor:page.nextCursor};
+}
+function historyMetadata(id,thread,native,pageSettings={}) {
   const connection = desktopConnectionState(native, desktop.online && !desktopStale.has(id));
   thread = { id: thread.id, archived:!!thread.path?.includes('/archived_sessions/'), name: native?.thread?.name || threadSettings[id]?.name || thread.name, preview: cleanUserText(thread.preview || ''), cwd: thread.cwd, status: native && !connection.desktopConnected ? { type: 'unavailable' } : native?.thread?.status || thread.status, model: native?.settings?.model || thread.model, reasoningEffort: native?.settings?.effort || thread.reasoningEffort, projectId: thread.projectId, createdAt: thread.createdAt, updatedAt: thread.updatedAt };
-  return { thread, desktop: !!native, ...connection, queue: messageQueue.get(id), settings: { model: thread.model, effort: thread.reasoningEffort, ...threadSettings[id], ...page.settings, ...native?.settings }, tokenUsage: native?.tokenUsage || core.tokenUsage.get(id) || null, plan: native?.plan || core.turnPlans.get(id) || null, diff: native?.diff || core.turnDiffs.get(id)?.diff || null, turns: (native && !cursor ? mergeDesktopTurns(page.data, native.turns) : page.data).map(turn=>displayTurn(turn,{threadId:id})), nextCursor: page.nextCursor, approvals: [...[...core.requests.values()].filter(r => r.params?.threadId === id).map(r => ({ id: String(r.id), method: r.method, ...r.params })), ...(native?.approvals || [])], activeTurn: native ? connection.activeTurn : core.activeTurns.get(id) || null, attached: !!native || owned.has(id) };
+  return { thread, desktop: !!native, ...connection, queue: messageQueue.get(id), settings: { model: thread.model, effort: thread.reasoningEffort, ...threadSettings[id], ...pageSettings, ...native?.settings }, tokenUsage: native?.tokenUsage || core.tokenUsage.get(id) || null, plan: native?.plan || core.turnPlans.get(id) || null, diff: native?.diff || core.turnDiffs.get(id)?.diff || null, approvals: [...[...core.requests.values()].filter(r => r.params?.threadId === id).map(r => ({ id: String(r.id), method: r.method, ...r.params })), ...(native?.approvals || [])], activeTurn: native ? connection.activeTurn : core.activeTurns.get(id) || null, attached: !!native || owned.has(id) };
+}
+const conversationIndex=new RolloutConversationIndex();
+async function historyWindow(id,params){
+ if(draftThreads.has(id)){const page=draftHistory(id);return{...page,rows:{window:[],totalCount:0,firstRowId:null},sourceEpoch:'draft:'+id,revision:'draft:'+id};}
+ const [thread,native]=await Promise.all([threadRead(id),desktopHistoryFor(id)]);
+ const codexHome=resolve(process.env.CODEX_HOME||resolve(homedir(),'.codex'));
+ if(!thread.path||!['sessions','archived_sessions'].some(folder=>thread.path.startsWith(codexHome+'/'+folder+'/')))throw Object.assign(new Error('此会话暂不支持索引窗口'),{code:'HISTORY_WINDOW_UNSUPPORTED',statusCode:501});
+ const context=historyMetadata(id,thread,native);
+ let result;
+ try{result=await conversationIndex.read(thread.path,{threadId:id,thread:context.thread,nativeTurns:native?.turns||[],activeTurn:context.activeTurn,...params});}
+ catch(error){if(['ENOENT','EACCES','EPERM'].includes(error.code))throw Object.assign(new Error('此历史源暂不可建立索引窗口'),{code:'HISTORY_WINDOW_UNSUPPORTED',statusCode:501});throw error;}
+ return{...historyMetadata(id,thread,native,result.settings),turns:result.lastTurn?[result.lastTurn]:[],rows:result.rows,sourceEpoch:result.sourceEpoch,revision:result.revision,hasMore:result.hasMore};
 }
 async function history(id, cursor) {
   const key = id + ':' + (cursor || '');
@@ -393,6 +409,12 @@ const server = http.createServer(async (req, res) => {
         if (search) matches = matches.filter(t => [t.name, cleanUserText(t.preview || '')].some(text => text?.toLocaleLowerCase().includes(search)));
         const offset = Math.max(0, Number(u.searchParams.get('cursor') || 0));
         return send(res, 200, { data: matches.slice(offset, offset + 50).map(info), nextCursor: offset + 50 < matches.length ? String(offset + 50) : null, cache: catalogMeta(c) });
+      }
+      if(req.method==='GET'&&pathname==='/api/history-window'){
+        try{
+          const parse=key=>{const value=u.searchParams.get(key);return value===null?undefined:/^(0|[1-9]\d*)$/.test(value)?Number(value):NaN;};
+          return send(res,200,await historyWindow(u.searchParams.get('threadId'),{limit:parse('limit')??60,beforeRowId:parse('beforeRowId'),fromRowId:parse('fromRowId'),sourceEpoch:u.searchParams.get('sourceEpoch')??undefined,metadataOnly:u.searchParams.get('metadataOnly')==='1'}));
+        }catch(error){return send(res,error.statusCode||500,{error:error.message,code:error.code||'HISTORY_WINDOW_FAILED'});}
       }
       if (req.method === 'GET' && pathname === '/api/history') return send(res, 200, await history(u.searchParams.get('threadId'), u.searchParams.get('cursor')));
       const data = req.method === 'POST' ? await body(req, pathname === '/api/upload' ? 30 * 1024 * 1024 : 12 * 1024 * 1024) : {};

@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {mountCodexOriginalH5} from './browser-adapter.mjs';
 import {createPlatformServices} from './platform-services.mjs';
 import {workspaceInfo,resolveNavigation} from '../navigation.mjs';
+import {applyMobileSplit,bundleSha} from './mobile-split-rebuild.mjs';
 
 async function draftHarness(){
  const mounted=[],requests=[];
@@ -78,6 +79,8 @@ test('canonical original UI has only reproducible reviewed compatibility patches
  const baseline=await readFile(new URL('./baseline/index-BsmXQHMM.js',import.meta.url),'utf8'),compat=await readFile(new URL('./assets/index-BsmXQHMM.js',import.meta.url),'utf8'),manifest=JSON.parse(await readFile(new URL('./bundle-patch-manifest.json',import.meta.url),'utf8'));
  let rebuilt=baseline;
  for(const patch of manifest.patches){assert.equal(rebuilt.split(patch.needle).length-1,patch.count,patch.name);rebuilt=rebuilt.split(patch.needle).join(patch.replacement);}
+ rebuilt=applyMobileSplit(rebuilt,manifest.mobileSplit);
+ assert.equal(bundleSha(rebuilt),manifest.compatSHA256);
  assert.equal(rebuilt,compat);
  assert.equal(manifest.exactReplacementCount,manifest.patches.length);
  assert(compat.includes('requestedVersion===e&&this.startCurrent(e)'));

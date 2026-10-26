@@ -9,7 +9,7 @@ export const probeHtml=`<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 export const probeScript=`let current;function connect(){current?.close();const w=new WebSocket(location.origin.replace(/^http/,'ws')+'/probe/ws');current=w;w.binaryType='arraybuffer';w.onopen=()=>{document.getElementById('ws').textContent='双向连接：已建立';w.send(new TextEncoder().encode('codex-network-probe'));};w.onmessage=e=>{window.__PROBE_OK__=new TextDecoder().decode(e.data)==='codex-network-probe';document.getElementById('echo').textContent=window.__PROBE_OK__?'消息往返：成功':'消息往返：异常';};w.onclose=()=>{document.getElementById('ws').textContent='双向连接：已断开，可重新连接';};w.onerror=()=>{document.getElementById('echo').textContent='消息往返：未成功';};}document.getElementById('https').textContent=location.protocol==='https:'?'HTTPS：已建立安全连接':'当前为本机测试';document.getElementById('retry').onclick=connect;connect();`;
 const blocked=new Set(['/local','/local/info','/__audit','/pair','/pair.js']);
 const mobileAssets=new Set(['/mobile/app.css','/mobile/app.mjs','/mobile/attachments.mjs','/mobile/skills.mjs','/mobile/cache.mjs','/mobile/queue.mjs']);
-const staticPath=p=>mobileAssets.has(p)||['/mobile/','/mobile/index.html','/','/legacy/','/codex-entry.mjs','/codex-browser-adapter.mjs'].includes(p)||p.startsWith('/remote/v4/3.16.3/');
+const staticPath=p=>mobileAssets.has(p)||['/mobile/','/mobile/index.html','/','/legacy/','/codex-entry.mjs','/mobile-connection.mjs','/codex-browser-adapter.mjs'].includes(p)||p.startsWith('/remote/v4/3.16.3/');
 const uploadBodyLimit=800*1024;
 const validPath=p=>!/%|\\|\0/.test(p)&&!p.split('/').some(v=>v==='.'||v==='..');
 function json(res,status,data){res.writeHead(status,{'content-type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
@@ -43,9 +43,25 @@ function weakEtag(headers){if(headers.etag&&!headers.etag.startsWith('W/'))heade
 
 /** A dedicated tunnel port with no local control routes. The upstream remains
  * loopback-only. Its pairing and original RPC binary protocol stay intact. */
-export function createIngress({backend='http://127.0.0.1:8796',instance=randomUUID(),compressionCache=createCompressionCache()}={}){
+export function createIngress({backend='http://127.0.0.1:8796',instance=randomUUID(),compressionCache=createCompressionCache(),heartbeatIntervalMs=15000}={}){
  const upstream=new URL(backend);if(upstream.hostname!=='127.0.0.1'||upstream.protocol!=='http:')throw Error('Upstream must be loopback HTTP');
- let publicOrigin=null,mode='probe';const sockets=new Set(),upstreamSockets=new Set();
+ if(!Number.isSafeInteger(heartbeatIntervalMs)||heartbeatIntervalMs<1||heartbeatIntervalMs>300000)throw Error('Invalid WebSocket heartbeat interval');
+ let publicOrigin=null,mode='probe';const sockets=new Set(),upstreamSockets=new Set(),bridges=new Set();
+ // Control-frame pings do not enter the RPC stream. A missing pong closes both
+ // legs so the browser can reconnect instead of retaining a half-open session.
+ const heartbeat=setInterval(()=>{
+  for(const bridge of bridges){
+   if(!bridge.clientAlive||!bridge.remoteAlive){bridges.delete(bridge);bridge.client.terminate();bridge.remote.terminate();continue;}
+   bridge.clientAlive=false;bridge.remoteAlive=false;
+   for(const ws of [bridge.client,bridge.remote])if(ws.readyState===WebSocket.OPEN)ws.ping(undefined,undefined,error=>{if(error){bridges.delete(bridge);bridge.client.terminate();bridge.remote.terminate();}});
+  }
+ },heartbeatIntervalMs);heartbeat.unref?.();
+ function monitorBridge(client,remote){
+  const bridge={client,remote,clientAlive:true,remoteAlive:true};bridges.add(bridge);
+  const clientPong=()=>{bridge.clientAlive=true;},remotePong=()=>{bridge.remoteAlive=true;};
+  const dispose=()=>{bridges.delete(bridge);client.off('pong',clientPong);remote.off('pong',remotePong);client.off('close',dispose);remote.off('close',dispose);};
+  client.on('pong',clientPong);remote.on('pong',remotePong);client.on('close',dispose);remote.on('close',dispose);
+ }
  // QR scanners and links from another app can mark the initial document load
  // cross-site. Only that safe entry navigation is exempt; APIs and sockets are not.
  function externalEntry(req){return req.method==='GET'&&!req.headers.origin&&req.headers['sec-fetch-site']==='cross-site'&&req.headers['sec-fetch-mode']==='navigate'&&req.headers['sec-fetch-dest']==='document'&&['/','/legacy/','/mobile/','/mobile/index.html'].includes(pathOf(req));}
@@ -72,7 +88,13 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
   const proxy=http.request({hostname:upstream.hostname,port:upstream.port,path:req.url,method:req.method,headers:headers(req),timeout:path==='/mobile/api/changes'?30000:20000},response=>{
    response.on('error',()=>{if(!res.headersSent&&!res.writableEnded)json(res,502,{error:'Local adapter unavailable'});else res.destroy();});
    const copied={...response.headers};delete copied['transfer-encoding'];
-   if(path.startsWith('/mobile/api/')||path.startsWith('/api/'))copied['cache-control']='no-store';
+   const privateImage=req.method==='GET'&&path==='/mobile/api/image'&&response.statusCode===200&&/^image\/(?:png|jpeg|gif|webp|avif|bmp)(?:;|$)/i.test(copied['content-type']||'')&&/^private,\s*max-age=300$/i.test(copied['cache-control']||'')&&!copied['set-cookie'];
+   if(privateImage){
+    // Keep only authenticated image bytes in the browser's private cache. A
+    // different pairing cookie must not reuse another session's cached image.
+    const vary=String(copied.vary||'').split(',').map(value=>value.trim()).filter(Boolean);
+    if(!vary.some(value=>value.toLowerCase()==='cookie'))vary.push('Cookie');copied.vary=vary.join(', ');
+   }else if(path.startsWith('/mobile/api/')||path.startsWith('/api/'))copied['cache-control']='no-store';
    if(copied['set-cookie'])copied['set-cookie']=copied['set-cookie'].map(v=>/;\s*Secure\b/i.test(v)?v:v+'; Secure');
    const asset=versionedAsset(path),encoding=preferredEncoding(req.headers['accept-encoding']),bodyLength=Number(copied['content-length']);
    const compress=encoding&&![204,206,304].includes(response.statusCode)&&!req.headers.range&&!copied['content-range']&&!copied['content-encoding']&&/text\/|javascript|json|svg/.test(copied['content-type']||'');
@@ -106,7 +128,7 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
   const path=pathOf(req);if(!allowed(req)||req.headers.origin!==publicOrigin||!['/probe/ws','/ws'].includes(path)||path==='/ws'&&mode!=='codex-read'){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
   if(path==='/probe/ws'){wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws));return;}
   const pending=[];let bytes=0,client;
-  const remote=new WebSocket(upstream.origin.replace(/^http/,'ws')+'/ws',{headers:{origin:upstream.origin,...(req.headers.cookie?{cookie:req.headers.cookie}:{})},maxPayload:8*1024*1024,handshakeTimeout:5000});
+  const remote=new WebSocket(upstream.origin.replace(/^http/,'ws')+'/ws',{headers:{origin:upstream.origin,...(req.headers.cookie?{cookie:req.headers.cookie}:{})},maxPayload:8*1024*1024,handshakeTimeout:5000,perMessageDeflate:false});
   const rejectUpgrade=status=>{if(!socket.destroyed&&!socket.writableEnded&&!client)socket.end('HTTP/1.1 '+status+'\r\nConnection: close\r\n\r\n');};
   upstreamSockets.add(remote);remote.on('close',()=>{upstreamSockets.delete(remote);client?.close(1012,'Reconnect');rejectUpgrade('502 Bad Gateway');});
   // Wait for the native adapter to authenticate before acknowledging the public
@@ -117,13 +139,13 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
   socket.on('close',()=>remote.terminate());
   remote.on('open',()=>{
    if(socket.destroyed){remote.terminate();return;}
-   const bridgeWss=new WebSocketServer({noServer:true,maxPayload:8*1024*1024});
+   const bridgeWss=new WebSocketServer({noServer:true,maxPayload:8*1024*1024,perMessageDeflate:{serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:1024,zlibDeflateOptions:{level:6},concurrencyLimit:4}});
    bridgeWss.handleUpgrade(req,socket,head,ws=>{
-    client=ws;ws.on('error',()=>remote.terminate());ws.on('close',()=>{remote.close();bridgeWss.close();});
+    client=ws;monitorBridge(ws,remote);ws.on('error',()=>remote.terminate());ws.on('close',()=>{remote.close();bridgeWss.close();});
     ws.on('message',(data,binary)=>{if(!binary){ws.close(1003,'Binary RPC required');return;}if(remote.readyState===1)remote.send(data,{binary});});
     for(const [data,binary]of pending)ws.send(data,{binary});pending.length=0;
    });
   });
  });
- return{server,instance,get mode(){return mode;},get publicOrigin(){return publicOrigin;},setPublicOrigin(value){if(value===null){publicOrigin=null;return;}const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash)throw Error('HTTPS origin required');publicOrigin=u.origin;},setMode(value){if(!['probe','codex-read'].includes(value))throw Error('Invalid mode');mode=value;},async close(){for(const ws of upstreamSockets)ws.terminate();for(const ws of wss.clients)ws.terminate();wss.close();for(const s of sockets)s.destroy();compressionCache.clear();await new Promise(r=>server.close(r));}};
+ return{server,instance,get mode(){return mode;},get publicOrigin(){return publicOrigin;},setPublicOrigin(value){if(value===null){publicOrigin=null;return;}const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash)throw Error('HTTPS origin required');publicOrigin=u.origin;},setMode(value){if(!['probe','codex-read'].includes(value))throw Error('Invalid mode');mode=value;},async close(){clearInterval(heartbeat);for(const bridge of bridges)bridge.client.terminate();bridges.clear();for(const ws of upstreamSockets)ws.terminate();for(const ws of wss.clients)ws.terminate();wss.close();for(const s of sockets)s.destroy();compressionCache.clear();await new Promise(r=>server.close(r));}};
 }

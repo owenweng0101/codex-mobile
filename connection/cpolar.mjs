@@ -11,7 +11,7 @@ export async function verifyPublic(origin,instance,{fetchImpl=fetch,wsConnect=(u
  if(!health.ok)throw Error('HTTPS health check failed: '+health.status);
  const result=await health.json();if(result.service!=='codex-cpolar-ingress'||result.instance!==instance)throw Error('Wrong local service behind tunnel');
  await new Promise((resolve,reject)=>{
-  const ws=wsConnect(origin.replace(/^http/,'ws')+'/probe/ws',{origin,handshakeTimeout:timeout,maxPayload:1024});
+  const ws=wsConnect(origin.replace(/^http/,'ws')+'/probe/ws',{origin,handshakeTimeout:timeout,maxPayload:1024,perMessageDeflate:false});
   const nonce='cpolar-probe:'+instance,timer=setTimeout(()=>done(Error('WebSocket verification timed out')),timeout);
   let complete=false;
   function done(error){if(complete)return;complete=true;clearTimeout(timer);ws.terminate();error?reject(error):resolve();}

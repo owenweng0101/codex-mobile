@@ -1,3 +1,4 @@
+import {connectMobileServices} from './mobile-connection.mjs';
 // The original UI and RPC remain in the versioned compatibility bundle.
 const mainModule='/remote/v4/3.16.3/assets/index-BsmXQHMM.js';
 const adapterModule='/codex-browser-adapter.mjs';
@@ -31,12 +32,15 @@ export async function loadCodexMobile({origin,token='',request=fetch,loadModule=
  const [[compat,{mountCodexOriginalH5}],info]=await Promise.all([resources,metadata]);
  onBrand(compat.__codexBrandIcon);
  onStage('connecting');
- const services=await deadline(compat.__codexOriginalConnect(origin.replace(/^http/,'ws')+'/ws'),connectTimeoutMs,'与电脑的连接超时，请重试');
- const controller=await mountCodexOriginalH5({compat,services,info,resolveNavigation:async navigation=>{
+ let controller;
+ const connection=await connectMobileServices({connect:compat.__codexOriginalConnect,url:origin.replace(/^http/,'ws')+'/ws',connectTimeoutMs,onServices:services=>controller?.replaceServices?.(services),onState:state=>controller?.setTransportState?.(state)});
+ const services=connection.services;
+ try{controller=await mountCodexOriginalH5({compat,services,info,resolveNavigation:async navigation=>{
   const result=await request('/api/navigation',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(navigation),credentials:'same-origin',signal:AbortSignal.timeout(45000)});
   const value=await result.json();if(!result.ok)throw Error(value.error||'无法打开所选会话');return value;
- }});
- onStage('mounted');return{controller,info};
+ }});}catch(error){connection.dispose();throw error;}
+ const dispose=controller.dispose?.bind(controller);controller.dispose=()=>{connection.dispose();dispose?.();};
+ onStage('mounted');return{controller,info,connection};
 }
 
 export function loadingSurface(){

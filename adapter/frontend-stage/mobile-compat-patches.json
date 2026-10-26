@@ -1,0 +1,103 @@
+{
+  "inputPatchCount": 70,
+  "outputPatchCount": 86,
+  "outputSha256": "5aca127d28bb065919c6833a415c21b8f948f4cce1cceb39b4a6a7b75af959e3",
+  "patches": [
+    {
+      "name": "codex-mobile-enabled-navigation-reporters-only",
+      "needle": "(0,Q.useEffect)(()=>{l&&l(a,t??void 0).catch(e=>{J.warn(`[WebRemoteControlTaskViewReporter] 同步导航位置失败`,{workspaceKey:a,activeTaskId:t,error:e})})},[t,a,l])",
+      "replacement": "(0,Q.useEffect)(()=>{e&&l&&l(a,t??void 0).catch(e=>{J.warn(`[WebRemoteControlTaskViewReporter] 同步导航位置失败`,{workspaceKey:a,activeTaskId:t,error:e})})},[e,t,a,l])",
+      "count": 1
+    },
+    {
+      "name": "codex-mobile-transport-state-store",
+      "needle": "document.title=\"Codex\";K9.render",
+      "replacement": "document.title=\"Codex\";RNn(n.webRemoteControlTerminalTransportState??`paired`);K9.render",
+      "count": 1
+    },
+    {
+      "name": "codex-mobile-close-disposes-rpc-and-exposes-handshake-socket",
+      "needle": "function t7n(e,t){return new Promise((n,r)=>{let i=new WebSocket(e),a=!1;i.addEventListener(`error`,()=>{a||r(Error(`WebSocket connection failed: ${e}`))}),i.addEventListener(`close`,e=>{t?.onClose?.({code:e.code,reason:e.reason,wasClean:e.wasClean}),a||r(Error(e.reason?`WebSocket closed before ready: ${e.reason}`:`WebSocket closed before ready (${e.code})`))}),i.addEventListener(`open`,()=>{a=!0,t?.onOpenSocket?.(i),n(n7n(new Kce(e7n(i))))})})}",
+      "replacement": "function t7n(e,t){return new Promise((n,r)=>{let i=new WebSocket(e),a=!1,o;t?.onCreateSocket?.(i);i.addEventListener(`error`,()=>{a||r(Error(`WebSocket connection failed`))}),i.addEventListener(`close`,e=>{o?.dispose();t?.onClose?.({code:e.code,reason:e.reason,wasClean:e.wasClean}),a||r(Error(e.reason?`WebSocket closed before ready: ${e.reason}`:`WebSocket closed before ready (${e.code})`))}),i.addEventListener(`open`,()=>{a=!0;t?.onOpenSocket?.(i);o=new qce(new Kce(e7n(i)));n(new $5n(o))})})}",
+      "count": 1
+    },
+    {
+      "name": "codex-history-observe-scroll-direction-before-updating-offset",
+      "needle": "let t=Me.current!==null&&Math.abs(e.scrollTop-Ve.current)<1,n=yt()===`none`?t?`programmatic`:Date.now()<=Ie.current?`layout`:`user`:`user`;",
+      "replacement": "let a=Ve.current,o=yt(),t=Me.current!==null&&Math.abs(e.scrollTop-a)<1,n=o===`none`?t?`programmatic`:Date.now()<=Ie.current?`layout`:`user`:`user`;",
+      "count": 1
+    },
+    {
+      "name": "codex-history-only-prefetch-on-user-upward-scroll",
+      "needle": "if(Xbn({scrollTop:e.scrollTop,canLoadOlder:r.canLoadOlder,loadingOlder:r.loadingOlder,triggerPx:i})){let t=dt.getVirtualItemForOffset(e.scrollTop)",
+      "replacement": "if(n===`user`&&(e.scrollTop<a-1||o===`awayFromBottom`&&!Ne.current.codexOlderRequested)&&Xbn({scrollTop:e.scrollTop,canLoadOlder:r.canLoadOlder,loadingOlder:r.loadingOlder,triggerPx:i})){Ne.current.codexOlderRequested=!0;let t=dt.getVirtualItemForOffset(e.scrollTop)",
+      "count": 1
+    },
+    {
+      "name": "codex-history-explicit-upward-intent-can-load-at-top",
+      "needle": "xt=(0,Q.useCallback)(e=>{if(e===`none`)return;Ne.current={intent:e,observedAt:Date.now()};let t=B.current;e===`awayFromBottom`&&t&&t.scrollHeight>t.clientHeight&&_t(!1)},[_t])",
+      "replacement": "xt=(0,Q.useCallback)(e=>{if(e===`none`)return;Ne.current={intent:e,observedAt:Date.now()};let t=B.current;e===`awayFromBottom`&&t&&(t.scrollHeight>t.clientHeight&&_t(!1),t.scrollTop<=0&&Ae.current.canLoadOlder&&!Ae.current.loadingOlder&&t.dispatchEvent(new Event(`scroll`)))},[_t])",
+      "count": 1
+    },
+    {
+      "name": "codex-code-defer-pool-construction",
+      "needle": "this.queueInitialization(t)}isWorkingPool()",
+      "replacement": "this.__zInitialLangs=t}isWorkingPool()",
+      "count": 1
+    },
+    {
+      "name": "codex-code-preserve-initial-languages",
+      "needle": "async initialize(e=[])",
+      "replacement": "async initialize(e=this.__zInitialLangs??[])",
+      "count": 1
+    },
+    {
+      "name": "codex-code-return-first-initialization-promise",
+      "needle": "}),this.queueBroadcastStateChanges()}else return this.initialized}",
+      "replacement": "}),this.queueBroadcastStateChanges()}return this.initialized}",
+      "count": 1
+    },
+    {
+      "name": "codex-code-cold-theme-sync-no-engine",
+      "needle": "if(this.isInitialized()||await this.initialize(),!this.isCurrentLifecycle(a)||gv(o,this.renderOptions))return;",
+      "replacement": "if(this.initialized===!1){this.renderOptions=o;return}if(this.isInitialized()||await this.initialize(),!this.isCurrentLifecycle(a)||gv(o,this.renderOptions))return;",
+      "count": 1
+    },
+    {
+      "name": "codex-code-pool-plaintext-without-engine",
+      "needle": "if(this.highlighter==null){this.queueInitialization();return}return yMe(e,this.highlighter",
+      "replacement": "if(this.highlighter==null){this.queueInitialization();return __zPlainFile(e,t,n,r)}return yMe(e,this.highlighter",
+      "count": 1
+    },
+    {
+      "name": "codex-code-worker-error-settles-initialization",
+      "needle": "a.addEventListener(`error`,e=>console.error(`Worker error:`,e,o))",
+      "replacement": "a.addEventListener(`error`,e=>{const error=Error(e.message||\"Code worker failed to load\");this.workersFailed=!0;this.initialized=!1;for(const task of this.pendingTasks.values())if(\"reject\"in task)task.reject(error);else task.instance.onHighlightError(error);this.pendingTasks.clear();this.instanceRequestMap.clear();this.taskQueue.clear();this.terminateWorkers();this.queueBroadcastStateChanges();for(const instance of this.themeSubscribers)instance.rerender()})",
+      "count": 1
+    },
+    {
+      "name": "codex-code-main-renderer-plaintext-and-error",
+      "needle": "PNe=class{__id=`file-renderer:${++NNe}`;highlighter;renderCache;computedLang=`text`;lineAnnotations={};lineCache;constructor(e={theme:Dh},t,n){this.options=e,this.onRenderUpdate=t,this.workerManager=n,n?.isWorkingPool()!==!0&&(this.highlighter=Vv(e.theme??Dh)?eMe():void 0)}setOptions(e){this.options=e}mergeOptions(e){this.options={...this.options,...e}}setLineAnnotations(e){this.lineAnnotations={};for(let t of e){let e=this.lineAnnotations[t.lineNumber]??[];this.lineAnnotations[t.lineNumber]=e,e.push(t)}}cleanUp(){this.renderCache=void 0,this.highlighter=void 0,this.workerManager=void 0,this.onRenderUpdate=void 0,this.lineCache=void 0}hydrate(e){let{options:t}=this.getRenderOptions(e),n=this.workerManager?.getFileResultCache(e);n!=null&&!Hv(t,n.options)&&(n=void 0),this.renderCache??={file:e,options:t,highlighted:!aMe(e),result:n?.result,renderRange:void 0},this.workerManager?.isWorkingPool()===!0?this.renderCache.result??this.workerManager.highlightFileAST(this,e):this.highlighter??(this.computedLang=e.lang??ev(e.name),this.initializeHighlighter())}getRenderOptions(e){let t=(()=>{if(this.workerManager?.isWorkingPool()===!0)return this.workerManager.getFileRenderOptions();let{theme:e=Dh,tokenizeMaxLineLength:t=1e3}=this.options;return{theme:e,useTokenTransformer:MNe(this.options),tokenizeMaxLineLength:t}})(),{renderCache:n}=this;return n?.result==null||e!==n.file||!Hv(t,n.options)?{options:t,forceRender:!0}:{options:t,forceRender:!1}}getOrCreateLineCache(e){if(e.cacheKey==null)return this.lineCache=void 0,mv(e.contents);let{lineCache:t}=this;return(t==null||t.cacheKey!==e.cacheKey)&&(t={cacheKey:e.cacheKey,lines:mv(e.contents)}),this.lineCache=t,t.lines}renderFile(e=this.renderCache?.file,t=Oh){if(e==null)return;let n=this.workerManager?.getFileResultCache(e);n!=null&&this.renderCache==null&&(this.renderCache={file:e,highlighted:!0,renderRange:void 0,...n});let{options:r,forceRender:i}=this.getRenderOptions(e);if(this.renderCache??={file:e,highlighted:!1,options:r,result:void 0,renderRange:void 0},this.workerManager?.isWorkingPool()===!0)(this.renderCache.result==null||!this.renderCache.highlighted&&(e!==this.renderCache.file||!zv(this.renderCache.renderRange,t)))&&(this.renderCache.file=e,this.renderCache.result=this.workerManager.getPlainFileAST(e,t.startingLine,t.totalLines,this.getOrCreateLineCache(e)),this.renderCache.renderRange=t),t.totalLines>0&&(!this.renderCache.highlighted||i)&&this.workerManager.highlightFileAST(this,e);else{this.computedLang=e.lang??ev(e.name);let t=this.highlighter!=null&&Vv(r.theme),n=this.highlighter!=null&&Bv(this.computedLang);if(this.highlighter!=null&&t&&(i||!this.renderCache.highlighted&&n||this.renderCache.result==null)){let{result:t,options:r}=this.renderFileWithHighlighter(e,this.highlighter,!n);this.renderCache={file:e,options:r,highlighted:n,result:t,renderRange:void 0}}(!t||!n)&&this.asyncHighlight(e).then(({result:t,options:n})=>{this.renderCache!=null&&(this.renderCache.highlighted=!1),this.onHighlightSuccess(e,t,n)})}return this.renderCache.result==null?void 0:this.processFileResult(this.renderCache.file,t,this.renderCache.result)}async asyncRender(e,t=Oh){let{result:n}=await this.asyncHighlight(e);return this.processFileResult(e,t,n)}async asyncHighlight(e){this.computedLang=e.lang??ev(e.name);let t=this.highlighter!=null&&X_(Y_(this.options.theme)),n=this.highlighter!=null&&Bv(this.computedLang);return(this.highlighter==null||!t||!n)&&(this.highlighter=await this.initializeHighlighter()),this.renderFileWithHighlighter(e,this.highlighter)}renderFileWithHighlighter(e,t,n=!1){let{options:r}=this.getRenderOptions(e);return{result:yMe(e,t,r,{forcePlainText:n}),options:r}}processFileResult(e,t,{code:n,themeStyles:r,baseThemeType:i}){let{disableFileHeader:a=!1}=this.options,o=[],s=ov(),c=this.getOrCreateLineCache(e),l=0;return tv({lines:c,startingLine:t.startingLine,totalLines:t.totalLines,callback:({lineIndex:t,lineNumber:r})=>{let i=n[t];if(i==null){let n=`FileRenderer.processFileResult: Line doesnt exist`;throw console.error(n,{name:e.name,lineIndex:t,lineNumber:r,lines:c}),Error(n)}if(i!=null){s.children.push(sMe(`context`,r,`${t}`)),o.push(i),l++;let e=this.lineAnnotations[r];e!=null&&(s.children.push(sv(`context`,`annotation`,1)),o.push(CNe({type:`annotation`,hunkIndex:0,lineIndex:r,annotations:e.map(e=>kh(e))})),l++)}}}),s.properties.style=`grid-row: span ${l}`,{gutterAST:s.children??[],contentAST:o,preAST:this.createPreElement(c.length),headerAST:a?void 0:this.renderHeader(e),totalLines:c.length,rowCount:l,themeStyles:r,baseThemeType:i,bufferBefore:t.bufferBefore,bufferAfter:t.bufferAfter,css:``}}renderHeader(e){let{headerRenderMode:t=`default`}=this.options;return ENe({fileOrDiff:e,mode:t})}renderFullHTML(e){return vg(this.renderFullAST(e))}renderFullAST(e,t=[]){return t.push(iv({tagName:`code`,children:this.renderCodeAST(e),properties:{\"data-code\":``}})),{...e.preAST,children:t}}renderCodeAST(e){let t=ov();return t.children=e.gutterAST,t.properties.style=`grid-row: span ${e.rowCount}`,[t,wNe(e.contentAST,e.rowCount)]}renderPartialHTML(e,t=!1){return vg(t?iv({tagName:`code`,children:e,properties:{\"data-code\":``}}):e)}async initializeHighlighter(){return this.highlighter=await J_(jNe(this.computedLang,this.options)),this.highlighter}onHighlightSuccess(e,t,n){if(this.renderCache==null)return;let r=this.renderCache.file!==e||!this.renderCache.highlighted||!Hv(n,this.renderCache.options);this.renderCache={file:e,options:n,highlighted:!0,result:t,renderRange:void 0},r&&this.onRenderUpdate?.()}onHighlightError(e){console.error(e)}createPreElement(e){let{disableLineNumbers:t=!1,overflow:n=`scroll`}=this.options;return kNe({type:`file`,diffIndicators:`none`,disableBackground:!0,disableLineNumbers:t,overflow:n,split:!1,totalLines:e})}}",
+      "replacement": "PNe=class{__id=`file-renderer:${++NNe}`;highlighter;renderCache;computedLang=`text`;lineAnnotations={};lineCache;constructor(e={theme:Dh},t,n){this.options=e,this.onRenderUpdate=t,this.workerManager=n,n?.isWorkingPool()!==!0&&(this.highlighter=Vv(e.theme??Dh)?eMe():void 0)}setOptions(e){this.options=e}mergeOptions(e){this.options={...this.options,...e}}setLineAnnotations(e){this.lineAnnotations={};for(let t of e){let e=this.lineAnnotations[t.lineNumber]??[];this.lineAnnotations[t.lineNumber]=e,e.push(t)}}cleanUp(){this.renderCache=void 0,this.highlighter=void 0,this.workerManager=void 0,this.onRenderUpdate=void 0,this.lineCache=void 0}hydrate(e){let{options:t}=this.getRenderOptions(e),n=this.workerManager?.getFileResultCache(e);n!=null&&!Hv(t,n.options)&&(n=void 0),this.renderCache??={file:e,options:t,highlighted:!aMe(e),result:n?.result,renderRange:void 0},this.workerManager?.isWorkingPool()===!0?this.renderCache.result??this.workerManager.highlightFileAST(this,e):this.highlighter??(this.computedLang=e.lang??ev(e.name),this.initializeHighlighter())}getRenderOptions(e){let t=(()=>{if(this.workerManager?.isWorkingPool()===!0)return this.workerManager.getFileRenderOptions();let{theme:e=Dh,tokenizeMaxLineLength:t=1e3}=this.options;return{theme:e,useTokenTransformer:MNe(this.options),tokenizeMaxLineLength:t}})(),{renderCache:n}=this;return n?.result==null||e!==n.file||!Hv(t,n.options)?{options:t,forceRender:!0}:{options:t,forceRender:!1}}getOrCreateLineCache(e){if(e.cacheKey==null)return this.lineCache=void 0,mv(e.contents);let{lineCache:t}=this;return(t==null||t.cacheKey!==e.cacheKey)&&(t={cacheKey:e.cacheKey,lines:mv(e.contents)}),this.lineCache=t,t.lines}renderFile(e=this.renderCache?.file,t=Oh){if(e==null)return;this.__zRequestedFile=e;let n=this.workerManager?.getFileResultCache(e);n!=null&&this.renderCache==null&&(this.renderCache={file:e,highlighted:!0,renderRange:void 0,...n});let{options:r,forceRender:i}=this.getRenderOptions(e);if(this.renderCache??={file:e,highlighted:!1,options:r,result:void 0,renderRange:void 0},this.workerManager?.isWorkingPool()===!0)(this.renderCache.result==null||!this.renderCache.highlighted&&(e!==this.renderCache.file||!zv(this.renderCache.renderRange,t)))&&(this.renderCache.file=e,this.renderCache.result=this.workerManager.getPlainFileAST(e,t.startingLine,t.totalLines,this.getOrCreateLineCache(e)),this.renderCache.renderRange=t),t.totalLines>0&&(!this.renderCache.highlighted||i)&&this.workerManager.highlightFileAST(this,e);else{this.computedLang=e.lang??ev(e.name);let t=this.highlighter!=null&&Vv(r.theme),n=this.highlighter!=null&&Bv(this.computedLang);if(this.highlighter!=null&&t&&(i||!this.renderCache.highlighted&&n||this.renderCache.result==null)){let{result:t,options:r}=this.renderFileWithHighlighter(e,this.highlighter,!n);this.renderCache={file:e,options:r,highlighted:n,result:t,renderRange:void 0}}(!t||!n)&&this.asyncHighlight(e).then(({result:t,options:n})=>{this.renderCache!=null&&(this.renderCache.highlighted=!1),this.onHighlightSuccess(e,t,n)}).catch(e=>this.onHighlightError(e))}return this.renderCache.result==null||!hv(this.renderCache.file,e)?this.processFileResult(e,t,__zPlainFile(e,t.startingLine,t.totalLines,this.getOrCreateLineCache(e))):this.processFileResult(this.renderCache.file,t,this.renderCache.result)}async asyncRender(e,t=Oh){let{result:n}=await this.asyncHighlight(e);return this.processFileResult(e,t,n)}async asyncHighlight(e){this.computedLang=e.lang??ev(e.name);let t=this.highlighter!=null&&X_(Y_(this.options.theme)),n=this.highlighter!=null&&Bv(this.computedLang);return(this.highlighter==null||!t||!n)&&(this.highlighter=await this.initializeHighlighter()),this.renderFileWithHighlighter(e,this.highlighter)}renderFileWithHighlighter(e,t,n=!1){let{options:r}=this.getRenderOptions(e);return{result:yMe(e,t,r,{forcePlainText:n}),options:r}}processFileResult(e,t,{code:n,themeStyles:r,baseThemeType:i}){let{disableFileHeader:a=!1}=this.options,o=[],s=ov(),c=this.getOrCreateLineCache(e),l=0;return tv({lines:c,startingLine:t.startingLine,totalLines:t.totalLines,callback:({lineIndex:t,lineNumber:r})=>{let i=n[t];if(i==null){let n=`FileRenderer.processFileResult: Line doesnt exist`;throw console.error(n,{name:e.name,lineIndex:t,lineNumber:r,lines:c}),Error(n)}if(i!=null){s.children.push(sMe(`context`,r,`${t}`)),o.push(i),l++;let e=this.lineAnnotations[r];e!=null&&(s.children.push(sv(`context`,`annotation`,1)),o.push(CNe({type:`annotation`,hunkIndex:0,lineIndex:r,annotations:e.map(e=>kh(e))})),l++)}}}),s.properties.style=`grid-row: span ${l}`,{gutterAST:s.children??[],contentAST:o,preAST:this.createPreElement(c.length),headerAST:a?void 0:this.renderHeader(e),totalLines:c.length,rowCount:l,themeStyles:r,baseThemeType:i,bufferBefore:t.bufferBefore,bufferAfter:t.bufferAfter,css:``}}renderHeader(e){let{headerRenderMode:t=`default`}=this.options;return ENe({fileOrDiff:e,mode:t})}renderFullHTML(e){return vg(this.renderFullAST(e))}renderFullAST(e,t=[]){return t.push(iv({tagName:`code`,children:this.renderCodeAST(e),properties:{\"data-code\":``}})),{...e.preAST,children:t}}renderCodeAST(e){let t=ov();return t.children=e.gutterAST,t.properties.style=`grid-row: span ${e.rowCount}`,[t,wNe(e.contentAST,e.rowCount)]}renderPartialHTML(e,t=!1){return vg(t?iv({tagName:`code`,children:e,properties:{\"data-code\":``}}):e)}async initializeHighlighter(){return this.highlighter=await J_(jNe(this.computedLang,this.options)),this.highlighter}onHighlightSuccess(e,t,n){if(this.renderCache==null||!hv(this.__zRequestedFile,e))return;let r=this.renderCache.file!==e||!this.renderCache.highlighted||!Hv(n,this.renderCache.options);this.renderCache={file:e,options:n,highlighted:!0,result:t,renderRange:void 0},r&&this.onRenderUpdate?.()}onHighlightError(e){console.error(e)}createPreElement(e){let{disableLineNumbers:t=!1,overflow:n=`scroll`}=this.options;return kNe({type:`file`,diffIndicators:`none`,disableBackground:!0,disableLineNumbers:t,overflow:n,split:!1,totalLines:e})}}",
+      "count": 1
+    },
+    {
+      "name": "codex-code-plain-ast-helper",
+      "needle": "function __codexOriginalMount(",
+      "replacement": "\n// Same line AST contract as yMe -> mMe -> cMe; no engine or grammar required.\nfunction __zPlainFile(file, startingLine=0, totalLines=Infinity, lines=mv(file.contents)) {\n const code=Array(startingLine);\n tv({lines,startingLine,totalLines,callback:({lineIndex,lineNumber,content})=>{\n  code[lineIndex]=cMe(iv({tagName:'div',children:[rv(nv(content))]}),lineNumber,\n   {lineInfo:n=>({type:'context',lineIndex:n-1,lineNumber:n})});\n }});\n return {code,themeStyles:'color:inherit;background-color:transparent;',baseThemeType:void 0};\n}\n\nfunction __codexOriginalMount(",
+      "count": 1
+    },
+    {
+      "name": "codex-code-hydration-initialization-rejection-handled",
+      "needle": "hydrate(e){let{options:t}=this.getRenderOptions(e),n=this.workerManager?.getFileResultCache(e);n!=null&&!Hv(t,n.options)&&(n=void 0),this.renderCache??={file:e,options:t,highlighted:!aMe(e),result:n?.result,renderRange:void 0},this.workerManager?.isWorkingPool()===!0?this.renderCache.result??this.workerManager.highlightFileAST(this,e):this.highlighter??(this.computedLang=e.lang??ev(e.name),this.initializeHighlighter())}",
+      "replacement": "hydrate(e){let{options:t}=this.getRenderOptions(e),n=this.workerManager?.getFileResultCache(e);n!=null&&!Hv(t,n.options)&&(n=void 0),this.renderCache??={file:e,options:t,highlighted:!aMe(e),result:n?.result,renderRange:void 0},this.workerManager?.isWorkingPool()===!0?this.renderCache.result??this.workerManager.highlightFileAST(this,e):this.highlighter??(this.computedLang=e.lang??ev(e.name),this.initializeHighlighter().catch(e=>this.onHighlightError(e)))}",
+      "count": 1
+    },
+    {
+      "name": "codex-code-stale-highlight-keeps-current-result-highlighted",
+      "needle": "this.asyncHighlight(e).then(({result:t,options:n})=>{this.renderCache!=null&&(this.renderCache.highlighted=!1),this.onHighlightSuccess(e,t,n)}).catch(e=>this.onHighlightError(e))",
+      "replacement": "this.asyncHighlight(e).then(({result:t,options:n})=>{if(!hv(this.__zRequestedFile,e))return;this.renderCache!=null&&(this.renderCache.highlighted=!1),this.onHighlightSuccess(e,t,n)}).catch(e=>this.onHighlightError(e))",
+      "count": 1
+    }
+  ]
+}
