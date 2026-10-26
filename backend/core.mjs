@@ -111,7 +111,7 @@ export function rolloutItem(item) {
   const type = item.type?.[0].toLowerCase() + item.type?.slice(1);
   const durationMs = item.duration ? Math.round((item.duration.secs || 0) * 1000 + (item.duration.nanos || 0) / 1e6) : undefined;
   if (type === 'agentMessage') return { id: item.id, type, phase: item.phase, text: typeof item.content === 'string' ? item.content : (item.content || []).map(c => c.text || '').join('') };
-  if (type === 'userMessage') return { id: item.id, type, content: (item.content || []).map(c => c.type === 'local_image' ? { ...c, type: 'localImage' } : c) };
+  if (type === 'userMessage') return { id: item.id, type, ...(/^zcv4_[a-f0-9]{48}(?:_input)?$/.test(item.client_id||'')?{clientUserMessageId:item.client_id}:{}), content: (item.content || []).map(c => c.type === 'local_image' ? { ...c, type: 'localImage' } : c) };
   if (type === 'imageGeneration') return { id:item.id,type,status:item.status,...(typeof (item.fileId??item.file_id)==='string'?{fileId:item.fileId??item.file_id}:{}),...(typeof item.result==='string'?{result:item.result}:{}),...(typeof (item.savedPath??item.saved_path)==='string'?{savedPath:item.savedPath??item.saved_path}:{}) };
   if (type === 'commandExecution') return { id: item.id, type, command: item.command, cwd: item.cwd, status: item.status, aggregatedOutput: item.aggregated_output, exitCode: item.exit_code, durationMs };
   if (type === 'reasoning') return { id: item.id, type, summary: item.summary_text || [] };
