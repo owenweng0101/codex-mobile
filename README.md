@@ -8,11 +8,11 @@
 
 ## 界面效果
 
-以下为实际页面在浏览器中的截图，使用独立演示数据，不包含个人会话。二维码内容固定为 `https://example.invalid/codex-mobile-demo`，仅作展示，不含真实公网地址或配对凭据。
+电脑配对图使用演示数据，后两张为实际手机截图，分别展示项目与任务列表、微信收藏入口。电脑图中的二维码内容固定为 `https://example.invalid/codex-mobile-demo`，仅作展示，不含真实公网地址或配对凭据。
 
-| 电脑显示配对二维码 | 手机查看项目 | 手机阅读会话与输入任务 |
+| 电脑显示配对二维码 | 手机查看项目与任务 | 微信收藏入口 |
 | --- | --- | --- |
-| ![电脑配对页面，示例二维码](docs/images/pairing.png) | ![手机项目列表，演示数据](docs/images/projects.png) | ![手机会话，演示数据](docs/images/conversation.png) |
+| ![电脑配对页面，示例二维码](docs/images/pairing.png) | ![手机项目与任务列表，实机截图](docs/images/projects.png) | ![微信收藏中的 Codex 页面入口，实机截图](docs/images/conversation.png) |
 
 ## 功能介绍
 
