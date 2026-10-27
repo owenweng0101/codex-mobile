@@ -89,6 +89,12 @@ test('official coordinator handshake, owner lookup and fragmented snapshot norma
   assert.equal(messages[0].params.clientType,'codex-mobile');assert.equal(messages.find(m=>m.method==='thread-owner-discovery').version,1);assert.equal((await bridge.modelSettings('test-thread')).model,'test-model');
 });
 
+test('a send blocked before desktop ownership is definitely not dispatched',async t=>{
+  const f=await mock(t,{missingOwner:true});
+  await assert.rejects(f.bridge.send('test-thread',{requestId:'no-owner',input:[{type:'text',text:'fixture'}]}),error=>error.sent===false&&!error.outcomeUnknown);
+  assert.equal(f.messages.filter(message=>message.method==='thread-follower-start-turn').length,0);
+});
+
 test('verified restore notifications use the real client identity and never claim an owner or send a turn',async t=>{
   const {bridge,messages}=await mock(t),threadId='01a16fbe-cb37-7600-b52b-dd2d231dbbb2';
   bridge.noOwners.set(threadId,Date.now());assert.deepEqual(await bridge.notifyUnarchived(threadId),{notified:true});await delay(5);

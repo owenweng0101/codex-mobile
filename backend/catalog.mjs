@@ -4,6 +4,18 @@ import { resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
 const string = (value, limit = 200) => typeof value === 'string' ? value.slice(0, limit) : null;
+// Some persisted empty desktop threads do not appear in thread/list. Recover
+// only locally created IDs that a fresh native read confirms are unarchived.
+export async function includePersistedCreations(threads, ids, readThread) {
+  const combined=new Map(threads.map(thread=>[thread.id,thread]));
+  for(const id of ids){
+    if(combined.has(id))continue;
+    try{const thread=await readThread(id);
+      if(thread?.id===id&&typeof thread.path==='string'&&thread.path.includes('/sessions/')&&!thread.path.includes('/archived_sessions/'))combined.set(id,thread);
+    }catch{}
+  }
+  return [...combined.values()];
+}
 export function catalogMetadata(input) {
   const projects = (input?.projects || []).slice(0, 200).filter(p => typeof p.id === 'string').map(p => ({ id: p.id, name: string(p.name), roots: (p.roots || []).filter(r => typeof r === 'string').slice(0, 20) }));
   const threads = (input?.threads || []).slice(0, 10000).filter(t => typeof t.id === 'string').map(t => ({ id: t.id, name: string(t.name), preview: string(t.preview) || '', cwd: string(t.cwd, 4096), updatedAt: Number(t.updatedAt) || 0, createdAt: Number(t.createdAt) || 0, status: typeof t.status === 'string' ? string(t.status, 50) : { type: string(t.status?.type, 50) || 'notLoaded' }, model: string(t.model, 100), projectId: string(t.projectId, 100), mobileProjectId: string(t.mobileProjectId, 100) }));

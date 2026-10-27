@@ -19,7 +19,7 @@ import { CapabilityCatalog } from './capabilities.mjs';
 import { DesktopBridge, trimIdleDesktopSubscriptions, desktopHistory as desktopSnapshotHistory } from './desktop-bridge.mjs';
 import { MobileOrganization } from './organization.mjs';
 import { NativeOrganization } from './native-pins.mjs';
-import { CatalogCache } from './catalog.mjs';
+import { CatalogCache, includePersistedCreations } from './catalog.mjs';
 import { DesktopIntent, ensureDesktopOwner } from './desktop-intent.mjs';
 import { AutomationCatalog } from './automations.mjs';
 import { searchWorkspaceFiles } from './file-search.mjs';
@@ -130,7 +130,7 @@ async function desktopOwnerFor(id) { if (owned.has(id)) return null; try { const
 async function nativeForOperation(id) {
   if(threadSettings[id]?.needsDesktopRefresh){try{await archivedThreads.refreshDesktop(id,desktop);}catch(error){if(error.code==='THREAD_ARCHIVED')throw error;}}
   await ensureDesktopOwner(id,{isOwned:()=>owned.has(id),isStale:()=>desktopStale.has(id),owner:()=>desktopOwnerFor(id),attach:()=>nativeIntent.attach(id)});
-  let state;try{state=await desktop.snapshot(id,{fresh:true,timeout:1500});}catch{}
+  let state;for(let attempt=0;attempt<2&&!state;attempt++){try{state=await desktop.snapshot(id,{fresh:true,timeout:2500});}catch{}}
   const native=state?acceptDesktopHistory(id,desktopSnapshotHistory(state)):null;
   if(!native)throw Object.assign(new Error('电脑端会话状态尚未同步，请重新连接并核对后再操作'),{statusCode:503});
   if(threadSettings[id]?.needsDesktopRefresh){threadSettings[id].needsDesktopRefresh=false;await saveSettings();}
@@ -210,7 +210,7 @@ async function loadCatalog() {
   const projects = projectPage.data.map(p => ({ id: p.id, name: p.name, roots: p.roots.map(r => r.path) }));
   const assignments = state['thread-project-assignments'] || {}, maps = {};
   for (const map of Object.values(state['app-server-project-id-by-legacy-project-id-by-host'] || {})) Object.assign(maps, map);
-  const combined = new Map(sourceThreads.data.map(t => [t.id, t]));
+  const combined = new Map((await includePersistedCreations(sourceThreads.data,await creations.persistedThreadIds(),threadRead)).map(t => [t.id, t]));
   for (const [id, thread] of draftThreads) if (!combined.has(id)) combined.set(id, thread);
   const threads = [...combined.values()];
   for (const t of threads) {
@@ -289,6 +289,7 @@ const key = `${data.threadId}:${data.requestId}`;
 if (receipts.has(key)) return await receipts.get(key);
 if (!steer && (turnsStarting.has(data.threadId) || core.activeTurns.has(data.threadId) || desktopActive.has(data.threadId) || data.delivery === 'startNow' && hasPendingDelivery(data,messageQueue))) throw data.delivery === 'startNow' ? messageBusy() : new Error('该任务正在运行，请先加入发送队列');
 turnsStarting.add(data.threadId);
+let nativeDispatched=false;
 const pending = (async () => {
   const thread = await unarchivedThread(data.threadId);
   const native = await nativeForOperation(data.threadId);
@@ -307,6 +308,7 @@ const pending = (async () => {
   if(!steer&&(activeTurnId || data.delivery === 'startNow' && (core.activeTurns.has(data.threadId) || hasPendingDelivery(data,messageQueue))))throw data.delivery === 'startNow' ? messageBusy() : new Error('接管后的会话正在运行，本次消息尚未发送，请加入发送队列');
   if (steer && !activeTurnId) throw Object.assign(new Error('当前任务已结束，本次尚未插入'),{code:'TURN_ENDED',sent:false});
   const sandboxPolicy = settings.sandbox === 'danger-full-access' ? { type: 'dangerFullAccess' } : settings.sandbox === 'read-only' ? { type: 'readOnly', networkAccess: true } : settings.sandbox === 'workspace-write' ? { type: 'workspaceWrite', writableRoots: [thread.cwd], networkAccess: true } : null;
+  nativeDispatched=true;
   const result = await desktop[steer ? 'steer' : 'send'](data.threadId, { input, requestId: data.requestId, collaborationMode, ...(data.delivery === 'startNow' ? { delivery:'startNow' } : {}), ...(settings.model ? { model: settings.model } : {}), ...(settings.effort ? { effort: settings.effort } : {}), ...(settings.approvalPolicy ? { approvalPolicy: settings.approvalPolicy } : {}), ...(sandboxPolicy ? { sandboxPolicy } : {}) });
   const nativeRunning=!['completed','interrupted','failed'].includes(result.turn?.status);
   if (!steer) { if(nativeRunning)desktopActive.set(data.threadId,result.turn.id);else desktopActive.delete(data.threadId); }
@@ -322,7 +324,7 @@ const pending = (async () => {
   return result;
 })();
 receipts.set(key, pending); if (receipts.size > 300) receipts.delete(receipts.keys().next().value);
-try { return await pending; } catch (error) { if (!error.outcomeUnknown) receipts.delete(key); throw error; } finally { turnsStarting.delete(data.threadId); }
+try { return await pending; } catch (error) { if(!nativeDispatched&&!error.outcomeUnknown)error.sent=false; if (!error.outcomeUnknown) receipts.delete(key); throw error; } finally { turnsStarting.delete(data.threadId); }
 }
 const server = http.createServer(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -631,7 +633,7 @@ const server = http.createServer(async (req, res) => {
     else if (!res.headersSent && e.threadId) send(res, 409, { error: e.message, ...(e.code?{code:e.code}:{}), ...(e.outcomeUnknown?{outcomeUnknown:true}:{}), ...(e.stage?{stage:e.stage}:{}), threadId: e.threadId, persisted: !!e.persisted, writerReleased: !!e.writerReleased, recoverable: true, needsAttach: e.needsAttach ?? (!!e.persisted && !!e.writerReleased) });
     else if (!res.headersSent && e.outcomeUnknown) send(res, 409, { error: e.message, outcomeUnknown: true, ...(e.code?{code:e.code}:{}), ...(e.terminalId?{terminalId:e.terminalId}:{}) });
     else if (!res.headersSent && /active writer|already loaded|already running/i.test(e.message)) send(res, 409, { error: '电脑正在使用这条对话，可以接续副本，保留上下文继续操作。', needsFork: true });
-    else if (!res.headersSent) send(res, 500, {error:e.message,...(e.code?{code:e.code}:{})}); else res.end();
+    else if (!res.headersSent) send(res, 500, {error:e.message,...(e.code?{code:e.code}:{}),...(e.sent===false?{sent:false}:{})}); else res.end();
   }
 });
 const receipts = new Map();

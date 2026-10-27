@@ -348,7 +348,8 @@ export class DesktopBridge extends EventEmitter {
     if(!Array.isArray(options.input)||!options.input.length)return Promise.reject(new Error('请输入消息'));
     const requestId=options.requestId||randomUUID();
     return this.onceMutation(`send:${threadId}:${requestId}`,async()=>{
-      const state=await this.snapshot(threadId, options.delivery==='startNow'?{fresh:true}:{});if(!state)throw bridgeError('此会话尚未由 Codex 桌面打开','DESKTOP_NO_OWNER');
+      let state;try{state=await this.snapshot(threadId, options.delivery==='startNow'?{fresh:true}:{});}catch(error){if(!error.outcomeUnknown)error.sent=false;throw error;}
+      if(!state)throw Object.assign(bridgeError('此会话尚未由 Codex 桌面打开','DESKTOP_NO_OWNER'),{sent:false});
       const previous=exactStartedTurn(state,threadId,requestId);if(previous)return previous;
       if(options.delivery==='startNow'&&desktopHistory(state).activeTurn)throw messageBusy();
       const request={threadId,input:normalizeDesktopInput(options.input),clientUserMessageId:requestId};

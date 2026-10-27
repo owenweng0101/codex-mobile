@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, stat, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CatalogCache } from '../catalog.mjs';
+import { CatalogCache, includePersistedCreations } from '../catalog.mjs';
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const fixture = (id = 'a') => ({ projects: [{ id: 'project', name: '项目', roots: ['/tmp/workspace'] }], threads: [{ id, name: '任务 ' + id, preview: '用户请求', cwd: '/tmp/workspace', updatedAt: 100, mobileProjectId: 'project', status: { type: 'idle' }, turns: [{ rawSecret: 'never-store-history' }], authToken: 'never-store-auth' }] });
+
+test('persisted empty creations stay visible only when native read confirms an unarchived thread',async()=>{
+  const reads=[];const rows=await includePersistedCreations([{id:'listed'}],['listed','empty','archived','missing'],async id=>{reads.push(id);if(id==='missing')throw Error('deleted');return{id,path:id==='archived'?'/x/archived_sessions/a':'/x/sessions/a'};});
+  assert.deepEqual(rows.map(x=>x.id),['listed','empty']);assert.deepEqual(reads,['empty','archived','missing']);
+});
 
 test('slow catalog reads deduplicate; stale reads return immediately and forced refresh waits', async () => {
   const root = await mkdtemp(join(tmpdir(), 'codex-catalog-')); let time = 1000, calls = 0; const gates = [];

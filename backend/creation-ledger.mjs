@@ -1,4 +1,4 @@
-import {mkdir,open,readFile,rename,unlink} from 'node:fs/promises';
+import {mkdir,open,readFile,readdir,rename,unlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 const KEYS={thread:['id','name','cwd','createdAt','updatedAt','projectId','model','modelProvider','reasoningEffort'],settings:['name','model','effort','mode','approvalPolicy','sandbox'],top:['model','modelProvider','reasoningEffort','approvalPolicy','approvalsReviewer','cwd','serviceTier']};
@@ -20,6 +20,17 @@ export class CreationLedger {
     this.directory=join(stateDir,'creation-ledger');this.pending=new Map();
   }
   async initialize() {this.ready ||= mkdir(this.directory,{recursive:true,mode:0o700});await this.ready;}
+  async persistedThreadIds() {
+    await this.initialize();
+    const files=await readdir(this.directory), ids=new Set();
+    for(const file of files){
+      if(!/^[a-f0-9]{64}\.json$/.test(file))continue;
+      try{const record=JSON.parse(await readFile(join(this.directory,file),'utf8'));
+        if(record.version===1&&record.persisted===true&&typeof record.threadId==='string')ids.add(record.threadId);
+      }catch{}
+    }
+    return [...ids];
+  }
   paths(requestId) {
     if(typeof requestId!=='string'||!/^[A-Za-z0-9_-]{8,160}$/.test(requestId))throw new Error('创建请求标识无效');
     const digest=createHash('sha256').update(requestId).digest('hex');return{record:join(this.directory,digest+'.json'),lock:join(this.directory,digest+'.lock')};
