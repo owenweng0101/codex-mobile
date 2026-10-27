@@ -36,9 +36,10 @@ function conversationDeltas(previous,next){
  * remain original ZCode code. No model/command execution is reachable here. */
 export function projectConversationV4(page,{logEpoch='codex-'+hash(page),seq=0,writable=false,selection=null,rowWindow,totalCount,firstRowId}={}){
  const thread=page.thread,rows=rowWindow??projectConversationRows(page);
- const last=page.turns?.at(-1),currentPhase=phase(last);
+ const last=page.turns?.at(-1),active=typeof page.activeTurn==='string'&&page.activeTurn? page.activeTurn:null;
+ const canStop=!!(writable&&active&&page.attached!==false&&page.desktopConnected!==false),currentPhase=active?'running':phase(last);
  const snapshot={protocolVersion:1,sessionId:thread.id,logEpoch,seq,revision:seq,
-  control:{phase:currentPhase,sessionEnded:false,canStop:false,stopState:'idle',stopTargetKind:'unknown',activeWorks:[],lastError:null,apiRetry:null},
+  control:{phase:currentPhase,sessionEnded:false,canStop,stopState:canStop?'stoppable':'idle',stopTargetKind:canStop?'assistant':'unknown',activeWorks:canStop?[{kind:'primaryTurn',foregroundExecutionId:active,startedAt:time(last?.startedAt)}]:[],lastError:null,apiRetry:null},
   availability:Object.fromEntries(['fork','compact','switchModelConfig','setFollowupMode','queueEdit','sendQueuedNow','pauseGoal','resumeGoal'].map(k=>[k,writable&&['switchModelConfig','queueEdit','sendQueuedNow'].includes(k)?{allowed:true}:denied])),
   inputRouting:writable?{mode:page.activeTurn?'enqueue':page.queue?.items?.length?'enqueue':'startNow'}:{mode:'reject',reasonCode:'codex.adapter.readOnly'},meta:{title:thread.name||thread.preview||'',titleSource:thread.name?'custom':'default'},
   config:{provider:'codex-app',model:selection?.model||page.settings?.model||thread.model||'',thought:selection?.effort||page.settings?.effort||thread.reasoningEffort||'',...((selection?.model||page.settings?.model||thread.model)?{modelSelection:{providerId:'codex-app',modelId:selection?.model||page.settings?.model||thread.model,...((selection?.effort||page.settings?.effort||thread.reasoningEffort)?{options:{reasoningLevel:selection?.effort||page.settings?.effort||thread.reasoningEffort}}:{})}}:{}),thoughtLevels:[],followupMode:'queue',mode:'build'},

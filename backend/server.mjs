@@ -33,7 +33,7 @@ import { GoalReader } from './goals.mjs';
 import { AttachmentStore, serveAttachment } from './attachments.mjs';
 import { HistoryMedia } from './history-media.mjs';
 import { nativeImageRoots, serveNativeMedia } from './native-media.mjs';
-import { deliverMessage, messageBusy, hasPendingDelivery } from './message-delivery.mjs';
+import { deliverMessage, messageBusy, hasPendingDelivery, interruptExpectedTurn } from './message-delivery.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const stateDir = process.env.CODEX_MOBILE_STATE_DIR || resolve(homedir(), 'Library/Application Support/CodexMobile');
@@ -589,6 +589,15 @@ const server = http.createServer(async (req, res) => {
           isBusy:value=>turnsStarting.has(value.threadId) || core.activeTurns.has(value.threadId) || desktopActive.has(value.threadId) || hasPendingDelivery(value,messageQueue),
           enqueue:value=>messageQueue.enqueue(value.threadId,value),
           dispatch:async value=>{const queue=messageQueue.get(value.threadId);if(queue.paused&&!queue.items.length)await messageQueue.handle(value.threadId,{action:'resume'});return dispatchMessage(value);},
+        }));
+      }
+      if (req.method === 'POST' && pathname === '/api/interrupt-expected') {
+        if(!data.threadId)return fail(res,400,'缺少会话编号');
+        await unarchivedThread(data.threadId);
+        return send(res,200,await interruptExpectedTurn(data,{
+          snapshot:nativeForOperation,
+          pauseQueue:async id=>{if(messageQueue.get(id).items.length)await messageQueue.handle(id,{action:'pause'});},
+          interrupt:(id,turnId)=>desktop.interrupt(id,turnId),
         }));
       }
       if (req.method === 'POST' && pathname === '/api/interrupt') {

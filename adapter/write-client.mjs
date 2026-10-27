@@ -1,6 +1,6 @@
 import {CodexReadClient} from './api-client.mjs';
 
-const paths=new Set(['/api/organize','/api/queue','/api/upload','/api/thread','/api/message','/api/thread/archive','/api/thread/unarchive']);
+const paths=new Set(['/api/organize','/api/queue','/api/upload','/api/thread','/api/message','/api/interrupt-expected','/api/thread/archive','/api/thread/unarchive']);
 export class CodexWriteClient extends CodexReadClient{
  async post(path,body){
   if(!paths.has(path))throw Object.assign(Error('未开放此 Codex 写入接口'),{code:'CODEX_WRITE_UNAVAILABLE',sent:false});

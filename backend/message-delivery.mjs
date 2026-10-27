@@ -4,6 +4,18 @@ export function hasPendingDelivery(data, queue) {
   return queue.get(data.threadId).items.length > 0;
 }
 
+// Verify the selected native turn immediately before sending an interrupt.
+// The desktop protocol also receives the expected ID and checks it atomically.
+export async function interruptExpectedTurn(data, {snapshot, pauseQueue, interrupt}) {
+  if(typeof data.expectedTurnId!=='string'||!data.expectedTurnId.trim()||typeof data.requestId!=='string'||!data.requestId.trim())throw Object.assign(new Error('缺少要停止的任务编号'),{statusCode:400,sent:false});
+  const native=await snapshot(data.threadId);
+  if(native.activeTurn!==data.expectedTurnId)return{accepted:false,stale:true,expectedTurnId:data.expectedTurnId};
+  await pauseQueue(data.threadId);
+  const result=await interrupt(data.threadId,data.expectedTurnId);
+  if(result?.interruptedTurnId!==data.expectedTurnId)throw Object.assign(new Error('停止结果待核对，请查看当前会话'),{statusCode:409,outcomeUnknown:true});
+  return{accepted:true,expectedTurnId:data.expectedTurnId};
+}
+
 // startNow is a strict delivery contract. It must never create a queue item;
 // callers without this field retain the original local UI's implicit queue.
 export async function deliverMessage(data, { receipt, prepare, isBusy, enqueue, dispatch }) {

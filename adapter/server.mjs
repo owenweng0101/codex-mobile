@@ -51,7 +51,7 @@ function createConnection(){
   const readEvents=wrapReadEvents(controller.channels,{api,pollMs:250,useLongPolling:true});
   const controllerChanges=readEvents.changes(()=>controller.refresh().catch(()=>{}));
   const conversations=createConversationReadServices({indexedHistory:true,deferInitialFrame:true,api,baseServices:readEvents.channels,eventAdapter:readEvents,writable:true,modelSelections,resolveAttachment});
-  const writes=createWriteServices({autoSteerActive:false,api,baseServices:conversations.channels,ledgerDir:join(stateDir,'commands'),modelSelections,resolveAttachment,revisionGuard:params=>conversations.validateRevision(params),onChanged:async params=>{await sharedServices.project.readTree({refresh:true});await readEvents.pollNow();await conversations.refreshWorkspace(params);}});
+  const writes=createWriteServices({autoSteerActive:false,api,baseServices:conversations.channels,ledgerDir:join(stateDir,'commands'),modelSelections,resolveAttachment,native:{interruptExpected:params=>api.post('/api/interrupt-expected',params)},revisionGuard:params=>conversations.validateRevision(params),onChanged:async params=>{await sharedServices.project.readTree({refresh:true});await readEvents.pollNow();await conversations.refreshWorkspace(params);}});
   return{services:rejectMissingChannels(writes.channels),dispose(){conversations.dispose();controllerChanges.dispose();readEvents.dispose();controller.dispose();}};
 }
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.wasm':'application/wasm'};

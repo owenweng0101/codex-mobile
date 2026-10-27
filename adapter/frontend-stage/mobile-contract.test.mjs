@@ -4,6 +4,12 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 
 const compat=await readFile(new URL('./assets/index-BsmXQHMM.js',import.meta.url),'utf8');
+test('mobile submission clears both the editor and the persisted composer draft',()=>{
+ const start=compat.indexOf('ie(),(a===`startNow`||__codexIsMobile())&&'),end=compat.indexOf(';let u=await V(',start);
+ assert.ok(start>0&&end>start);let draft={text:'message'},editor='message',changes=0;
+ const context={a:'enqueue',ie(){},__codexIsMobile:()=>true,dt:{current:{clear(){editor='';}}},xt(value){editor=value;context.st.current++;},__codexRestoreDraft(value){draft={...draft,...value};changes++;},st:{current:0},A:0,H:false};
+ vm.runInNewContext(compat.slice(start,end),context);assert.equal(editor,'');assert.equal(draft.text,'');assert.equal(changes,1);assert.equal(context.H,true);
+});
 test('failed mobile send restores draft through the outer setter, not the code-comments array',()=>{
  const start=compat.indexOf('function W3t('),end=compat.indexOf('function ',start+9),component=compat.slice(start,end);
  assert.match(component,/updateComposerContent:d/);

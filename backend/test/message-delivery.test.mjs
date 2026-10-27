@@ -4,7 +4,14 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MessageQueue } from '../queue.mjs';
-import { deliverMessage, messageBusy, hasPendingDelivery } from '../message-delivery.mjs';
+import { deliverMessage, messageBusy, hasPendingDelivery, interruptExpectedTurn } from '../message-delivery.mjs';
+
+test('stop targets only the observed turn and pauses pending queue before interrupting',async()=>{
+ const calls=[],deps={snapshot:async()=>({activeTurn:'turn-1'}),pauseQueue:async id=>calls.push(['pause',id]),interrupt:async(id,turn)=>{calls.push(['interrupt',id,turn]);return{interruptedTurnId:turn}}};
+ assert.deepEqual(await interruptExpectedTurn({threadId:'chat',expectedTurnId:'old-turn',requestId:'r1'},deps),{accepted:false,stale:true,expectedTurnId:'old-turn'});assert.deepEqual(calls,[]);
+ assert.deepEqual(await interruptExpectedTurn({threadId:'chat',expectedTurnId:'turn-1',requestId:'r2'},deps),{accepted:true,expectedTurnId:'turn-1'});assert.deepEqual(calls,[['pause','chat'],['interrupt','chat','turn-1']]);
+ deps.interrupt=async()=>({interruptedTurnId:'different'});await assert.rejects(interruptExpectedTurn({threadId:'chat',expectedTurnId:'turn-1',requestId:'r3'},deps),{outcomeUnknown:true});
+});
 
 test('strict admission never writes a queue item when desktop becomes busy during preparation', async t => {
   const stateDir=await mkdtemp(join(tmpdir(),'codex-delivery-'));t.after(()=>rm(stateDir,{recursive:true,force:true}));
