@@ -130,7 +130,7 @@ async function desktopOwnerFor(id) { if (owned.has(id)) return null; try { const
 async function nativeForOperation(id) {
   if(threadSettings[id]?.needsDesktopRefresh){try{await archivedThreads.refreshDesktop(id,desktop);}catch(error){if(error.code==='THREAD_ARCHIVED')throw error;}}
   await ensureDesktopOwner(id,{isOwned:()=>owned.has(id),isStale:()=>desktopStale.has(id),owner:()=>desktopOwnerFor(id),attach:()=>nativeIntent.attach(id)});
-  let state;for(let attempt=0;attempt<2&&!state;attempt++){try{state=await desktop.snapshot(id,{fresh:true,timeout:2500});}catch{}}
+  let state;for(let attempt=0;attempt<2&&!state;attempt++){try{state=await desktop.snapshot(id,{fresh:true,timeout:15000});}catch{}}
   const native=state?acceptDesktopHistory(id,desktopSnapshotHistory(state)):null;
   if(!native)throw Object.assign(new Error('电脑端会话状态尚未同步，请重新连接并核对后再操作'),{statusCode:503});
   if(threadSettings[id]?.needsDesktopRefresh){threadSettings[id].needsDesktopRefresh=false;await saveSettings();}

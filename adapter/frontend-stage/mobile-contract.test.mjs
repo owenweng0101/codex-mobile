@@ -4,6 +4,14 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 
 const compat=await readFile(new URL('./assets/index-BsmXQHMM.js',import.meta.url),'utf8');
+test('failed mobile send restores draft through the outer setter, not the code-comments array',()=>{
+ const start=compat.indexOf('function W3t('),end=compat.indexOf('function ',start+9),component=compat.slice(start,end);
+ assert.match(component,/updateComposerContent:d/);
+ assert.match(component,/let __codexRestoreDraft=d,Gn=/);
+ assert.match(component,/d=jn\(\),f=d\.length/);
+ assert.match(component,/__codexIsMobile\(\)&&__codexRestoreDraft\(o\)/);
+ assert.doesNotMatch(component,/__codexIsMobile\(\)&&d\(o\)/);
+});
 function draftManager({failure=false}={}){
  const start=compat.indexOf('PHt=class{'),end=compat.indexOf(',sH=new Map;',start);
  assert(start>0&&end>start);

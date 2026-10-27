@@ -23,7 +23,10 @@ export function inlineInputEdits(source){
  replace(begin,end);
  replace('ie(),a===`startNow`&&(dt.current?.clear(),xt(``),A=st.current,H=!0);','ie(),(a===`startNow`||__codexIsMobile())&&(dt.current?.clear(),xt(``),A=st.current,H=!0);');
  replace('t=e.applied&&e.current&&cn.current===E,n=e.applied&&!!ne&&!re','t=(e.applied&&e.current||__codexIsMobile()&&H&&!ot.current.trim())&&cn.current===E,n=e.applied&&!!ne&&!re');
- replace('xt(o.text),A=st.current,H=!1):!e.applied','xt(o.text),__codexIsMobile()&&d(o),A=st.current,H=!1):!e.applied');
+ // The send callback also declares d for the selected code-comment array.
+ // Capture the outer draft setter before entering that callback.
+ replace('let Gn=(0,Q.useCallback)(async(e,n,r,a)=>{let o=pn()', 'let __codexRestoreDraft=d,Gn=(0,Q.useCallback)(async(e,n,r,a)=>{let o=pn()');
+ replace('xt(o.text),A=st.current,H=!1):!e.applied','xt(o.text),__codexIsMobile()&&__codexRestoreDraft(o),A=st.current,H=!1):!e.applied');
  // The timeline mounts before a new native draft has a snapshot, too.
  const runtime=`\nvar __codexInlineInputs=(${createInlineInputState.toString()})();var __codexInlineStatus=${inlineInputStatus.toString()};var __codexInlineScrollKey=${inlineScrollKey.toString()};function __codexUseInlineScroll(items,scrollRef){const last=Q.useRef(null),key=__codexInlineScrollKey(items);Q.useLayoutEffect(()=>{if(__codexIsMobile()&&key&&key!==last.current){last.current=key;scrollRef.current?.()}},[key,scrollRef])}function __codexIsMobile(){return globalThis.__CODEX_ORIGINAL_BRIDGE__?.codexBridge===true}function __codexUseInlineInputs(sessionId,workspacePath,paneId,snapshot){const scope=Q.useMemo(()=>crypto.randomUUID(),[sessionId,workspacePath,paneId]);Q.useSyncExternalStore(__codexInlineInputs.subscribe,__codexInlineInputs.version,__codexInlineInputs.version);Q.useEffect(()=>{if(snapshot)__codexInlineInputs.reconcile(sessionId,snapshot.rows.window)},[sessionId,snapshot]);return scope}\n`;
  edits.push({start:source.length,end:source.length,text:runtime});return edits;
