@@ -153,3 +153,61 @@ test('provider views come from actual catalogue shape and expose no ZCode cloud 
  assert.equal((await services.setting.get()).providerFamilyDomainMigrated,true);
  assert.throws(()=>services.oauth.startOAuthWithPolling(),/未开放/);
 });
+
+test('a workspace added after bootstrap is revalidated against current paired server info before opening',async()=>{
+ const mounts=[],requests=[];let reads=0;
+ const info={authenticated:true,workspaces:[{path:'/original'}]};
+ const control=await mountCodexOriginalH5({compat:{__codexOriginalPlatform:()=>({}),__codexOriginalMount:mount=>mounts.push(mount)},services:{},info,
+  refreshWorkspaceInfo:async()=>{reads++;return{authenticated:true,workspaces:[{path:'/original'},{path:'/new'}]};},
+  resolveNavigation:async request=>{requests.push(request);return{workspacePath:'/new',initialTaskId:request.options?.taskId};}});
+ await control.switcher.switchWorkspace('/new',{taskId:'existing-new-chat'});
+ assert.equal(reads,1);assert.equal(requests.length,1);assert.equal(control.getContext().initialTaskId,'existing-new-chat');
+ assert.equal((await control.switcher.listWorkspaces()).workspaces.length,2);
+ await control.switcher.startDraft('/new');assert.equal(reads,1);
+ control.dispose();
+});
+
+test('scope refreshes coalesce and an older tap cannot supersede a newer navigation during refresh',async()=>{
+ let release,reads=0;const requests=[];
+ const control=await mountCodexOriginalH5({compat:{__codexOriginalPlatform:()=>({}),__codexOriginalMount(){}},services:{},info:{authenticated:true,workspaces:[{path:'/original'}]},
+  refreshWorkspaceInfo:()=>{reads++;return new Promise(resolve=>release=resolve);},
+  resolveNavigation:async request=>{requests.push(request);return{workspacePath:request.workspaceKey,initialTaskId:request.options.taskId};}});
+ const first=control.switcher.switchWorkspace('/new',{taskId:'first'}),second=control.switcher.switchWorkspace('/new',{taskId:'second'});
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(reads,1);
+ release({authenticated:true,workspaces:[{path:'/original'},{path:'/new'}]});await Promise.all([first,second]);
+ assert.equal(requests.length,1);assert.equal(control.getContext().initialTaskId,'second');
+ control.dispose();
+});
+
+test('refresh never authorizes absent roots, unauthenticated info, or an unlisted navigation response',async()=>{
+ let calls=0,reads=0,next={authenticated:true,workspaces:[{path:'/original'}]};
+ const control=await mountCodexOriginalH5({compat:{__codexOriginalPlatform:()=>({}),__codexOriginalMount(){}},services:{},info:next,
+  refreshWorkspaceInfo:async()=>{reads++;return next;},resolveNavigation:async()=>{calls++;return{workspacePath:'/outside'};}});
+ await assert.rejects(control.switcher.switchWorkspace('/outside'),/配对范围/);assert.equal(calls,0);
+ next={authenticated:false,workspaces:[{path:'/outside'}]};
+ await assert.rejects(control.switcher.startDraft('/outside'),/配对/);assert.equal(calls,0);
+ next={authenticated:true,workspaces:[{path:'/original'}]};
+ await assert.rejects(control.switcher.openProjectDraft({projectId:'known'}),/配对工作区范围/);assert.equal(reads,3);assert.equal(calls,1);
+ assert.equal(control.getContext().workspacePath,'/original');control.dispose();
+});
+
+test('project draft refreshes its new directory but cannot commit after the view was replaced',async()=>{
+ let release;const control=await mountCodexOriginalH5({compat:{__codexOriginalPlatform:()=>({}),__codexOriginalMount(){}},services:{},info:{authenticated:true,workspaces:[{path:'/original'}]},
+  refreshWorkspaceInfo:()=>new Promise(resolve=>release=resolve),resolveNavigation:async request=>request.action==='project-draft'?{workspacePath:'/new',initialTaskDraft:{projectId:null}}:{workspacePath:'/original',initialTaskId:'newer'}});
+ const prepare=control.switcher.openProjectDraft({});await new Promise(resolve=>setImmediate(resolve));
+ await control.switcher.switchWorkspace('/original',{taskId:'newer'});
+ release({authenticated:true,workspaces:[{path:'/original'},{path:'/new'}]});await prepare;
+ assert.equal(control.getContext().initialTaskId,'newer');control.dispose();
+});
+
+test('prepareSession revalidates new directories and rejects a stale preparation after its scope refresh',async()=>{
+ const mounts=[];let release;
+ const control=await mountCodexOriginalH5({compat:{__codexOriginalPlatform:()=>({}),__codexOriginalMount:mount=>mounts.push(mount)},services:{},info:{authenticated:true,workspaces:[{path:'/original'}]},
+  refreshWorkspaceInfo:()=>new Promise(resolve=>release=resolve),resolveNavigation:async request=>request.action==='project-draft'?{workspacePath:'/new',initialTaskDraft:{projectId:null}}:{workspacePath:'/original',initialTaskId:'newer'}});
+ const pending=mounts[0].services.projectService.prepareSession();await new Promise(resolve=>setImmediate(resolve));
+ await control.switcher.switchWorkspace('/original',{taskId:'newer'});
+ release({authenticated:true,workspaces:[{path:'/original'},{path:'/new'}]});await assert.rejects(pending,{code:'CODEX_NAVIGATION_STALE'});
+ assert.equal(control.getContext().initialTaskId,'newer');
+ const prepared=await mounts.at(-1).services.projectService.prepareSession();assert.equal(prepared.workspacePath,'/new');
+ await control.switcher.updateMobileViewState('/new');assert.equal(control.getContext().workspacePath,'/new');control.dispose();
+});

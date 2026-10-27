@@ -100,10 +100,10 @@ export function cacheNavigationModels(services,{now=Date.now,maxAgeMs=60000}={})
  };
  return{services:{...services,settingService:wrap(services.settingService,'get'),modelSelectionService:wrap(services.modelSelectionService),providerSettingsService:wrap(services.providerSettingsService)},clear(){for(const cache of caches)cache.clear();},dispose(){for(const subscription of subscriptions)subscription.dispose();for(const cache of caches)cache.clear();}};
 }
-export async function mountCodexOriginalH5({compat,services,info,resolveNavigation,onChooseOtherDevice}){
+export async function mountCodexOriginalH5({compat,services,info,resolveNavigation,refreshWorkspaceInfo,onChooseOtherDevice}){
  if(typeof compat?.__codexOriginalMount!=='function'||typeof compat?.__codexOriginalPlatform!=='function')throw Error('原版手机入口尚未接入');
  if(typeof resolveNavigation!=='function')throw Error('本机导航接口尚未接入');
- const workspaces=workspaceEntries(info);
+ let workspaces=workspaceEntries(info),workspaceRefresh;
  if(!workspaces.length)throw Error('没有可用的 Codex 项目或会话目录');
  const listeners=new Set(),mobileNavigationListeners=new Set();
  let active={workspacePath:info.initialWorkspaceAbsPath||workspaces[0].workspacePath,...(info.initialWorkspaceIdentity||workspaces[0].workspaceIdentity?{workspaceIdentity:info.initialWorkspaceIdentity||workspaces[0].workspaceIdentity}:{}),...(info.initialTaskId?{initialTaskId:info.initialTaskId}:{})},epoch=0,transportState='paired';
@@ -116,6 +116,21 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
  let disposed=false,viewGeneration=0,prepareVersion=0,renderedGeneration=-1,viewSwitcher,viewServices,renderedServices;
  const currentView=generation=>!disposed&&generation===viewGeneration;
  const staleNavigation=()=>Object.assign(Error('导航已切换，请在当前视图重试'),{code:'CODEX_NAVIGATION_STALE'});
+ const refreshWorkspaces=()=>{
+  if(!workspaceRefresh){
+   const pending=Promise.resolve().then(()=>refreshWorkspaceInfo()).then(value=>{const next=workspaceEntries(value);if(!disposed)workspaces=next;});
+   workspaceRefresh=pending;const clear=()=>{if(workspaceRefresh===pending)workspaceRefresh=undefined;};pending.then(clear,clear);
+  }
+  return workspaceRefresh;
+ };
+ const ensureWorkspace=async workspaceKey=>{
+  if(!workspaces.some(value=>keyOf(value)===workspaceKey)&&refreshWorkspaceInfo)await refreshWorkspaces();
+  if(!workspaces.some(value=>keyOf(value)===workspaceKey))throw Error('工作区不在配对范围内');
+ };
+ const verifyNavigation=async context=>{
+  if(context&&!workspaces.some(value=>value.workspacePath===context.workspacePath&&(value.workspaceIdentity||null)===(context.workspaceIdentity||null))&&refreshWorkspaceInfo)await refreshWorkspaces();
+  return verify(context);
+ };
  // The original detach-project action resolves a directory, then moves the
  // composer itself. Do not remount here or call a native task-creation method.
  const prepareSession=async(project={},generation=viewGeneration)=>{
@@ -123,7 +138,8 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
   const navigationEpoch=epoch,version=++prepareVersion;
   const result=await resolveNavigation({action:'project-draft',project});
   if(!currentView(generation)||navigationEpoch!==epoch||version!==prepareVersion)throw staleNavigation();
-  const context=verify(result);
+  const context=await verifyNavigation(result);
+  if(!currentView(generation)||navigationEpoch!==epoch||version!==prepareVersion)throw staleNavigation();
   preparedContext=context;
   return{workspacePath:context.workspacePath,projectId:context.initialTaskDraft.projectId,hostId:'local'};
  };
@@ -167,9 +183,13 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
  };
  const navigate=async(request,initialComposerDraft)=>{
   if(disposed)throw staleNavigation();
-  const current=++epoch,result=await resolveNavigation(request);
+  const current=++epoch;
+  if((request.action==='workspace'||request.action==='draft')&&!workspaces.some(value=>keyOf(value)===request.workspaceKey))await ensureWorkspace(request.workspaceKey);
   if(disposed||current!==epoch)return;
-  const next=verify(result);
+  const result=await resolveNavigation(request);
+  if(disposed||current!==epoch)return;
+  const next=await verifyNavigation(result);
+  if(disposed||current!==epoch)return;
   if(initialComposerDraft&&next.initialTaskDraft)next.initialTaskDraft={...next.initialTaskDraft,initialComposerDraft};
   // Repeated taps on the same draft must not tear down a pending first send.
   const sameDraft=!active.initialTaskId&&active.initialTaskDraft&&next.initialTaskDraft&&keyOf(active)===keyOf(next)&&['projectId','provider','taskGroupId'].every(field=>active.initialTaskDraft[field]===next.initialTaskDraft[field])&&!next.initialTaskDraft.initialComposerDraft&&!next.initialTaskDraft.initialPrompt;
@@ -184,7 +204,6 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
   onWorkspaceListUpdated(listener){listeners.add(listener);return()=>listeners.delete(listener);},
   onMobileNavigationRequested(listener){mobileNavigationListeners.add(listener);return()=>mobileNavigationListeners.delete(listener);},
   async switchWorkspace(workspaceKey,options={}){
-   if(!workspaces.some(value=>keyOf(value)===workspaceKey))throw Error('工作区不在配对范围内');
    return navigate({action:'workspace',workspaceKey,options});
   },
   async openProjectDraft(project={}){
@@ -192,7 +211,6 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
    return navigate({action:'project-draft',project:options},initialComposerDraft);
   },
   async startDraft(workspaceKey,options={}){
-   if(!workspaces.some(value=>keyOf(value)===workspaceKey))throw Error('工作区不在配对范围内');
    const {initialComposerDraft,...draftOptions}=options;
    return navigate({action:'draft',workspaceKey,options:draftOptions},initialComposerDraft);
   },

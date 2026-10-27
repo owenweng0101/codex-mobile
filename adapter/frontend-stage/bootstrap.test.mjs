@@ -81,3 +81,12 @@ test('cookie authentication never reports a successful connection before server 
  assert(!states.some(([name,state])=>name==='paired'&&state==='done'));
  assert(!states.some(([name])=>name==='mounted'));
 });
+
+test('mounted navigation refresh uses authenticated no-store server info and preserves auth failures',async()=>{
+ const f=fixture(),seen=[];await loadCodexMobile({...f.options,onInfo:value=>seen.push(value),request:async(path,options)=>{
+  if(path==='/api/server-info'){assert.equal(options.credentials,'same-origin');assert.equal(options.cache,'no-store');return seen.length<2?new Response(JSON.stringify({authenticated:true,workspaces:[{path:seen.length?'/new':'/original'}]})):new Response('{}',{status:401});}
+  return new Response('{}');
+ }});
+ const params=f.calls.find(call=>call[0]==='mount')[1];assert.equal((await params.refreshWorkspaceInfo()).workspaces[0].path,'/new');assert.equal(seen.length,2);
+ await assert.rejects(params.refreshWorkspaceInfo(),/重新扫描/);
+});
