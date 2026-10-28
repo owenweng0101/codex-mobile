@@ -67,7 +67,7 @@ const server=createServer(async(req,res)=>{
     if(req.method==='GET'&&url.pathname==='/local/info')return json(res,200,{url:origin+'/#'+pairing.token,readOnly:false});
     if(req.method==='POST'&&url.pathname==='/api/pair'){
       const session=pairing.pair((await readBody(req)).token);
-      return session?json(res,200,{paired:true},{'set-cookie':'codex_native_pair='+session+'; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200'}):json(res,401,{error:'配对链接已失效'});
+      return session?json(res,200,{paired:true},{'set-cookie':'codex_native_pair='+session+'; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000'}):json(res,401,{error:'配对链接已失效'});
     }
     if(url.pathname.startsWith('/mobile/api/')){
       if(!pairing.allows(req.headers))return json(res,401,{error:'请先扫描模型网关中的二维码'});
@@ -101,7 +101,7 @@ const server=createServer(async(req,res)=>{
     if(!bytes){const info=await stat(path);if(!info.isFile())return json(res,404,{error:'资源不存在'});bytes=await readFile(path);}
     const asset=url.pathname.startsWith('/remote/v4/3.16.3/assets/'),mutableAsset=['/remote/v4/3.16.3/assets/index-BsmXQHMM.js','/remote/v4/3.16.3/assets/IntlProvider-itolvRb2.js'].includes(url.pathname),cachePolicy=asset&&!mutableAsset?'public, max-age=31536000, immutable':'public, no-cache',etag=asset?'"'+createHash('sha256').update(bytes).digest('base64url')+'"':null;
     if(etag&&req.headers['if-none-match']===etag){res.writeHead(304,{'etag':etag,'cache-control':cachePolicy});res.end();return;}
-    res.writeHead(200,{'content-type':type||types[extname(path)]||'application/octet-stream','content-length':bytes.length,'cache-control':asset?cachePolicy:'no-store',...(etag?{etag}:{}),'x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','content-security-policy':"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self' blob:; form-action 'self'"});res.end(req.method==='HEAD'?undefined:bytes);
+    res.writeHead(200,{'content-type':type||types[extname(path)]||'application/octet-stream','content-length':bytes.length,'cache-control':asset?cachePolicy:'no-store',...(etag?{etag}:{}),'x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','content-security-policy':"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data:; worker-src 'self' blob:; frame-src 'self' blob:; form-action 'self'"});res.end(req.method==='HEAD'?undefined:bytes);
   }catch(error){if(!res.headersSent)json(res,error.code==='ENOENT'?404:500,{error:error.code==='ENOENT'?'资源尚未就绪':error.message});else res.destroy();}
 });
 const stopRpc=attachOriginalRpc(server,{pairing,origin,createConnection,onRequest:item=>{calls.push(item);if(calls.length>1000)calls.splice(0,500);}});

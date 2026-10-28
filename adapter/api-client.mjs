@@ -1,4 +1,4 @@
-const allowed=new Set(['/api/file','/api/skills','/api/projects','/api/threads','/api/history','/api/history-window','/api/models','/api/status','/api/events','/api/organize','/api/goal','/api/archived','/api/archived/history','/api/thread/archive/status']);
+const allowed=new Set(['/api/files','/api/file','/api/skills','/api/projects','/api/threads','/api/history','/api/history-window','/api/models','/api/status','/api/events','/api/organize','/api/goal','/api/archived','/api/archived/history','/api/thread/archive/status']);
 
 // The existing Mac service owns its bearer. It is never sent to the web client.
 export class CodexReadClient{
@@ -29,10 +29,10 @@ export class CodexReadClient{
       return value;
     }
   }
-  async getMedia(path,{maxBytes=8*1024*1024}={}){
+  async getMedia(path,{maxBytes=10*1024*1024}={}){
     const target=new URL(path,this.origin);
     if(!path.startsWith('/api/file-content?')||target.origin!==this.origin||target.pathname!=='/api/file-content'||target.hash||target.searchParams.has('download'))throw Error('只允许工作区媒体预览');
-    if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>8*1024*1024)throw Error('媒体预览大小无效');
+    if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>10*1024*1024)throw Error('媒体预览大小无效');
     if(!this.bearer)await this.credentials();
     for(let attempt=0;attempt<2;attempt++){
       this.requests++;

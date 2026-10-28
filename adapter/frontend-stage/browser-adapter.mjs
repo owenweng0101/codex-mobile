@@ -100,7 +100,7 @@ export function cacheNavigationModels(services,{now=Date.now,maxAgeMs=60000}={})
  };
  return{services:{...services,settingService:wrap(services.settingService,'get'),modelSelectionService:wrap(services.modelSelectionService),providerSettingsService:wrap(services.providerSettingsService)},clear(){for(const cache of caches)cache.clear();},dispose(){for(const subscription of subscriptions)subscription.dispose();for(const cache of caches)cache.clear();}};
 }
-export async function mountCodexOriginalH5({compat,services,info,resolveNavigation,refreshWorkspaceInfo,onChooseOtherDevice}){
+export async function mountCodexOriginalH5({compat,services,info,resolveNavigation,refreshWorkspaceInfo,onChooseOtherDevice,viewStorage}){
  if(typeof compat?.__codexOriginalMount!=='function'||typeof compat?.__codexOriginalPlatform!=='function')throw Error('原版手机入口尚未接入');
  if(typeof resolveNavigation!=='function')throw Error('本机导航接口尚未接入');
  let workspaces=workspaceEntries(info),workspaceRefresh;
@@ -131,6 +131,24 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
   if(context&&!workspaces.some(value=>value.workspacePath===context.workspacePath&&(value.workspaceIdentity||null)===(context.workspaceIdentity||null))&&refreshWorkspaceInfo)await refreshWorkspaces();
   return verify(context);
  };
+ // Per-tab state survives reload without making separate mobile tabs share navigation.
+ let storage=viewStorage;
+ if(storage===undefined)try{storage=globalThis.sessionStorage;}catch{}
+ const storageKey='codex-mobile-current-view-v1';
+ let unloading=false;
+ const onUnload=()=>{unloading=true;};
+ globalThis.addEventListener?.('beforeunload',onUnload);
+ const saveView=view=>{try{if(view)storage?.setItem(storageKey,JSON.stringify({workspacePath:view.workspacePath,taskId:view.taskId}));else storage?.removeItem(storageKey);}catch{}};
+ if(!info.initialTaskId){
+  let saved;try{saved=JSON.parse(storage?.getItem(storageKey)||'null');}catch{}
+  if(typeof saved?.workspacePath==='string'&&typeof saved?.taskId==='string'&&saved.taskId.length<=256){
+   try{
+    const restored=await resolveNavigation({action:'workspace',workspaceKey:saved.workspacePath,options:{taskId:saved.taskId,mobileNavigationIntent:'chat'}});
+    active=await verifyNavigation(restored);
+    mountKey='codex-original:'+keyOf(active)+':'+active.initialTaskId;
+   }catch{saveView(null);}
+  }
+ }
  // The original detach-project action resolves a directory, then moves the
  // composer itself. Do not remount here or call a native task-creation method.
  const prepareSession=async(project={},generation=viewGeneration)=>{
@@ -232,8 +250,9 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
    if(disposed)return;
    if(view&&(keyOf(view)!==keyOf(active)||view.taskId!==active.initialTaskId))return;
    active={...active,localMobileView:view};
+   if(view||!unloading)saveView(view);
   },
  };
  render();
- return{get switcher(){return viewSwitcher;},replaceServices(next){replaceServices(next);render();},getContext:()=>({...active}),setTransportState(value){if(!['idle','connecting','authenticating','waiting_terminal','paired','kicked','error'].includes(value))throw Error('连接状态无效');if(value!==transportState){modelCache.clear();startupReads.clear();}transportState=value;render();},dispose(){disposed=true;epoch++;viewGeneration++;prepareVersion++;preparedContext=undefined;listeners.clear();mobileNavigationListeners.clear();modelCache.dispose();startupReads.dispose();}};
+ return{get switcher(){return viewSwitcher;},replaceServices(next){replaceServices(next);render();},getContext:()=>({...active}),setTransportState(value){if(!['idle','connecting','authenticating','waiting_terminal','paired','kicked','error'].includes(value))throw Error('连接状态无效');if(value!==transportState){modelCache.clear();startupReads.clear();}transportState=value;render();},dispose(){globalThis.removeEventListener?.('beforeunload',onUnload);disposed=true;epoch++;viewGeneration++;prepareVersion++;preparedContext=undefined;listeners.clear();mobileNavigationListeners.clear();modelCache.dispose();startupReads.dispose();}};
 }

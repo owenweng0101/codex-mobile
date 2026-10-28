@@ -12,7 +12,7 @@ test('signed pairing cookie survives a process recreation with the same persiste
  const restored=new Pairing({token,now:()=>issuedAt+60_000});
  assert.equal(restored.allows(headers(session)),true);
  assert.equal(session.includes(token),false);
- assert.equal(Number(session.split('.')[1])-issuedAt,12*60*60*1000);
+ assert.equal(Number(session.split('.')[1])-issuedAt,365*24*60*60*1000);
  assert.notEqual(pairing.pair(token),session);
 });
 
@@ -44,9 +44,9 @@ test('expiry, nonce, MAC and version tampering fail signature verification',()=>
  assert.equal(pairing.allows({cookie:'codex_native_pair='+session+'; codex_native_pair='+session}),false);
 });
 
-test('signed cookie expires at its original 12-hour deadline even after repeated restarts',()=>{
+test('signed cookie expires at its original one-year deadline even after repeated restarts',()=>{
  let time=1_700_000_000_000;const session=new Pairing({token,now:()=>time}).pair(token);
- time+=12*60*60*1000-1;assert.equal(new Pairing({token,now:()=>time}).allows(headers(session)),true);
+ time+=365*24*60*60*1000-1;assert.equal(new Pairing({token,now:()=>time}).allows(headers(session)),true);
  time++;assert.equal(new Pairing({token,now:()=>time}).allows(headers(session)),false);
  time+=100;assert.equal(new Pairing({token,now:()=>time}).allows(headers(session)),false);
 });

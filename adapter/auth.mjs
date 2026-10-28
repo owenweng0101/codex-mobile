@@ -1,7 +1,7 @@
 import {randomBytes,timingSafeEqual,createHmac} from 'node:crypto';
 const same=(a,b)=>typeof a==='string'&&typeof b==='string'&&Buffer.byteLength(a)===Buffer.byteLength(b)&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 export class Pairing{
-  constructor({token=randomBytes(32).toString('base64url'),now=Date.now,ttl=12*60*60*1000}={}){this.token=token;this.now=now;this.ttl=ttl;}
+  constructor({token=randomBytes(32).toString('base64url'),now=Date.now,ttl=365*24*60*60*1000}={}){this.token=token;this.now=now;this.ttl=ttl;}
   mac(payload){
     // Domain separation prevents the persistent pairing secret from becoming a
     // browser credential. Derive from the current token so rotation revokes all

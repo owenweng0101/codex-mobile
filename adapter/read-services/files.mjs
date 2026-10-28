@@ -1,10 +1,9 @@
 import {isAbsolute,relative,resolve,extname} from 'node:path';
-import {createImagePreview} from '../mobile-image.mjs';
 
 const media=new Set(['image/png','image/jpeg','image/gif','image/webp','image/avif','image/bmp']);
 const extensions=new Set(['.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp']);
 const inside=(root,path)=>{const rel=relative(root,path);return rel!==''&&rel!=='..'&&!rel.startsWith('../')&&!isAbsolute(rel);};
-export function createFileReadService({api,baseServices,preview=createImagePreview}){
+export function createFileReadService({api,baseServices}){
  async function location(params){
   if(!params||typeof params.path!=='string'||!params.path||params.path.includes('\0')||params.path.length>4096||params.workspaceIdentity||params.remoteSessionId||params.sourceServerId)throw Error('文件预览范围无效');
   const tree=await baseServices.project.readTree();
@@ -30,10 +29,19 @@ export function createFileReadService({api,baseServices,preview=createImagePrevi
    const bytes=Buffer.from(value.content),content=new TextDecoder().decode(bytes.subarray(0,length),{stream:bytes.length>length});
    return{path:absolute,content,isBinary:false,truncated:!!value.truncated||bytes.length>length,size:value.size};
   },
+  async stat(params){
+   const {absolute,query}=await location(params),path=query.get('path'),parts=path.split('/'),name=parts.pop();
+   if(!name)throw Error('无法读取工作目录自身的文件信息');
+   query.set('path',parts.join('/'));
+   const result=await api.get('/api/files?'+query),entry=result.entries?.find(item=>item.name===name);
+   if(!entry||entry.type==='unavailable')throw Error(result.truncated?'目录内容过多，无法确认文件信息':'文件不存在或无法访问');
+   if(!['file','directory'].includes(entry.type))throw Error('文件类型无效');
+   return{type:entry.type,size:entry.size};
+  },
   async readMediaPreview(params){
    const {absolute,query}=await location(params);if(!extensions.has(extname(absolute).toLowerCase()))throw Error('此文件不属于支持的图片预览类型');
    const result=await api.getMedia('/api/file-content?'+query);if(!media.has(result.mediaType))throw Error('媒体预览类型不匹配');
-   const image=await preview(result.bytes,result.mediaType);if(image.bytes.length>4*1024*1024)throw Error('图片过大，请在电脑上打开');
+   const image={bytes:result.bytes,contentType:result.mediaType};if(image.bytes.length>10*1024*1024)throw Error('图片过大，请在电脑上打开');
    return{path:absolute,mediaType:image.contentType,dataBase64:image.bytes.toString('base64')};
   },
  };

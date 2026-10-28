@@ -6,6 +6,22 @@ import {createPlatformServices} from './platform-services.mjs';
 import {workspaceInfo,resolveNavigation} from '../navigation.mjs';
 import {applyMobileSplit,bundleSha} from './mobile-split-rebuild.mjs';
 
+test('mobile reload restores only a server-validated view and clears it on return',async()=>{
+ let saved=null;const storage={getItem:()=>saved,setItem:(k,v)=>{saved=v},removeItem:()=>{saved=null}};
+ const mounts=[];let rejected=false;
+ const options={compat:{__codexOriginalPlatform:()=>({}),__codexOriginalMount:v=>mounts.push(v)},services:{},info:{authenticated:true,workspaces:[{path:'/project'}],initialWorkspaceAbsPath:'/project'},viewStorage:storage,resolveNavigation:async request=>{if(rejected)throw Error('removed');return{workspacePath:'/project',initialTaskId:request.options.taskId,navigationIntent:'chat'};}};
+ const first=await mountCodexOriginalH5(options);
+ await first.switcher.switchWorkspace('/project',{taskId:'T'});
+ await first.switcher.updateMobileTaskView({workspacePath:'/project',taskId:'T'});
+ first.dispose();
+ const second=await mountCodexOriginalH5(options);
+ assert.equal(second.getContext().initialTaskId,'T');
+ assert.equal(mounts.at(-1).props.initialWebRemoteControlMobileNavigationIntent,'chat');
+ await second.switcher.updateMobileTaskView(null);assert.equal(saved,null);second.dispose();
+ saved=JSON.stringify({workspacePath:'/project',taskId:'T'});rejected=true;
+ const third=await mountCodexOriginalH5(options);assert.equal(third.getContext().initialTaskId,undefined);assert.equal(saved,null);third.dispose();
+});
+
 async function draftHarness(){
  const mounted=[],requests=[];
  const tree={conversationWorkspacePath:'/conversations',projects:[{id:'P',name:'Project',roots:[{rootPath:'/project'}]}],tasks:[{taskId:'T',workspacePath:'/project',projectId:'P'}]},status={cwd:'/project'};
