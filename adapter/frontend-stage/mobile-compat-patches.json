@@ -1,7 +1,7 @@
 {
-  "inputPatchCount": 70,
-  "outputPatchCount": 86,
-  "outputSha256": "5aca127d28bb065919c6833a415c21b8f948f4cce1cceb39b4a6a7b75af959e3",
+  "inputPatchCount": 69,
+  "outputPatchCount": 85,
+  "outputSha256": "c2993a18df3813fe43dafdfeb0443341d389a88c97f25b1145481ed55ebd1f80",
   "patches": [
     {
       "name": "codex-mobile-enabled-navigation-reporters-only",

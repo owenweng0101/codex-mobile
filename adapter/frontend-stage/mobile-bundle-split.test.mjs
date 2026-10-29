@@ -13,9 +13,11 @@ const component=vm.runInNewContext('('+source.slice(end,componentEnd).trim()+')'
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('the split rebuild preserves every original compatibility patch and all content-hash assets',async()=>{
  let original=await readFile(new URL('./baseline/index-BsmXQHMM.js',import.meta.url),'utf8');
- assert.equal(manifest.patches.length,86);assert.equal(manifest.exactReplacementCount,86);
+ assert.equal(manifest.patches.length,85);assert.equal(manifest.exactReplacementCount,85);
  for(const patch of manifest.patches){assert.equal(original.split(patch.needle).length-1,patch.count,patch.name);original=original.split(patch.needle).join(patch.replacement);}
  assert.equal(bundleSha(original),split.inputSha256);assert.equal(applyMobileSplit(original,split),source);assert.equal(bundleSha(source),split.outputSha256);
+ assert(source.includes('"data-testid":`sidebar-view-timeline`'));
+ assert(!source.includes('!1&&(0,$.jsxs)(vb,{children:[(0,$.jsx)(uy,{title:i.formatMessage({id:`project.view`})'));
  for(const asset of split.assets){const bytes=await readFile(new URL('../../vendor/zcode-web/remote/v4/3.16.3/assets/'+asset.name,import.meta.url));assert.equal(bundleSha(bytes),asset.sha256);assert.equal(bytes.length,asset.bytes);assert(asset.name.includes(asset.sha256.slice(0,20)));}
  assert.throws(()=>applyMobileSplit(original+' ',split),/input changed/);
  const changed=structuredClone(split);changed.stages[0].edits[0].beforeSha256='0'.repeat(64);assert.throws(()=>applyMobileSplit(original,changed),/source slice changed/);

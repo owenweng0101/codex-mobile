@@ -59,7 +59,7 @@ patch('running-task-label-in-groups','F=uj(e.updatedAt,x),I=ji(e)','F=Rit(e)?x.f
 patch('project-and-conversation-navigation',section('function DEt({props:e,onCreate:t}){','function OEt(e){'),'function DEt({props:e,onCreate:t}){let r=e.webRemoteControlWorkspaceSwitcher?.deviceNavigation;return(0,$.jsxs)(`div`,{"data-testid":`sidebar-primary-navigation`,className:`flex flex-col gap-1 px-2 py-3 ${e.isWebRemoteControl&&!r?`max-md:pt-11`:``}`,children:[r?(0,$.jsx)(EEt,{navigation:r}):null,(0,$.jsx)(Ywt,{onCreateTask:t})]})}');
 // Home has no floating header to reserve space for. Reuse the conversation theme menu.
 patch('remove-project-inline-files',section('j.length>1&&!D?(0,$.jsxs)(vb,',',(0,$.jsx)(lI,{testId:`virtual-project-create-task`'),'null');
-patch('hide-sidebar-view-filter','(0,$.jsxs)(vb,{children:[(0,$.jsx)(uy,{title:i.formatMessage({id:`project.view`})','!1&&(0,$.jsxs)(vb,{children:[(0,$.jsx)(uy,{title:i.formatMessage({id:`project.view`})');
+// Keep the original selector for the cross-project recent timeline.
 // The Codex shell stays mounted across navigation; explicitly finish the
 // original cross-workspace loading state instead of relying on an unmount.
 patch('finish-native-workspace-navigation','markTaskReadExpectedUnreadAt:f.unreadAt}:{}})}catch(e)', 'markTaskReadExpectedUnreadAt:f.unreadAt}:{}});if(globalThis.__CODEX_ORIGINAL_BRIDGE__?.codexBridge===true){u?.(null),s?.(!1),c?.({crossWorkspace:!1}),a?.()}}catch(e)');

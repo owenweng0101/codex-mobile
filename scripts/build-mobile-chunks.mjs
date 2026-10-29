@@ -9,7 +9,7 @@ import {applyMobileSplit,bundleSha as sha} from '../adapter/frontend-stage/mobil
 const root=path.resolve(import.meta.dirname,'..'),frontend=path.join(root,'adapter/frontend-stage');
 const assets=path.join(root,'vendor/zcode-web/remote/v4/3.16.3/assets'),mainPath=path.join(frontend,'assets/index-BsmXQHMM.js');
 const manifestPath=path.join(frontend,'bundle-patch-manifest.json'),manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'));
-const basePatchCount=86,expectedInput='5aca127d28bb065919c6833a415c21b8f948f4cce1cceb39b4a6a7b75af959e3';
+const basePatchCount=85,expectedInput='c2993a18df3813fe43dafdfeb0443341d389a88c97f25b1145481ed55ebd1f80';
 assert.equal(manifest.patches.length,basePatchCount,'Build original compatibility patches before splitting');
 let source=fs.readFileSync(path.join(frontend,'baseline/index-BsmXQHMM.js'),'utf8');
 assert.equal(sha(source),manifest.baselineSHA256);
