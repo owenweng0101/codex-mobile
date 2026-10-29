@@ -26,11 +26,11 @@ export async function loadCodexMobile({origin,token='',request=fetch,loadModule=
   if(token){
    const response=await request('/api/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token}),credentials:'same-origin',signal:AbortSignal.timeout(20000)});
    if(!response.ok)throw Error('配对已失效，请重新扫描电脑模型网关中的二维码');
-   onPaired();onStage('paired');
   }
   onStage('metadata','active');
   const info=await readWorkspaceInfo();
-  if(!token)onStage('paired');
+  if(token)onPaired();
+  onStage('paired');
   onStage('metadata');return info;
  })();
  const [[compat,{mountCodexOriginalH5}],info]=await Promise.all([resources,metadata]);
@@ -93,7 +93,7 @@ if(typeof window!=='undefined'&&typeof document!=='undefined'){
  const loading=loadingSurface();
  for(const href of criticalPreloads){const link=document.createElement('link');link.rel='modulepreload';link.href=href;link.crossOrigin='anonymous';document.head.appendChild(link);}
  try{
-  const result=await loadCodexMobile({origin:location.origin,token:location.hash.slice(1),onPaired:()=>history.replaceState(null,'',location.pathname+location.search),onStage:(name,state)=>loading.stage(name,state),onInfo:info=>{globalThis.__CODEX_ORIGINAL_BRIDGE__=info;},onBrand:icon=>{
+  const result=await loadCodexMobile({origin:location.origin,token:location.hash.slice(1),onStage:(name,state)=>loading.stage(name,state),onInfo:info=>{globalThis.__CODEX_ORIGINAL_BRIDGE__=info;},onBrand:icon=>{
    for(const rel of ['icon','apple-touch-icon']){for(const old of document.querySelectorAll('link[rel="'+rel+'"]'))old.remove();const link=document.createElement('link');link.rel=rel;link.href=icon;document.head.appendChild(link);}
   }});
   globalThis.__CODEX_ORIGINAL_BRIDGE__=result.info;globalThis.__CODEX_ORIGINAL_MOUNT__=result.controller;loading.complete();

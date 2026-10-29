@@ -68,11 +68,18 @@ test('loading stages follow real pending resources, authentication, catalogue an
  modules.resolve();await tick();
  assert.equal(states.get('resources'),'done');assert.equal(states.get('paired'),'active');assert(!states.has('metadata'));
  pair.resolve(new Response('{}'));await tick();
- assert.equal(states.get('paired'),'done');assert.equal(states.get('metadata'),'active');assert(!states.has('connecting'));
+ assert.equal(states.get('paired'),'active');assert.equal(states.get('metadata'),'active');assert(!states.has('connecting'));
  catalogue.resolve(new Response(JSON.stringify({authenticated:true,workspaces:[]})));await tick();
- assert.equal(states.get('metadata'),'done');assert(states.has('connecting'));assert(!states.has('mounted'));
+ assert.equal(states.get('paired'),'done');assert.equal(states.get('metadata'),'done');assert(states.has('connecting'));assert(!states.has('mounted'));
  connection.resolve({});await tick();assert(!states.has('mounted'));
  mount.resolve(f.controller);await pending;assert.equal(states.get('mounted'),'done');
+});
+
+test('pairing link remains available when the browser does not send its new cookie',async()=>{
+ const f=fixture();let cleared=false;
+ await assert.rejects(loadCodexMobile({...f.options,token:'fixture',onPaired:()=>{cleared=true;},request:async path=>new Response('{}',{status:path==='/api/pair'?200:401})}),/重新扫描/);
+ assert.equal(cleared,false);
+ assert(!f.calls.some(x=>x[0]==='connect'||x[0]==='mount'));
 });
 
 test('cookie authentication never reports a successful connection before server validation',async()=>{
