@@ -81,8 +81,16 @@ test('a slow original-image download through the real ingress outlives the heade
  // Keep the separate stalled-stream case below on its strict 25ms idle budget.
  const request=await fixture(t,{imageTimeoutMs:headerBudget,imageIdleTimeoutMs:2000,fetch:async(_url,{signal})=>{
   signal.addEventListener('abort',()=>nativeAborted=true,{once:true});
-  // Native write-queue progress must cover a single large buffered source.
-  return new Response(Buffer.alloc(total),{headers:{'content-type':'image/png','content-length':String(total)}});
+  // Hold the upstream body beyond the header deadline, independently of OS
+  // socket buffer sizes; the remaining large chunk still exercises backpressure.
+  let first=true;
+  const body=new ReadableStream({async pull(controller){
+   if(first){first=false;controller.enqueue(Buffer.alloc(1024));return;}
+   await new Promise(resolve=>setTimeout(resolve,headerBudget+50));
+   if(signal.aborted){controller.error(signal.reason);return;}
+   controller.enqueue(Buffer.alloc(total-1024));controller.close();
+  }});
+  return new Response(body,{headers:{'content-type':'image/png','content-length':String(total)}});
  }});
  const origin='https://slow-image.invalid',gateway=createIngress({backend:request.origin});gateway.setPublicOrigin(origin);gateway.setMode('codex-read');await new Promise(r=>gateway.server.listen(0,'127.0.0.1',r));t.after(()=>gateway.close());
  const started=Date.now();let received=0,heldPastHeaderBudget=false;
