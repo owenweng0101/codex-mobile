@@ -75,20 +75,23 @@ test('when every image consumer leaves the native history read aborts and a late
 });
 
 test('a slow original-image download through the real ingress outlives the header budget without truncation',async t=>{
- const total=8*1024*1024;let nativeAborted=false;
- const request=await fixture(t,{imageTimeoutMs:100,imageIdleTimeoutMs:100,fetch:async(_url,{signal})=>{
+ const total=8*1024*1024,headerBudget=100;let nativeAborted=false;
+ // This case verifies the header deadline, not a 100ms kernel write-progress
+ // cadence. Linux can batch socket writes longer than that under backpressure.
+ // Keep the separate stalled-stream case below on its strict 25ms idle budget.
+ const request=await fixture(t,{imageTimeoutMs:headerBudget,imageIdleTimeoutMs:2000,fetch:async(_url,{signal})=>{
   signal.addEventListener('abort',()=>nativeAborted=true,{once:true});
   // Native write-queue progress must cover a single large buffered source.
   return new Response(Buffer.alloc(total),{headers:{'content-type':'image/png','content-length':String(total)}});
  }});
  const origin='https://slow-image.invalid',gateway=createIngress({backend:request.origin});gateway.setPublicOrigin(origin);gateway.setMode('codex-read');await new Promise(r=>gateway.server.listen(0,'127.0.0.1',r));t.after(()=>gateway.close());
- const started=Date.now();let received=0;
+ const started=Date.now();let received=0,heldPastHeaderBudget=false;
  await new Promise((resolve,reject)=>{
   const client=http.get({host:'127.0.0.1',port:gateway.server.address().port,path:route,headers:{host:new URL(origin).host,origin}},response=>{
-   response.on('data',chunk=>{received+=chunk.length;response.pause();setTimeout(()=>response.resume(),2);});response.on('end',resolve);response.on('error',reject);
+   response.on('data',chunk=>{received+=chunk.length;response.pause();const delay=heldPastHeaderBudget?2:headerBudget+50;heldPastHeaderBudget=true;setTimeout(()=>response.resume(),delay);});response.on('end',resolve);response.on('error',reject);
   });client.on('error',reject);
  });
- assert(Date.now()-started>100);assert.equal(received,total);assert.equal(nativeAborted,false);
+ assert(heldPastHeaderBudget);assert(Date.now()-started>headerBudget);assert.equal(received,total);assert.equal(nativeAborted,false);
 });
 
 test('an original-image stream with no further progress aborts on its idle budget',async t=>{
