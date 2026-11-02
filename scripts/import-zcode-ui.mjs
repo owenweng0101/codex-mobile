@@ -2,6 +2,7 @@
 // Build the RPC runtime from the included upstream source and download
 // version-pinned web resources. No desktop application is read or installed.
 import './build-rpc.mjs';
+import {prepareVideoUpload} from './prepare-video-upload.mjs';
 import {readFile,writeFile,mkdir,cp} from 'node:fs/promises';
 import {resolve,dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -48,6 +49,7 @@ else{
  }
  console.log('Downloaded '+count+' version-pinned web assets.');
 }
+await prepareVideoUpload(join(web,prefix,'assets'));
 const baseline=join(root,'adapter/frontend-stage/baseline');await mkdir(baseline,{recursive:true});
 await cp(join(web,prefix,'assets/index-BsmXQHMM.js'),join(baseline,'index-BsmXQHMM.js'));
 const schemaDir=join(root,'adapter/write-services/vendor');await mkdir(schemaDir,{recursive:true});

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {videoUploadEdits} from '../adapter/frontend-stage/build-video-upload.mjs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -149,6 +150,7 @@ for(const[name,code]of outputs){
 // command-ID reconciliation; its slices and output are covered by replay tests.
 applyStage('inline-mobile-inputs',inlineInputEdits(source));
 applyStage('mobile-history-scroll-anchor',scrollAnchorEdits(source));
+applyStage('mobile-video-upload',videoUploadEdits(source));
 const split={schema:1,basePatchCount,inputSha256:sha(initial),outputSha256:sha(source),offsets:'UTF-16 [start,end)',stages,assets:[...outputs].map(([name,code])=>({name,sha256:sha(code),bytes:Buffer.byteLength(code)})),proofs};
 assert.equal(applyMobileSplit(initial,split),source,'Pure rebuild mismatch');
 manifest.mobileSplit=split;manifest.compatSHA256=sha(source);

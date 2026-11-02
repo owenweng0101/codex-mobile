@@ -3,6 +3,10 @@ import {createInlineInputState,inlineInputStatus,inlineScrollKey} from './inline
 export function inlineInputEdits(source){
  const edits=[];
  function replace(needle,text,count=1){assert.equal(source.split(needle).length-1,count,'Inline input boundary changed: '+needle.slice(0,70));let at=0;for(let i=0;i<count;i++){const start=source.indexOf(needle,at);edits.push({start,end:start+needle.length,text});at=start+needle.length;}}
+ // Selecting an attachment is an explicit action that needs a draft session:
+ // otherwise uploads wait for a session while Send waits for uploaded files.
+ replace('Qi=(0,Q.useRef)(async()=>void 0),$i=t??Re?.sessionId??Xi;', 'Qi=(0,Q.useRef)(async()=>void 0),$i=t??Re?.sessionId??Xi;(0,Q.useEffect)(()=>{if(!__codexIsMobile()||t!==null)return;const start=()=>Ji().catch(e=>J.warn(`[codex-draft-attachment]`,e));globalThis.__codexPrepareDraftAttachment=start;return()=>{globalThis.__codexPrepareDraftAttachment===start&&delete globalThis.__codexPrepareDraftAttachment}},[t,Ji]);');
+ replace('let r=h.current.get(m),i=n.map(e=>{let t=!!(e.localPath&&r&&!pJ(r));', 'let r=h.current.get(m);!r?.sessionId&&n.length&&globalThis.__codexPrepareDraftAttachment?.();let i=n.map(e=>{let t=!!(e.localPath&&r&&!pJ(r));');
  replace('Ge=We.snapshot,Ke=', 'Ge=We.snapshot,__mobileInline=__codexUseInlineInputs(t,c,e,Ge),Ke=');
  replace('Do=Ge?Y8t(Ge.queue):null,','Do=__codexIsMobile()?__codexInlineInputs.project({sessionId:t,workspacePath:c,scopeId:__mobileInline,rows:Ge?.rows.window||[],queue:Ge?.queue||{items:[]}}):Ge?Y8t(Ge.queue):null,__mobileScroll=__codexUseInlineScroll(Do?.pendingGuides,Fn),');
  replace('pendingGuides:Ba?Do?.pendingGuides:[]','pendingGuides:__codexIsMobile()?Do?.pendingGuides||[]:Ba?Do?.pendingGuides:[]');

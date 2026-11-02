@@ -422,7 +422,7 @@ const server = http.createServer(async (req, res) => {
         }catch(error){return send(res,error.statusCode||500,{error:error.message,code:error.code||'HISTORY_WINDOW_FAILED'});}
       }
       if (req.method === 'GET' && pathname === '/api/history') return send(res, 200, await history(u.searchParams.get('threadId'), u.searchParams.get('cursor')));
-      const data = req.method === 'POST' ? await body(req, pathname === '/api/upload' ? 30 * 1024 * 1024 : 12 * 1024 * 1024) : {};
+      const data = req.method === 'POST' ? await body(req, pathname === '/api/upload' ? 350 * 1024 * 1024 : 12 * 1024 * 1024) : {};
       if (req.method === 'POST' && pathname === '/api/maintenance') {
         try {
           if (data.action === 'prepare-update') return send(res, 200, { ok:true, ...terminals.prepareUpdate() });

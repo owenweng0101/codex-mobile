@@ -1,12 +1,14 @@
 import {createHash} from 'node:crypto';
 
-const MAX_BYTES = 8 * 1024 * 1024;
+const MAX_BYTES = 256 * 1024 * 1024;
+const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const MAX_CHUNK_BYTES = 512 * 1024; // Original UI emits 384 KiB; V4 accepts up to 512 KiB.
-const MAX_CHUNKS = 64;
+const MAX_CHUNKS = 1024;
 const MAX_ACTIVE = 4;
 const MAX_RECEIPTS = 128;
 const TTL_MS = 5 * 60 * 1000;
 const IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const VIDEO_MIMES = new Set(['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm']);
 const hash = value => createHash('sha256').update(value).digest('hex');
 const fail = (message, code = 'CODEX_ATTACHMENT_INVALID_INPUT') => Object.assign(new Error(message), {code});
 
@@ -76,11 +78,12 @@ export function createAttachmentUploadServices({api, scope} = {}) {
   }
   function metadata(p) {
     if (typeof p.fileName !== 'string' || !p.fileName.trim() || p.fileName.length > 255 || /[\0\r\n]/.test(p.fileName) ||
-        !IMAGE_MIMES.has(p.mime) || !Number.isSafeInteger(p.totalBytes) || p.totalBytes < 1 || p.totalBytes > MAX_BYTES ||
-        !Number.isSafeInteger(p.totalChunks) || p.totalChunks < 1 || p.totalChunks > MAX_CHUNKS ||
+        (!IMAGE_MIMES.has(p.mime) && !VIDEO_MIMES.has(p.mime)) ||
+        (IMAGE_MIMES.has(p.mime) && p.totalBytes > IMAGE_MAX_BYTES) || !Number.isSafeInteger(p.totalBytes) || p.totalBytes < 1 || p.totalBytes > MAX_BYTES ||
+        !Number.isSafeInteger(p.totalChunks) || p.totalChunks < 1 || p.totalChunks > (IMAGE_MIMES.has(p.mime) ? 64 : MAX_CHUNKS) ||
         p.totalChunks > p.totalBytes || p.totalBytes > p.totalChunks * MAX_CHUNK_BYTES ||
         typeof p.checksum !== 'string' || p.checksum.length !== 71 || !/^sha256:[a-f0-9]{64}$/.test(p.checksum)) {
-      throw fail('只支持不超过8MB的PNG、JPEG、GIF、WebP图片，且分块元数据必须有效');
+      throw fail('图片最多8MB；MP4、MOV、M4V、WebM视频最多256MB，且分块元数据必须有效');
     }
     return JSON.stringify([p.fileName, p.mime, p.totalBytes, p.totalChunks, p.checksum]);
   }
@@ -96,7 +99,8 @@ export function createAttachmentUploadServices({api, scope} = {}) {
         return progress(prior);
       }
       const active = [...uploads.values()].filter(record => !record.ref).length;
-      if (active >= MAX_ACTIVE || nativePosts >= MAX_ACTIVE) throw fail('同时上传的附件过多，请稍后重试', 'CODEX_ATTACHMENT_BUSY');
+      if (active >= MAX_ACTIVE || nativePosts >= MAX_ACTIVE ||
+          [...uploads.values()].filter(record => !record.ref).reduce((sum, record) => sum + record.totalBytes, 0) + p.totalBytes > MAX_BYTES) throw fail('同时上传的附件过多，请稍后重试', 'CODEX_ATTACHMENT_BUSY');
       const receipts = [...uploads].filter(([, record]) => record.ref);
       if (receipts.length >= MAX_RECEIPTS) discard(...receipts[0]);
       const record = {workspacePath: p.workspacePath, uploadId: p.uploadId, fingerprint, fileName: p.fileName, mime: p.mime,
@@ -154,7 +158,7 @@ export function createAttachmentUploadServices({api, scope} = {}) {
       record.pending = Promise.race([posted, canceled]).then(result => {
         if (uploads.get(key) !== record) throw fail('附件上传已取消', 'CODEX_ATTACHMENT_ABORTED');
         const id = attachmentRefToUploadId(result?.url);
-        if (result?.id !== id || result?.mime !== record.mime || result?.size !== record.totalBytes || typeof result?.name !== 'string') {
+        if (result?.id !== id || (result?.mime !== record.mime && !(record.mime === 'video/mp4' && /\.m4v$/i.test(record.fileName) && result?.mime === 'video/x-m4v')) || result?.size !== record.totalBytes || typeof result?.name !== 'string') {
           throw fail('原生上传回执无效', 'CODEX_ATTACHMENT_INVALID_RECEIPT');
         }
         record.ref = '/api/attachment?id=' + id;
