@@ -1,4 +1,4 @@
-const allowed=new Set(['/api/files','/api/file','/api/skills','/api/projects','/api/threads','/api/history','/api/history-window','/api/models','/api/status','/api/events','/api/organize','/api/goal','/api/archived','/api/archived/history','/api/thread/archive/status']);
+const allowed=new Set(['/api/files','/api/file','/api/skills','/api/projects','/api/threads','/api/history','/api/thread-metadata','/api/history-window','/api/models','/api/status','/api/events','/api/organize','/api/goal','/api/archived','/api/archived/history','/api/thread/archive/status']);
 
 // The existing Mac service owns its bearer. It is never sent to the web client.
 export class CodexReadClient{

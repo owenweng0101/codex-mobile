@@ -1,4 +1,5 @@
 import {connectMobileServices} from './mobile-connection.mjs';
+import {installImageRecovery,installMobilePreview} from './image-recovery.mjs';
 // The original UI and RPC remain in the versioned compatibility bundle.
 const mainModule='/remote/v4/3.16.3/assets/index-BsmXQHMM.js';
 const adapterModule='/codex-browser-adapter.mjs';
@@ -39,11 +40,15 @@ export async function loadCodexMobile({origin,token='',request=fetch,loadModule=
  let controller;
  const connection=await connectMobileServices({connect:compat.__codexOriginalConnect,url:origin.replace(/^http/,'ws')+'/ws',connectTimeoutMs,onServices:services=>controller?.replaceServices?.(services),onState:state=>controller?.setTransportState?.(state)});
  const services=connection.services;
+ const stopImageRecovery=typeof document==='undefined'?()=>{}:installImageRecovery();
+ const stopPreview=typeof document==='undefined'?()=>{}:installMobilePreview();
  try{controller=await mountCodexOriginalH5({compat,services,info,refreshWorkspaceInfo:readWorkspaceInfo,resolveNavigation:async navigation=>{
   const result=await request('/api/navigation',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(navigation),credentials:'same-origin',signal:AbortSignal.timeout(45000)});
-  const value=await result.json();if(!result.ok)throw Error(value.error||'无法打开所选会话');return value;
- }});}catch(error){connection.dispose();throw error;}
- const dispose=controller.dispose?.bind(controller);controller.dispose=()=>{connection.dispose();dispose?.();};
+  const value=await result.json();if(!result.ok)throw Object.assign(Error(value.error||'无法打开所选会话'),{status:result.status});return value;
+ }});
+  if(controller.initialViewReady)await deadline(controller.initialViewReady,connectTimeoutMs,'原会话恢复超时，请重新加载');
+ }catch(error){controller?.dispose?.();stopPreview();stopImageRecovery();connection.dispose();throw error;}
+ const dispose=controller.dispose?.bind(controller);controller.dispose=()=>{stopPreview();stopImageRecovery();connection.dispose();dispose?.();};
  onStage('mounted');return{controller,info,connection};
 }
 
@@ -51,8 +56,7 @@ export function loadingSurface(){
  document.title='Codex';
  document.documentElement.dataset.codexMobile='true';
  const style=document.createElement('style');style.id='codex-mobile-shell';
- style.textContent=`html[data-codex-mobile="true"]{--color-background:#fff!important}html[data-codex-mobile="true"].dark,html[data-codex-mobile="true"].zai-dark{--color-background:#000!important}html[data-codex-mobile="true"],html[data-codex-mobile="true"] body{background-color:var(--color-background,#fff)}
- #codex-loading{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:28px;background:#fff;color:#1d1d1f;font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+ style.textContent=` #codex-loading{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:28px;background:#fff;color:#1d1d1f;font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
  #codex-loading section{width:min(100%,360px)}#codex-loading .brand{display:flex;align-items:center;gap:8px;margin-bottom:24px}#codex-loading .brand img{width:52px;height:52px;border-radius:14px}#codex-loading h1{margin:0;font-size:28px;font-weight:400;line-height:1;letter-spacing:-.035em}
  #codex-loading p{color:#6e6e73;margin:10px 0}#codex-loading ol{list-style:none;padding:0;margin:24px 0}#codex-loading li{display:flex;gap:12px;align-items:center;margin:16px 0;color:#86868b;transition:color .2s ease}#codex-loading li::before{content:"";box-sizing:border-box;width:14px;height:14px;border:1px solid #dedee3;border-radius:50%;flex:none}
  #codex-loading li[data-state="active"],#codex-loading li[data-state="done"]{color:#1d1d1f}#codex-loading li[data-state="active"]::before{border-color:currentColor;border-right-color:transparent;animation:codex-loading-spin 1s linear infinite}#codex-loading li[data-state="done"]::before{content:"✓";display:flex;align-items:center;justify-content:center;border:0;background:transparent;font-size:14px;line-height:1;font-weight:400;color:#86868b;transform:translateY(-1px)}#codex-loading li[data-state="done"]::after{content:none}#codex-loading li[data-state="error"]{color:#b34335}#codex-loading li[data-state="error"]::before{border-color:currentColor}

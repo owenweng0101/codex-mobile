@@ -97,3 +97,17 @@ test('mounted navigation refresh uses authenticated no-store server info and pre
  const params=f.calls.find(call=>call[0]==='mount')[1];assert.equal((await params.refreshWorkspaceInfo()).workspaces[0].path,'/new');assert.equal(seen.length,2);
  await assert.rejects(params.refreshWorkspaceInfo(),/重新扫描/);
 });
+
+test('startup overlay remains until the restored task is actually reported visible',async()=>{
+ const f=fixture(),view=defer();f.controller.initialViewReady=view.promise;
+ const pending=loadCodexMobile(f.options);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert(f.calls.some(call=>call[0]==='mount'));
+ assert(!f.stages.includes('mounted'),'mounting a React root must not expose its initial blank draft');
+ view.resolve();await pending;assert(f.stages.includes('mounted'));
+});
+test('a missing restored-view report fails with retry and disposes the mounted controller',async()=>{
+ const f=fixture();let disposed=false;f.controller.initialViewReady=new Promise(()=>{});f.controller.dispose=()=>{disposed=true};
+ await assert.rejects(loadCodexMobile({...f.options,connectTimeoutMs:15}),/原会话恢复超时/);
+ assert.equal(disposed,true);assert(!f.stages.includes('mounted'));
+});

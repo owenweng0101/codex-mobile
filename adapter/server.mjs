@@ -4,6 +4,7 @@ import {resolve,extname,join,sep} from 'node:path';
 import {homedir} from 'node:os';
 import {randomBytes,createHash} from 'node:crypto';
 import {createAttachmentUploadServices} from './attachment-upload.mjs';
+import {createAttachmentScope} from './attachment-scope.mjs';
 import {CodexWriteClient} from './write-client.mjs';
 import {shareReadApi} from './read-services/shared-reads.mjs';
 import {createWriteServices} from './write-services/index.mjs';
@@ -35,13 +36,7 @@ const conversationWorkspacePath=process.env.CODEX_MOBILE_WORKSPACE_DIR||join(hom
 await mkdir(conversationWorkspacePath,{recursive:true});
 const readTree=sharedServices.project.readTree.bind(sharedServices.project);
 sharedServices.project.readTree=async(...args)=>({...await readTree(...args),conversationWorkspacePath});
-const uploads=createAttachmentUploadServices({api,scope:async(p,sessionId)=>{
-  const tree=await sharedServices.project.readTree();
-  const known=tree.conversationWorkspacePath===p.workspacePath||tree.tasks.some(t=>t.workspacePath===p.workspacePath)||(tree.projects||[]).some(x=>(x.roots||[]).some(r=>r.rootPath===p.workspacePath));
-  if(!known)throw Error('附件工作区未授权');
-  if(/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(sessionId||'')){const page=await api.get('/api/history?threadId='+encodeURIComponent(sessionId));if(page.thread?.cwd!==p.workspacePath||page.thread?.archived)throw Error('附件会话不属于当前工作区');}
-  return true;
-}});
+const uploads=createAttachmentUploadServices({api,scope:createAttachmentScope({api,readTree:()=>sharedServices.project.readTree()})});
 const resolveAttachment=createQueuedAttachmentResolver({api,resolveUploaded:p=>uploads.resolveAttachment(p)});
 const mobileApi=createMobileApi({api,baseServices:sharedServices,ledgerDir:join(stateDir,'commands'),uploads,resolveAttachment,modelSelections,conversationWorkspacePath});
 function createConnection(){
@@ -90,10 +85,13 @@ const server=createServer(async(req,res)=>{
       const expected='<script type="module" crossorigin src="/remote/v4/3.16.3/assets/index-BsmXQHMM.js"></script>';
       if(!html.includes(expected))throw Error('原版入口结构发生变化');
       // Before JavaScript starts, show a plain white surface without the legacy logo shell.
+      const themeStyle='<style id="codex-mobile-theme">'+await readFile(join(root,'mobile-theme.css'),'utf8')+'</style>';
       const startupStyle='<style id="codex-startup-surface">.zcode-boot-loading{background:#fff!important}.zcode-boot-loading__logo-shell{display:none!important}</style>';
-      bytes=Buffer.from(html.replace(expected,'<script type="module" crossorigin src="/codex-entry.mjs"></script>').replace('</head>',startupStyle+'</head>'));type=types['.html'];
+      const mobileHtml=html.replace(/<meta[^>]+name="viewport"[^>]*>/i,'<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />');
+      bytes=Buffer.from(mobileHtml.replace(expected,'<script type="module" crossorigin src="/codex-entry.mjs"></script>').replace('</head>',startupStyle+themeStyle+'</head>'));type=types['.html'];
     }else if(url.pathname==='/codex-entry.mjs'){path=join(root,'codex-entry.mjs');}
     else if(url.pathname==='/mobile-connection.mjs'){path=join(root,'mobile-connection.mjs');}
+    else if(url.pathname==='/image-recovery.mjs'){path=join(root,'image-recovery.mjs');}
     else if(url.pathname==='/codex-browser-adapter.mjs'){path=join(root,'frontend-stage/browser-adapter.mjs');}
     else if(url.pathname==='/remote/v4/3.16.3/assets/IntlProvider-itolvRb2.js'){path=join(root,'frontend-stage/assets/IntlProvider-itolvRb2.js');}
     else if(url.pathname==='/remote/v4/3.16.3/assets/index-BsmXQHMM.js'){path=join(root,'frontend-stage/assets/index-BsmXQHMM.js');}

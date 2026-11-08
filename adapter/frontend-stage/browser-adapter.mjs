@@ -137,18 +137,42 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
  const storageKey='codex-mobile-current-view-v1';
  let unloading=false;
  const onUnload=()=>{unloading=true;};
+ const onResume=()=>{unloading=false;};
  globalThis.addEventListener?.('beforeunload',onUnload);
- const saveView=view=>{try{if(view)storage?.setItem(storageKey,JSON.stringify({workspacePath:view.workspacePath,taskId:view.taskId}));else storage?.removeItem(storageKey);}catch{}};
+ // Mobile WebKit can hide/freeze the document without a beforeunload event.
+ // Capture pagehide before the original reporter emits its empty visibility view.
+ globalThis.addEventListener?.('pagehide',onUnload,true);
+ globalThis.addEventListener?.('pageshow',onResume,true);
+ globalThis.document?.addEventListener?.('freeze',onUnload,true);
+ globalThis.document?.addEventListener?.('resume',onResume,true);
+ const removeLifecycleListeners=()=>{globalThis.removeEventListener?.('beforeunload',onUnload);globalThis.removeEventListener?.('pagehide',onUnload,true);globalThis.removeEventListener?.('pageshow',onResume,true);globalThis.document?.removeEventListener?.('freeze',onUnload,true);globalThis.document?.removeEventListener?.('resume',onResume,true);};
+ const saveView=view=>{
+  const value=view?{workspacePath:view.workspacePath,taskId:view.taskId}:null;
+  try{if(value)storage?.setItem(storageKey,JSON.stringify(value));else storage?.removeItem(storageKey);}catch{}
+  // The current history entry is per-tab too, and survives a lost storage write.
+  try{const history=globalThis.history;if(history?.replaceState)history.replaceState({...history.state,codexMobileView:value?{kind:'task',...value}:{kind:'home'},...(!value?{zcodeMobilePage:'home'}:{})},'');}catch{}
+ };
  if(!info.initialTaskId){
   let saved;try{saved=JSON.parse(storage?.getItem(storageKey)||'null');}catch{}
+  const historyState=globalThis.history?.state,checkpoint=historyState?.codexMobileView;
+  if(checkpoint?.kind==='home')saved=null;
+  else if(historyState?.zcodeMobilePage==='chat'&&checkpoint?.kind==='task')saved=checkpoint;
   if(typeof saved?.workspacePath==='string'&&typeof saved?.taskId==='string'&&saved.taskId.length<=256){
    try{
     const restored=await resolveNavigation({action:'workspace',workspaceKey:saved.workspacePath,options:{taskId:saved.taskId,mobileNavigationIntent:'chat'}});
     active=await verifyNavigation(restored);
     mountKey='codex-original:'+keyOf(active)+':'+active.initialTaskId;
-   }catch{saveView(null);}
+   }catch(error){
+    // Transient transport/auth failures must leave the original page recoverable.
+    if((error?.status&&![400,404,410].includes(error.status))||['TypeError','AbortError','TimeoutError'].includes(error?.name)){removeLifecycleListeners();throw error;}
+    saveView(null);
+   }
   }
  }
+ // Mounting the React root does not mean the restored task has committed.
+ // Keep startup covered until its real visible-view reporter confirms the task.
+ let initialViewReported=!active.initialTaskId,resolveInitialView;
+ const initialViewReady=new Promise(resolve=>{resolveInitialView=resolve;if(initialViewReported)resolve();});
  // The original detach-project action resolves a directory, then moves the
  // composer itself. Do not remount here or call a native task-creation method.
  const prepareSession=async(project={},generation=viewGeneration)=>{
@@ -248,11 +272,16 @@ export async function mountCodexOriginalH5({compat,services,info,resolveNavigati
   },
   async updateMobileTaskView(view){
    if(disposed)return;
+   // React's initial home/cleanup report must not erase the saved restore target.
+   if(!initialViewReported&&!view)return;
    if(view&&(keyOf(view)!==keyOf(active)||view.taskId!==active.initialTaskId))return;
    active={...active,localMobileView:view};
-   if(view||!unloading)saveView(view);
+   if(view&&!initialViewReported){initialViewReported=true;resolveInitialView();}
+   const hidden=globalThis.document?.visibilityState==='hidden';
+   const stillOnChat=globalThis.history?.state?.zcodeMobilePage==='chat';
+   if(view||!unloading&&!hidden&&!stillOnChat)saveView(view);
   },
  };
  render();
- return{get switcher(){return viewSwitcher;},replaceServices(next){replaceServices(next);render();},getContext:()=>({...active}),setTransportState(value){if(!['idle','connecting','authenticating','waiting_terminal','paired','kicked','error'].includes(value))throw Error('连接状态无效');if(value!==transportState){modelCache.clear();startupReads.clear();}transportState=value;render();},dispose(){globalThis.removeEventListener?.('beforeunload',onUnload);disposed=true;epoch++;viewGeneration++;prepareVersion++;preparedContext=undefined;listeners.clear();mobileNavigationListeners.clear();modelCache.dispose();startupReads.dispose();}};
+ return{initialViewReady,get switcher(){return viewSwitcher;},replaceServices(next){replaceServices(next);render();},getContext:()=>({...active}),setTransportState(value){if(!['idle','connecting','authenticating','waiting_terminal','paired','kicked','error'].includes(value))throw Error('连接状态无效');if(value!==transportState){modelCache.clear();startupReads.clear();}transportState=value;render();},dispose(){removeLifecycleListeners();resolveInitialView();disposed=true;epoch++;viewGeneration++;prepareVersion++;preparedContext=undefined;listeners.clear();mobileNavigationListeners.clear();modelCache.dispose();startupReads.dispose();}};
 }

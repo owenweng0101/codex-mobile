@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {uploadProgressEdits} from '../adapter/frontend-stage/build-upload-progress.mjs';
 import {videoUploadEdits} from '../adapter/frontend-stage/build-video-upload.mjs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -10,7 +11,7 @@ import {applyMobileSplit,bundleSha as sha} from '../adapter/frontend-stage/mobil
 const root=path.resolve(import.meta.dirname,'..'),frontend=path.join(root,'adapter/frontend-stage');
 const assets=path.join(root,'vendor/zcode-web/remote/v4/3.16.3/assets'),mainPath=path.join(frontend,'assets/index-BsmXQHMM.js');
 const manifestPath=path.join(frontend,'bundle-patch-manifest.json'),manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'));
-const basePatchCount=85,expectedInput='c2993a18df3813fe43dafdfeb0443341d389a88c97f25b1145481ed55ebd1f80';
+const basePatchCount=87,expectedInput='1d0a48b6138c86196d3bf0cc73e06671a89020c55e3d9bd0d08930c1cb4874e2';
 assert.equal(manifest.patches.length,basePatchCount,'Build original compatibility patches before splitting');
 let source=fs.readFileSync(path.join(frontend,'baseline/index-BsmXQHMM.js'),'utf8');
 assert.equal(sha(source),manifest.baselineSHA256);
@@ -151,6 +152,7 @@ for(const[name,code]of outputs){
 applyStage('inline-mobile-inputs',inlineInputEdits(source));
 applyStage('mobile-history-scroll-anchor',scrollAnchorEdits(source));
 applyStage('mobile-video-upload',videoUploadEdits(source));
+applyStage('mobile-image-upload-progress',uploadProgressEdits(source));
 const split={schema:1,basePatchCount,inputSha256:sha(initial),outputSha256:sha(source),offsets:'UTF-16 [start,end)',stages,assets:[...outputs].map(([name,code])=>({name,sha256:sha(code),bytes:Buffer.byteLength(code)})),proofs};
 assert.equal(applyMobileSplit(initial,split),source,'Pure rebuild mismatch');
 manifest.mobileSplit=split;manifest.compatSHA256=sha(source);

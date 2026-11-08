@@ -1,9 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, writeFile, symlink, rm } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { HistoryMedia } from '../history-media.mjs';
+
+test('macOS assistant table screenshots in both system temp spellings use the exact official item', {skip:platform()!=='darwin'}, async()=>{
+ const root=await mkdtemp('/private/tmp/codex-mobile-image-');
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8xQAAAAASUVORK5CYII=','base64');
+ const reference={threadId:'temp-thread',turnId:'temp-turn',itemId:'temp-item',index:0};
+ const alias=root.replace('/private/tmp/','/tmp/');
+ const item={id:reference.itemId,type:'agentMessage',text:`| Chat | List |\n|---|---|\n| ![chat](${alias}/image.png) | ![list](${root}/image.png) |`};
+ const media=new HistoryMedia({core:{call:async(_method,params)=>({data:params.itemIds[0]===item.id?[{turnId:reference.turnId,item}]:[]})},ensureAccess:async()=>{}});
+ try{
+  await writeFile(join(root,'image.png'),png,{mode:0o600});
+  for(const index of [0,1]){const result=await media.read({...reference,index});assert.equal(result.status,'ready');assert.deepEqual(result.body,png);}
+  assert.equal((await media.read({...reference,itemId:'foreign-item'})).reason,'ITEM_NOT_FOUND');
+  assert.equal((await media.read({...reference,index:2})).reason,'INDEX_OUT_OF_RANGE');
+  await symlink(join(root,'image.png'),join(root,'alias.png'));
+  item.text=`![linked](${alias}/alias.png)`;
+  assert.equal((await media.read(reference)).reason,'UNSAFE_FILE');
+ }finally{await rm(root,{recursive:true,force:true});}
+});
 
 // Only self-created AppSupport bytes. No model messages, business history,
 // protected-directory probes, App fs service or credential access.

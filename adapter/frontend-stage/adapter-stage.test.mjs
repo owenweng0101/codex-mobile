@@ -17,6 +17,8 @@ test('mobile reload restores only a server-validated view and clears it on retur
  const second=await mountCodexOriginalH5(options);
  assert.equal(second.getContext().initialTaskId,'T');
  assert.equal(mounts.at(-1).props.initialWebRemoteControlMobileNavigationIntent,'chat');
+ await second.switcher.updateMobileTaskView(null);assert.equal(JSON.parse(saved).taskId,'T','startup placeholder cannot erase restored selection');
+ await second.switcher.updateMobileTaskView({workspacePath:'/project',taskId:'T'});await second.initialViewReady;
  await second.switcher.updateMobileTaskView(null);assert.equal(saved,null);second.dispose();
  saved=JSON.stringify({workspacePath:'/project',taskId:'T'});rejected=true;
  const third=await mountCodexOriginalH5(options);assert.equal(third.getContext().initialTaskId,undefined);assert.equal(saved,null);third.dispose();

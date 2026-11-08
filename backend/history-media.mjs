@@ -1,6 +1,6 @@
 import { lstat, realpath, open } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { homedir, tmpdir, platform } from 'node:os';
 import { isAbsolute, normalize, relative, join, basename, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { marked } from 'marked';
@@ -156,13 +156,16 @@ function failureReason(error) {
 }
 
 export class HistoryMedia {
-  constructor({ core, ensureAccess, allowedRoots = [join(homedir(),'.codex','attachments'),tmpdir()], resolveRoots,
-    io = { lstat, realpath, open }, maxBytes = 8*MiB, rpcTimeoutMs = 4000, uid = process.getuid?.() } = {}) {
+  // macOS tools also write screenshots into /tmp (/private/tmp), independently
+  // of the per-user TMPDIR returned by tmpdir(). Keep both spellings because
+  // Markdown retains the original path and the root itself may be an OS alias.
+  constructor({ core, ensureAccess, allowedRoots = [join(homedir(),'.codex','attachments'),tmpdir(),...(platform()==='darwin'?['/tmp','/private/tmp']:[])], resolveRoots,
+    io = { lstat, realpath, open }, snapshots, maxBytes = 8*MiB, rpcTimeoutMs = 4000, uid = process.getuid?.() } = {}) {
     if (!core || typeof core.call !== 'function') throw new Error('需要正式 Codex 历史读取接口');
     if (!Array.isArray(allowedRoots) || !allowedRoots.every(localPath)) throw new Error('附件根目录必须由服务端配置绝对规范路径');
     if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > 32*MiB) throw new Error('图片大小限制无效');
     this.core=core; this.ensureAccess=ensureAccess; this.allowedRoots=allowedRoots.slice(); this.resolveRoots=resolveRoots;
-    this.io=io; this.maxBytes=maxBytes; this.rpcTimeoutMs=rpcTimeoutMs; this.uid=uid;
+    this.io=io; this.snapshots=snapshots; this.maxBytes=maxBytes; this.rpcTimeoutMs=rpcTimeoutMs; this.uid=uid;
   }
   async read(reference) {
     const ref = validateMediaReference(reference); if (!ref) return unresolved('INVALID_REFERENCE');
@@ -194,6 +197,8 @@ export class HistoryMedia {
     // The existing WorkspaceAccess check must run before any stat/realpath/open,
     // especially for Documents. Never fall back to App fs RPC on denial.
     if (await this.ensureAccess(path) === false) throw mediaError('PERMISSION_REQUIRED');
+    const snapshot=await this.snapshots?.get(reference,path);
+    if(snapshot){if(snapshot.length>this.maxBytes)throw mediaError('MEDIA_TOO_LARGE');sniff(snapshot);return snapshot;}
     const relativePath=relative(root,path),parts=relativePath.split(sep);
     let current=root;
     for (let index=0;index<parts.length;index++) {
@@ -215,7 +220,9 @@ export class HistoryMedia {
       const after=await file.stat();
       if(length>this.maxBytes)throw mediaError('MEDIA_TOO_LARGE');
       if(length!==info.size || after.size!==opened.size || after.mtimeMs!==opened.mtimeMs || after.ctimeMs!==opened.ctimeMs)throw mediaError('MEDIA_CHANGED');
-      return buffer.subarray(0,length);
+      const bytes=buffer.subarray(0,length);sniff(bytes);
+      await this.snapshots?.put(reference,path,bytes);
+      return bytes;
     } finally { await file.close(); }
   }
 }

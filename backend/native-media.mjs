@@ -1,11 +1,21 @@
-import { dirname, isAbsolute } from 'node:path';
-import { validateMediaReference, MEDIA_REASONS } from './history-media.mjs';
+import { dirname, isAbsolute, relative, sep } from 'node:path';
+import { validateMediaReference, MEDIA_REASONS, assistantImageReferences } from './history-media.mjs';
+
+export function assistantArtifactRoots(reference, { item, sourcePath } = {}, roots = []) {
+  if (!validateMediaReference(reference) || item?.id !== reference.itemId || item.type !== 'agentMessage' || assistantImageReferences(item)[reference.index]?.path !== sourcePath) return [];
+  return roots.filter(root => {
+    if (typeof root !== 'string' || !isAbsolute(root) || typeof sourcePath !== 'string' || !isAbsolute(sourcePath)) return false;
+    const path = relative(root, sourcePath);
+    return path !== '' && path !== '..' && !path.startsWith('..' + sep) && !isAbsolute(path);
+  });
+}
 
 // The path comes from the exact official item, never from the HTTP query or
 // prose mentioning a file. A native selection grants only its selected image.
 export function nativeImageRoots(reference, { item, sourcePath } = {}) {
   if (!validateMediaReference(reference) || item?.id !== reference.itemId || typeof sourcePath !== 'string' || !isAbsolute(sourcePath) || sourcePath.includes('\0')) return [];
   const selected = item.type === 'userMessage' ? item.content?.[reference.index] : null;
+  if(item.type==='agentMessage'&&assistantImageReferences(item)[reference.index]?.path===sourcePath)return [dirname(sourcePath)];
   if (selected?.type === 'localImage' && selected.path === sourcePath || item.type === 'imageGeneration' && item.status === 'completed' && reference.index === 0 && item.savedPath === sourcePath) return [dirname(sourcePath)];
   return [];
 }

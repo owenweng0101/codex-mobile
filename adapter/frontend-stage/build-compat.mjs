@@ -59,7 +59,7 @@ patch('running-task-label-in-groups','F=uj(e.updatedAt,x),I=ji(e)','F=Rit(e)?x.f
 patch('project-and-conversation-navigation',section('function DEt({props:e,onCreate:t}){','function OEt(e){'),'function DEt({props:e,onCreate:t}){let r=e.webRemoteControlWorkspaceSwitcher?.deviceNavigation;return(0,$.jsxs)(`div`,{"data-testid":`sidebar-primary-navigation`,className:`flex flex-col gap-1 px-2 py-3 ${e.isWebRemoteControl&&!r?`max-md:pt-11`:``}`,children:[r?(0,$.jsx)(EEt,{navigation:r}):null,(0,$.jsx)(Ywt,{onCreateTask:t})]})}');
 // Home has no floating header to reserve space for. Reuse the conversation theme menu.
 patch('remove-project-inline-files',section('j.length>1&&!D?(0,$.jsxs)(vb,',',(0,$.jsx)(lI,{testId:`virtual-project-create-task`'),'null');
-// Keep the original selector for the cross-project recent timeline.
+// Keep the original view selector so mobile users can choose the cross-project timeline.
 // The Codex shell stays mounted across navigation; explicitly finish the
 // original cross-workspace loading state instead of relying on an unmount.
 patch('finish-native-workspace-navigation','markTaskReadExpectedUnreadAt:f.unreadAt}:{}})}catch(e)', 'markTaskReadExpectedUnreadAt:f.unreadAt}:{}});if(globalThis.__CODEX_ORIGINAL_BRIDGE__?.codexBridge===true){u?.(null),s?.(!1),c?.({crossWorkspace:!1}),a?.()}}catch(e)');
@@ -78,6 +78,7 @@ patch('native-mention-skills-only','function qXt(e){return e===`@`?WXt:e===`#`?G
 patch('native-mention-trigger-scope','x=!a&&(u?.trigger===`@`||u?.trigger===`$`||u?.trigger===`#`)','x=!a&&(globalThis.__CODEX_ORIGINAL_BRIDGE__?.codexBridge===true?u?.trigger===`$`:(u?.trigger===`@`||u?.trigger===`$`||u?.trigger===`#`))');
 patch('native-slash-skills-only','return[...t,...r]},[s,p,o]),E=(0,Q.useMemo)(()=>wXt(m),[m])','return globalThis.__CODEX_ORIGINAL_BRIDGE__?.codexBridge===true?[]:[...t,...r]},[s,p,o]),E=(0,Q.useMemo)(()=>globalThis.__CODEX_ORIGINAL_BRIDGE__?.codexBridge===true?[]:wXt(m),[m])');
 
+patch('mobile-html-preview',"if(e.type===`patch`)return(0,$.jsx)(qFn","if(globalThis.__CODEX_PREVIEW_HTML_DOC__&&/\\.html?$/i.test(e.path??e.title??``)&&typeof(e.content??t?.content)===`string`)return(0,$.jsx)(`iframe`,{title:e.title??`HTML`,\"data-cm-html-preview\":true,sandbox:`allow-scripts`,srcDoc:globalThis.__CODEX_PREVIEW_HTML_DOC__(e.content??t.content),className:`h-full w-full border-0 bg-white`});if(e.type===`patch`)return(0,$.jsx)(qFn");
 patch('preview-touch-effect','return(0,$.jsxs)(WF,{children:[(0,$.jsx)(GF,{asChild:!0,children:(0,$.jsxs)(`div`,{"data-image-preview":!0', '(0,Q.useEffect)(()=>attachImageGestures(c.current),[n]);return(0,$.jsxs)(WF,{children:[(0,$.jsx)(GF,{asChild:!0,children:(0,$.jsxs)(`div`,{"data-image-preview":!0');
 patch('native-same-origin-attachment-preview','async attachmentRead(r){if(r.signal?.throwIfAborted(),await a(),','async attachmentRead(r){if(globalThis.__CODEX_ORIGINAL_BRIDGE__?.codexBridge===true){const url=globalThis.__CODEX_NATIVE_ATTACHMENT_URL__?.(r.ref,r.sessionId);if(url)return{url,mediaType:r.mediaType||"image/*"};}if(r.signal?.throwIfAborted(),await a(),');
 patch('lazy-native-history-keeps-manual-paging','function ble(e,t){if(t||!yu(e)||!e)return!1;let n=e.rows.window[0]?.turnId;return n?!e.rows.window.some(e=>e.turnId===n&&e.kind===`turnHeader`):!1}','function ble(e,t){if(globalThis.__CODEX_ORIGINAL_BRIDGE__?.codexBridge===true)return!1;if(t||!yu(e)||!e)return!1;let n=e.rows.window[0]?.turnId;return n?!e.rows.window.some(e=>e.turnId===n&&e.kind===`turnHeader`):!1}');
@@ -94,12 +95,7 @@ patch('codex-wordmark',section('function fNt({className:e}){','function kz(e){')
 const literals=[...new Set([...compat.matchAll(/`(?:\\.|[^`\\])*`/g)].map(match=>match[0]).filter(value=>/\bZCode\b/.test(value)))];
 for(const [index,literal] of literals.entries())patch('shell-brand-literal-'+index,literal,literal.replace(/\bZCode\b/g,'Codex'),compat.split(literal).length-1);
 patch('codex-logo-identifier','"data-app-logo":`zcode`','"data-app-logo":`codex`');
-// Reviewed mobile recovery, scroll and highlighter patches follow the original
-// compatibility layer. Verify its exact identity before the split build runs.
-const mobile=JSON.parse(await readFile(new URL('./mobile-compat-patches.json',import.meta.url),'utf8'));
-if(patches.length!==mobile.inputPatchCount)throw Error('Original compatibility patch count changed');
-for(const item of mobile.patches)patch(item.name,item.needle,item.replacement,item.count);
-if(patches.length!==mobile.outputPatchCount||createHash('sha256').update(compat).digest('hex')!==mobile.outputSha256)throw Error('Mobile compatibility input changed; review the pinned patches before rebuilding');
+for(const item of JSON.parse(await readFile(new URL('./reviewed-compat-patches.json',import.meta.url),'utf8')))patch(item.name,item.needle,item.replacement,item.count);
 await mkdir(new URL('./assets/',import.meta.url),{recursive:true});
 await writeFile(new URL('./assets/index-BsmXQHMM.js',import.meta.url),compat);
 // Keep canonical locale imports intact; adapt dictionaries before the first

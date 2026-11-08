@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import {readFile} from 'node:fs/promises';
 import {once,EventEmitter} from 'node:events';
 import {WebSocket,WebSocketServer} from 'ws';
 import {createIngress} from '../ingress.mjs';
@@ -137,4 +138,26 @@ test('upload enforces 800 KiB including chunked requests without changing accept
   const over=await request(port,'/mobile/api/upload',{method:'POST',body:large,headers:chunked?headers:{'content-length':large.length}});
   assert.equal(over.status,413);assert.equal(received.length,before);
  }
+});
+
+
+test('every local startup module imported by the real mobile entry is reachable through the public ingress',async t=>{
+ const entry=await readFile(new URL('../../adapter/codex-entry.mjs',import.meta.url),'utf8');
+ const modules=[...entry.matchAll(/^import\s+.*?from\s+['"](\.\/[^'"]+)['"]/gm)].map(match=>'/'+match[1].slice(2));
+ assert.ok(modules.length>0);
+ const backend=http.createServer(async(req,res)=>{
+  try{const body=await readFile(new URL('../../adapter'+req.url,import.meta.url));res.setHeader('content-type','text/javascript');res.end(body);}
+  catch{res.writeHead(404);res.end();}
+ });
+ const bp=await listen(backend),gateway=createIngress({backend:'http://127.0.0.1:'+bp});gateway.setPublicOrigin(origin);gateway.setMode('codex-read');const port=await listen(gateway.server);
+ t.after(async()=>{await gateway.close();await new Promise(r=>backend.close(r));});
+ for(const path of modules){
+  const response=await request(port,path);assert.equal(response.status,200,path+' must load before the application can start');
+  assert.match(response.headers['content-type'],/javascript/);
+  assert.deepEqual(response.body,await readFile(new URL('../../adapter'+path,import.meta.url)));
+  assert.equal((await request(port,path,{method:'HEAD'})).status,200);
+  assert.equal((await request(port,path,{method:'POST'})).status,404);
+  assert.equal((await request(port,path,{headers:{origin:'https://evil.example'}})).status,403);
+ }
+ for(const path of ['/image-recovery.test.mjs','/image-recovery.mjs.map','/auth.mjs'])assert.equal((await request(port,path)).status,404);
 });

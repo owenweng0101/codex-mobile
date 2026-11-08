@@ -1,4 +1,5 @@
 import {RolloutConversationIndex} from './conversation-index.mjs';
+import {threadMetadata} from './thread-metadata.mjs';
 import {skillInputs} from './skill-input.mjs';
 import {autoTitleCandidate,isDefaultThreadTitle} from './auto-title.mjs';
 import http from 'node:http';
@@ -32,7 +33,8 @@ import { ArchivedThreads, ensureThreadUnarchived } from './archived.mjs';
 import { GoalReader } from './goals.mjs';
 import { AttachmentStore, serveAttachment } from './attachments.mjs';
 import { HistoryMedia } from './history-media.mjs';
-import { nativeImageRoots, serveNativeMedia } from './native-media.mjs';
+import { ImageSnapshots } from './image-snapshots.mjs';
+import { nativeImageRoots, assistantArtifactRoots, serveNativeMedia } from './native-media.mjs';
 import { deliverMessage, messageBusy, hasPendingDelivery, interruptExpectedTurn } from './message-delivery.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -67,10 +69,13 @@ const creations = new CreationLedger(stateDir);
 const automationCatalog = new AutomationCatalog({ defaultCwd: cwd });
 const workspaceAccess = new WorkspaceAccess();
 const historyMedia = new HistoryMedia({ core, ensureAccess:path=>workspaceAccess.ensure(path), resolveRoots:async(reference,source)=>{
-  if(source.item.type!=='agentMessage')return nativeImageRoots(reference,source);
+  const selectedRoots=nativeImageRoots(reference,source);
+  if(selectedRoots.length||source.item.type!=='agentMessage')return selectedRoots;
   const {thread}=await core.call('thread/read',{threadId:reference.threadId,includeTurns:false});
-  return typeof thread?.cwd==='string'?[thread.cwd]:[];
-}, maxBytes:20*1024*1024 });
+  const roots=typeof thread?.cwd==='string'?[thread.cwd]:[];
+  const artifactRoots=(process.env.CODEX_MOBILE_ARTIFACT_ROOTS||'').split('\n').filter(Boolean);
+  return [...roots,...assistantArtifactRoots(reference,source,artifactRoots)];
+}, snapshots:new ImageSnapshots({directory:resolve(stateDir,'history-images')}), maxBytes:20*1024*1024 });
 const archivedThreads = new ArchivedThreads(core);
 const goals = new GoalReader({ core });
 const desktopHistories = new Map(), desktopActive = new Map(), desktopApprovals = new Map(), desktopAccess = new Map(), desktopStale = new Set(), pendingHistoryResets = new Set();
@@ -421,6 +426,7 @@ const server = http.createServer(async (req, res) => {
           return send(res,200,await historyWindow(u.searchParams.get('threadId'),{limit:parse('limit')??60,beforeRowId:parse('beforeRowId'),fromRowId:parse('fromRowId'),sourceEpoch:u.searchParams.get('sourceEpoch')??undefined,metadataOnly:u.searchParams.get('metadataOnly')==='1'}));
         }catch(error){return send(res,error.statusCode||500,{error:error.message,code:error.code||'HISTORY_WINDOW_FAILED'});}
       }
+      if (req.method === 'GET' && pathname === '/api/thread-metadata') return send(res, 200, await threadMetadata(u.searchParams.get('threadId'), {readThread:threadRead, drafts:draftThreads}));
       if (req.method === 'GET' && pathname === '/api/history') return send(res, 200, await history(u.searchParams.get('threadId'), u.searchParams.get('cursor')));
       const data = req.method === 'POST' ? await body(req, pathname === '/api/upload' ? 350 * 1024 * 1024 : 12 * 1024 * 1024) : {};
       if (req.method === 'POST' && pathname === '/api/maintenance') {

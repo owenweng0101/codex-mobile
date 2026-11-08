@@ -203,7 +203,7 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
    if(kind==='conversation')record.nativeListener=baseServices['zcode-task'].onDynamicTaskEvent({taskId:p.sessionId,workspacePath:p.workspacePath})(()=>{historyPending.delete(historyKey(p));refresh(record);});
    else if(eventAdapter?.changes)record.nativeListener=eventAdapter.changes(()=>refresh(record));
    // Publish before ACK is supported by the original activation buffer.
-   await publish(record,true);return{ack:{subscriptionId:id,mode:'snapshot',logEpoch:record.logEpoch}};
+   await publish(record,true);if(kind==='conversation')scheduleReconcile(record);return{ack:{subscriptionId:id,mode:'snapshot',logEpoch:record.logEpoch}};
   }catch(error){record.nativeListener?.dispose();subscriptions.delete(id);throw error;}
  }
  function refresh(record){
@@ -211,6 +211,11 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
   record.dirty=true;
   if(!record.refreshPromise)record.refreshPromise=new Promise(resolve=>{record.resolveRefresh=resolve;});
   scheduleRefresh(record);return record.refreshPromise;
+ }
+ function scheduleReconcile(record){
+  if(disposed||!subscriptions.has(record.id)||record.reconcileTimer)return;
+  record.reconcileTimer=setTimeout(()=>{record.reconcileTimer=null;refresh(record);scheduleReconcile(record);},15000);
+  record.reconcileTimer.unref?.();
  }
  function scheduleRefresh(record){
   if(record.timer||record.refreshing||disposed||!subscriptions.has(record.id))return;
@@ -221,15 +226,15 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
     if(disposed||!subscriptions.has(record.id))return;
     const remaining=1000-(Date.now()-Math.max(record.lastPublishedAt||0,record.lastRefreshAt||0));
     if(remaining>0)return;
-    record.dirty=false;await publish(record);
-   }catch{}finally{
+    record.dirty=false;await publish(record);record.retryDelay=0;
+   }catch{record.dirty=true;record.retryDelay=Math.min((record.retryDelay||1000)*2,30000);}finally{
     record.refreshing=false;
     if(record.dirty&&!disposed&&subscriptions.has(record.id))scheduleRefresh(record);
     else{record.resolveRefresh?.();record.refreshPromise=null;record.resolveRefresh=null;}
    }
-  },Math.max(0,1000-(Date.now()-Math.max(record.lastPublishedAt||0,record.lastRefreshAt||0))));
+  },Math.max(record.retryDelay||0,1000-(Date.now()-Math.max(record.lastPublishedAt||0,record.lastRefreshAt||0))));
  }
- function cancelRefresh(record){clearTimeout(record.initialTimer);clearTimeout(record.timer);record.timer=null;record.resolveRefresh?.();record.refreshPromise=null;record.resolveRefresh=null;}
+ function cancelRefresh(record){clearTimeout(record.initialTimer);clearTimeout(record.timer);clearTimeout(record.reconcileTimer);record.timer=null;record.reconcileTimer=null;record.resolveRefresh?.();record.refreshPromise=null;record.resolveRefresh=null;}
  async function owned(p,kind){const r=subscriptions.get(p.subscriptionId);if(!r||r.kind!==kind||r.params.workspacePath!==p.workspacePath)throw unavailable('subscription not owned');await scope(p);return r;}
  async function resync(kind,p){const r=await owned(p,kind);await publish(r,true);return{ack:{subscriptionId:r.id,mode:'snapshot',logEpoch:r.logEpoch}};}
  async function unsubscribe(kind,p){const r=await owned(p,kind);r.nativeListener?.dispose();cancelRefresh(r);subscriptions.delete(r.id);}

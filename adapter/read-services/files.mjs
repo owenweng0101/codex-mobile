@@ -21,6 +21,15 @@ export function createFileReadService({api,baseServices}){
   return{absolute,query};
  }
  return{
+  async readFileRange(params){
+   const offset=params?.offset??0,length=params?.length;
+   if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(length)||length<1||length>2*1024*1024)throw Error("文档预览范围无效");
+   const {absolute,query}=await location(params);
+   if(extname(absolute).toLowerCase()!==".pdf")throw Error("此文件不属于支持的 PDF 预览类型");
+   const result=await api.getMedia("/api/file-content?"+query);
+   if(result.mediaType!=="application/pdf")throw Error("PDF 预览类型不匹配");
+   return new Uint8Array(result.bytes.subarray(offset,offset+length));
+  },
   async readTextFile(params){
    const offset=params?.offset??0,length=params?.length??512*1024;
    if(offset!==0||!Number.isSafeInteger(length)||length<0||length>2*1024*1024)throw Error('文本预览范围无效');

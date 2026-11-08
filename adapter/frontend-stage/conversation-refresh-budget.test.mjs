@@ -28,7 +28,21 @@ test('repeated failing reads are also throttled and a later native event can rec
  t.mock.timers.tick(1100);f.events.fire({});t.mock.timers.tick(0);await flush();assert.equal(f.reads,2);
  for(let i=0;i<10;i++){t.mock.timers.tick(20);f.events.fire({});t.mock.timers.tick(0);await flush();}
  assert.equal(f.reads,2);
- f.fail=false;f.page.turns[0].items[0].text='recovered';t.mock.timers.tick(800);await flush();assert.equal(f.reads,3);assert.equal(f.frames.length,2);
+ f.fail=false;f.page.turns[0].items[0].text='recovered';t.mock.timers.tick(1800);await flush();assert.equal(f.reads,3);assert.equal(f.frames.length,2);
+});
+test('failed refresh retries without another event',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date'],now:100000});
+ const f=fixture(t);await f.agent.subscribeConversationV4(params);f.fail=true;
+ t.mock.timers.tick(1100);f.events.fire({});t.mock.timers.tick(0);await flush();assert.equal(f.reads,2);
+ f.fail=false;f.page.turns[0].items[0].text='recovered without event';
+ t.mock.timers.tick(2000);await flush();assert.equal(f.reads,3);assert.equal(f.frames.at(-1).frame.payload.deltas.find(delta=>delta.op==='row.upserted').row.text,'recovered without event');
+});
+test('periodic reconciliation recovers a missed event and stops after unsubscribe',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date'],now:100000});
+ const f=fixture(t);const {ack}=await f.agent.subscribeConversationV4(params);
+ f.page.turns[0].items[0].text='missed event';t.mock.timers.tick(15000);await flush();t.mock.timers.tick(0);await flush();
+ assert.equal(f.reads,2);assert.equal(f.frames.at(-1).frame.payload.deltas.find(delta=>delta.op==='row.upserted').row.text,'missed event');
+ await f.agent.unsubscribeConversationV4({...params,subscriptionId:ack.subscriptionId});t.mock.timers.tick(30000);await flush();assert.equal(f.reads,2);
 });
 test('explicit resync still immediately publishes a full recovery frame',async t=>{
  t.mock.timers.enable({apis:['setTimeout','Date'],now:100000});

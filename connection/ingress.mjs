@@ -4,12 +4,13 @@ import {createGzip,createBrotliCompress,gzip,brotliCompress,constants as zlibCon
 import {promisify} from 'node:util';
 import {Transform} from 'node:stream';
 import {WebSocket,WebSocketServer} from 'ws';
+import {createDshProxy} from './dsh-proxy.mjs';
 
 export const probeHtml=`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Codex 国内连接测试</title><style>body{font:17px system-ui;margin:40px auto;padding:0 24px;max-width:560px;color:#202124;background:#f7f8fa}h1{font-size:25px}li{margin:18px 0}button{font:inherit;padding:12px 20px;border:0;border-radius:12px;background:#202124;color:white}p{line-height:1.6;color:#60646b}</style><h1>Codex 国内连接测试</h1><p>此页面只测试网络，不包含你的项目、会话或控制权限。</p><ul><li id="https">页面已打开</li><li id="ws">双向连接：等待</li><li id="echo">消息往返：等待</li></ul><button id="retry">重新连接</button><script src="/probe.js"></script></html>`;
 export const probeScript=`let current;function connect(){current?.close();const w=new WebSocket(location.origin.replace(/^http/,'ws')+'/probe/ws');current=w;w.binaryType='arraybuffer';w.onopen=()=>{document.getElementById('ws').textContent='双向连接：已建立';w.send(new TextEncoder().encode('codex-network-probe'));};w.onmessage=e=>{window.__PROBE_OK__=new TextDecoder().decode(e.data)==='codex-network-probe';document.getElementById('echo').textContent=window.__PROBE_OK__?'消息往返：成功':'消息往返：异常';};w.onclose=()=>{document.getElementById('ws').textContent='双向连接：已断开，可重新连接';};w.onerror=()=>{document.getElementById('echo').textContent='消息往返：未成功';};}document.getElementById('https').textContent=location.protocol==='https:'?'HTTPS：已建立安全连接':'当前为本机测试';document.getElementById('retry').onclick=connect;connect();`;
 const blocked=new Set(['/local','/local/info','/__audit','/pair','/pair.js']);
 const mobileAssets=new Set(['/mobile/app.css','/mobile/app.mjs','/mobile/attachments.mjs','/mobile/skills.mjs','/mobile/cache.mjs','/mobile/queue.mjs']);
-const staticPath=p=>mobileAssets.has(p)||['/mobile/','/mobile/index.html','/','/legacy/','/codex-entry.mjs','/mobile-connection.mjs','/codex-browser-adapter.mjs'].includes(p)||p.startsWith('/remote/v4/3.16.3/');
+const staticPath=p=>mobileAssets.has(p)||['/mobile/','/mobile/index.html','/','/legacy/','/codex-entry.mjs','/mobile-connection.mjs','/image-recovery.mjs','/codex-browser-adapter.mjs'].includes(p)||p.startsWith('/remote/v4/3.16.3/');
 const uploadBodyLimit=800*1024;
 const validPath=p=>!/%|\\|\0/.test(p)&&!p.split('/').some(v=>v==='.'||v==='..');
 function json(res,status,data){res.writeHead(status,{'content-type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
@@ -43,10 +44,12 @@ function weakEtag(headers){if(headers.etag&&!headers.etag.startsWith('W/'))heade
 
 /** A dedicated tunnel port with no local control routes. The upstream remains
  * loopback-only. Its pairing and original RPC binary protocol stay intact. */
-export function createIngress({backend='http://127.0.0.1:8796',instance=randomUUID(),compressionCache=createCompressionCache(),heartbeatIntervalMs=15000}={}){
+export function createIngress({backend='http://127.0.0.1:8796',instance=randomUUID(),compressionCache=createCompressionCache(),heartbeatIntervalMs=15000,dshTarget='http://127.0.0.1:18902',dshPrefix='/dsh'}={}){
  const upstream=new URL(backend);if(upstream.hostname!=='127.0.0.1'||upstream.protocol!=='http:')throw Error('Upstream must be loopback HTTP');
  if(!Number.isSafeInteger(heartbeatIntervalMs)||heartbeatIntervalMs<1||heartbeatIntervalMs>300000)throw Error('Invalid WebSocket heartbeat interval');
  let publicOrigin=null,mode='probe';const sockets=new Set(),upstreamSockets=new Set(),bridges=new Set();
+ // Harness 手机入口挂在同一隧道的子路径下；它有自己的访问口令，不共享 Codex 的配对。
+ const dsh=dshTarget?createDshProxy({target:dshTarget,prefix:dshPrefix}):null;
  // Control-frame pings do not enter the RPC stream. A missing pong closes both
  // legs so the browser can reconnect instead of retaining a half-open session.
  const heartbeat=setInterval(()=>{
@@ -64,8 +67,23 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
  }
  // QR scanners and links from another app can mark the initial document load
  // cross-site. Only that safe entry navigation is exempt; APIs and sockets are not.
- function externalEntry(req){return req.method==='GET'&&!req.headers.origin&&req.headers['sec-fetch-site']==='cross-site'&&req.headers['sec-fetch-mode']==='navigate'&&req.headers['sec-fetch-dest']==='document'&&['/','/legacy/','/mobile/','/mobile/index.html'].includes(pathOf(req));}
- function allowed(req){return !!publicOrigin&&req.headers.host===new URL(publicOrigin).host&&(!req.headers.origin||req.headers.origin===publicOrigin)&&(req.headers['sec-fetch-site']!=='cross-site'||externalEntry(req));}
+ // `Origin: null` 等同于没有 Origin：部分手机内置浏览器在扫码导航时会这样发。
+ function requestOrigin(req){return req.headers.origin==='null'?undefined:req.headers.origin;}
+ // 扫码打开是一次跨站文档导航。只有入口文档导航可以豁免，API、资源与 socket 不行；
+ // Harness 手机入口有自己的口令，因此它的入口路径同样按导航豁免处理。
+ function externalEntry(req){
+  if(!['GET','HEAD'].includes(req.method))return false;
+  // 个别内置浏览器会给顶层导航也带上 Origin；只接受指向本隧道自己的那个。
+  const origin=requestOrigin(req);
+  if(origin!==undefined&&origin!==publicOrigin)return false;
+  if(req.headers['sec-fetch-site']!=='cross-site'||req.headers['sec-fetch-mode']!=='navigate'||req.headers['sec-fetch-dest']!=='document')return false;
+  const path=pathOf(req);
+  if(path===null)return false;
+  if(['/','/legacy/','/mobile/','/mobile/index.html'].includes(path))return true;
+  if(dsh===null)return false;
+  return path===dsh.prefix||path===dsh.prefix+'/';
+ }
+ function allowed(req){return !!publicOrigin&&req.headers.host===new URL(publicOrigin).host&&(!requestOrigin(req)||requestOrigin(req)===publicOrigin)&&(req.headers['sec-fetch-site']!=='cross-site'||externalEntry(req));}
  function pathOf(req){try{const u=new URL(req.url,'http://ingress.invalid');if(u.origin!=='http://ingress.invalid'||!validPath(req.url.split('?')[0]))return null;return u.pathname;}catch{return null;}}
  function headers(req){const out={host:upstream.host};for(const k of safeHeaders)if(req.headers[k]!==undefined)out[k]=req.headers[k];if(externalEntry(req))out['sec-fetch-site']='none';if(req.headers.origin)out.origin=upstream.origin;if(versionedAsset(pathOf(req)||'')){out['accept-encoding']='identity';if(out['if-none-match'])out['if-none-match']=out['if-none-match'].replace(/W\/(?=")/g,'');}return out;}
  const wss=new WebSocketServer({noServer:true,maxPayload:64*1024});
@@ -74,6 +92,7 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
   secureHeaders(res);const path=pathOf(req);
   if(!allowed(req))return json(res,403,{error:'Origin not allowed'});
   if(!path||blocked.has(path)||path.startsWith('/local/'))return json(res,404,{error:'Not available'});
+  if(dsh&&dsh.handles(path))return dsh.forward(req,res);
   if(req.method==='GET'&&path==='/healthz')return json(res,200,{service:'codex-cpolar-ingress',instance,mode});
   if(req.method==='GET'&&path==='/probe.js'){res.writeHead(200,{'content-type':'text/javascript; charset=utf-8'});res.end(probeScript);return;}
   if(req.method==='GET'&&(path==='/probe'||mode==='probe'&&path==='/')){res.writeHead(200,{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'"});res.end(probeHtml);return;}
@@ -125,7 +144,9 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
  });
  server.on('connection',s=>{sockets.add(s);s.on('close',()=>sockets.delete(s));});
  server.on('upgrade',(req,socket,head)=>{
-  const path=pathOf(req);if(!allowed(req)||req.headers.origin!==publicOrigin||!['/probe/ws','/ws'].includes(path)||path==='/ws'&&mode!=='codex-read'){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
+  const path=pathOf(req);if(!allowed(req)||req.headers.origin!==publicOrigin){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
+  if(dsh&&path&&dsh.handles(path)){dsh.upgrade(req,socket,head);return;}
+  if(!['/probe/ws','/ws'].includes(path)||path==='/ws'&&mode!=='codex-read'){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
   if(path==='/probe/ws'){wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws));return;}
   const pending=[];let bytes=0,client;
   const remote=new WebSocket(upstream.origin.replace(/^http/,'ws')+'/ws',{headers:{origin:upstream.origin,...(req.headers.cookie?{cookie:req.headers.cookie}:{})},maxPayload:8*1024*1024,handshakeTimeout:5000,perMessageDeflate:false});
@@ -147,5 +168,5 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
    });
   });
  });
- return{server,instance,get mode(){return mode;},get publicOrigin(){return publicOrigin;},setPublicOrigin(value){if(value===null){publicOrigin=null;return;}const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash)throw Error('HTTPS origin required');publicOrigin=u.origin;},setMode(value){if(!['probe','codex-read'].includes(value))throw Error('Invalid mode');mode=value;},async close(){clearInterval(heartbeat);for(const bridge of bridges)bridge.client.terminate();bridges.clear();for(const ws of upstreamSockets)ws.terminate();for(const ws of wss.clients)ws.terminate();wss.close();for(const s of sockets)s.destroy();compressionCache.clear();await new Promise(r=>server.close(r));}};
+ return{server,instance,get mode(){return mode;},get publicOrigin(){return publicOrigin;},setPublicOrigin(value){if(value===null){publicOrigin=null;return;}const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash)throw Error('HTTPS origin required');publicOrigin=u.origin;},setMode(value){if(!['probe','codex-read'].includes(value))throw Error('Invalid mode');mode=value;},async close(){dsh?.dispose();clearInterval(heartbeat);for(const bridge of bridges)bridge.client.terminate();bridges.clear();for(const ws of upstreamSockets)ws.terminate();for(const ws of wss.clients)ws.terminate();wss.close();for(const s of sockets)s.destroy();compressionCache.clear();await new Promise(r=>server.close(r));}};
 }

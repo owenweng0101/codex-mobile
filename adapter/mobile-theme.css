@@ -1,0 +1,356 @@
+/* finesse · register=h5 · morph=A-app-shell · A=DSH-neutral · B=600/400
+ * C=workspace-list · D=feedback-only · E=opaque-paper · SOUL=4 SPECTACLE=1 DENSITY=6 */
+/* Codex Mobile: one token system for navigation, conversation and floating surfaces. */
+html[data-codex-mobile="true"] {
+  --cm-canvas:#f9fafb;
+  --cm-panel:#ffffff;
+  --cm-floating:#fcfdfe;
+  --cm-ink:#0f1115;
+  --cm-muted:#61666b;
+  --cm-faint:#81858c;
+  --cm-line:#e5e7ea;
+  --cm-hover:#eceef0;
+  --cm-bubble:#eceef1;
+  --cm-shadow:0 8px 32px rgb(24 30 40 / .08),0 1px 3px rgb(24 30 40 / .03);
+  --color-background:var(--cm-canvas)!important;
+  --color-background-alt:var(--cm-canvas)!important;
+  --color-background-win-alt:var(--cm-canvas)!important;
+  --color-foreground:var(--cm-ink)!important;
+  --color-foreground-subtle:var(--cm-muted)!important;
+  --color-foreground-subtlest:var(--cm-faint)!important;
+  --color-primary:var(--cm-ink)!important;
+  --color-primary-foreground:var(--cm-panel)!important;
+  --color-foreground-inverse:var(--cm-panel)!important;
+  --color-border:var(--cm-line)!important;
+  --color-popover-border:var(--cm-line)!important;
+  --color-card-border:var(--cm-line)!important;
+  --color-input-border:var(--cm-line)!important;
+  --color-input-border-hover:var(--cm-muted)!important;
+  --color-input-border-focused:var(--cm-line)!important;
+  --color-input:var(--cm-panel)!important;
+  --color-input-focused:var(--cm-panel)!important;
+  --color-card:var(--cm-panel)!important;
+  --color-card-selected:var(--cm-hover)!important;
+  --color-menu:var(--cm-floating)!important;
+  --color-popover:var(--cm-floating)!important;
+  --color-popover-header:var(--cm-floating)!important;
+  --color-popover-foreground:var(--cm-ink)!important;
+  --color-hover:var(--cm-hover)!important;
+  --color-menu-hover:var(--cm-hover)!important;
+  --color-surface:var(--cm-bubble)!important;
+  --color-surface-hover:var(--cm-hover)!important;
+  --color-tag:var(--cm-bubble)!important;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif;
+  background:var(--cm-canvas);
+  color:var(--cm-ink);
+  -webkit-tap-highlight-color:transparent;
+}
+html[data-codex-mobile="true"]:is(.dark,.theme-zai-dark,.zai-dark) {
+  --cm-canvas:#151517;--cm-panel:#232324;--cm-floating:#303136;
+  --cm-ink:#f0f1f2;--cm-muted:#aaafb7;--cm-faint:#999fa8;
+  --cm-line:#393d43;--cm-hover:#33363b;--cm-bubble:#2d3035;
+  --cm-shadow:0 8px 32px rgb(0 0 0 / .22),0 1px 3px rgb(0 0 0 / .12);
+  color-scheme:dark;
+}
+html[data-codex-mobile="true"] body {background:var(--cm-canvas);font-family:inherit}
+html[data-codex-mobile="true"],html[data-codex-mobile="true"] body {overflow-x:clip}
+html[data-codex-mobile="true"] :is(button,[role="button"],[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"]) {touch-action:manipulation}
+html[data-codex-mobile="true"] :is(button,[tabindex]):focus-visible {outline:2px solid var(--cm-muted);outline-offset:3px}
+html[data-codex-mobile="true"] :is(button,[role="button"]):active:not(:disabled) {opacity:.7}
+html[data-codex-mobile="true"] [data-testid="sidebar"] {background:var(--cm-canvas)!important}
+html[data-codex-mobile="true"] [data-testid="sidebar-primary-navigation"] {position:relative;padding:12px 20px 8px;gap:0}
+html[data-codex-mobile="true"] [data-testid="sidebar-primary-navigation"]::before {content:"Codex";display:block;height:28px;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.65px;color:var(--cm-ink)}
+html[data-codex-mobile="true"] [data-testid="task-new-button"] {height:40px;padding:0 12px;border:1px solid var(--cm-line);border-radius:12px;background:var(--cm-panel);color:var(--cm-ink)}
+html[data-codex-mobile="true"] [data-testid="task-new-button"]>div {justify-content:center;gap:8px;font-size:14px;font-weight:500}
+html[data-codex-mobile="true"] [data-testid="task-new-button"] svg {width:18px;height:18px}
+html[data-codex-mobile="true"] [data-testid="task-new-button"] .ml-auto {position:absolute;right:20px;top:10px;margin:0}
+html[data-codex-mobile="true"] button[aria-label="选择主题"] {width:32px;height:32px;color:var(--cm-muted);border-radius:12px}
+html[data-codex-mobile="true"] [data-testid="sidebar-task-list-region"] {border-top:0!important;padding-top:0}
+html[data-codex-mobile="true"] [data-testid="sidebar-search-toolbar"] {position:absolute;top:10px;right:52px;z-index:2;height:32px;padding:0;gap:0;justify-content:flex-end}
+html[data-codex-mobile="true"] [data-testid="sidebar-list-title"] {display:none}
+html[data-codex-mobile="true"] :is([data-testid="sidebar-search-open"],[data-testid="sidebar-view-menu"]) {height:32px;width:32px;color:var(--cm-muted);border-radius:12px}
+html[data-codex-mobile="true"] :is([data-testid="sidebar-search-open"],[data-testid="sidebar-view-menu"]) svg {width:18px;height:18px}
+html[data-codex-mobile="true"] [data-testid="virtual-project-row"] {min-height:36px;padding:0 4px 0 0;border-radius:8px}
+html[data-codex-mobile="true"] [data-testid="virtual-project-toggle"] {min-height:36px;font-size:14px;font-weight:400;gap:8px;padding-left:11px;color:var(--cm-ink)}
+html[data-codex-mobile="true"] [data-testid="virtual-project-toggle"] svg {width:16px;height:16px;color:var(--cm-faint)}
+html[data-codex-mobile="true"] [data-testid^="task-item-"] {min-height:36px;border-radius:8px;padding-top:3px;padding-bottom:3px}
+html[data-codex-mobile="true"] [data-testid^="task-item-"] p {font-size:14px;line-height:20px}
+html[data-codex-mobile="true"] [data-task-row-metadata] {font-size:11px;color:var(--cm-muted)}
+html[data-codex-mobile="true"] :is([data-testid="project-pinned-tasks"] h3,[data-testid="project-section"]>div:first-child) {font-size:12px;font-weight:400;color:var(--cm-muted)}
+/* DSH DSW tokens: bluish neutrals, radius-lg 16px, menu blur 40px / saturate 150%. */
+html[data-codex-mobile="true"] :is([data-slot="dropdown-menu-content"],[data-slot="dropdown-menu-sub-content"],[data-slot="context-menu-content"],[data-slot="context-menu-sub-content"],[role="menu"],[data-testid="prompt-suggestion-panel"],[data-slot="popover-content"]) {
+  background:var(--cm-floating)!important;color:var(--cm-ink);border:1px solid var(--cm-line)!important;
+  border-radius:16px!important;padding:8px!important;box-shadow:var(--cm-shadow)!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  max-width:calc(100vw - 24px);overscroll-behavior:contain;
+}
+html[data-codex-mobile="true"] :is([role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"]) {min-height:36px;font-size:14px;line-height:20px;gap:8px;border-radius:8px;padding-top:7px;padding-bottom:7px}
+html[data-codex-mobile="true"] :is([role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"])[data-highlighted] {background:var(--cm-hover)!important}
+html[data-codex-mobile="true"] [data-slot$="-label"] {font-size:12px;font-weight:400;color:var(--cm-muted);padding-top:5px;padding-bottom:5px}
+html[data-codex-mobile="true"] [role="separator"] {opacity:1!important;background:var(--cm-line);height:1px;margin:7px 4px}
+html[data-codex-mobile="true"] :is([data-slot="dialog-content"],[data-slot="alert-dialog-content"],[data-slot="bottom-sheet-content"]):not([class~="bg-transparent"]):not([class*="bg-black"]) {background:var(--cm-floating)!important;border:1px solid var(--cm-line)!important;border-radius:22px;box-shadow:var(--cm-shadow);backdrop-filter:none!important}
+html[data-codex-mobile="true"] [data-slot="dialog-overlay"] {background:rgb(18 22 28 / .24)}
+html[data-codex-mobile="true"] [data-testid="workspace-header"] {min-height:48px;background:var(--cm-canvas)!important;border-bottom:1px solid var(--cm-line)!important}
+html[data-codex-mobile="true"] [data-composer-layout] {background:var(--cm-panel)!important;border:1px solid var(--cm-line)!important;border-radius:16px!important;box-shadow:0 2px 10px rgb(24 30 40 / .025)!important;gap:8px;padding:10px}
+html[data-codex-mobile="true"] [data-composer-layout] [contenteditable="true"] {font-size:16px;line-height:1.6}
+html[data-codex-mobile="true"] :is([data-testid="v4-composer-send"],[data-testid="v4-stop"]) {border-radius:50%!important;width:32px;height:32px;min-width:32px;min-height:32px}
+html[data-codex-mobile="true"] [data-v4-user-input-bubble="true"] {background:var(--cm-bubble)!important;border:0!important;border-radius:18px!important}
+html[data-codex-mobile="true"] [data-markdown-table-frame] .rounded-xl {border-color:var(--cm-line)!important}
+html[data-codex-mobile="true"] [data-markdown-table-frame] thead th {background:var(--cm-bubble)!important;color:var(--cm-ink)!important}
+html[data-codex-mobile="true"] [data-markdown-table-frame] tbody td {border-color:var(--cm-line)!important}
+html[data-codex-mobile="true"] :is(.composer-thought-slider-fill,.composer-thought-slider-fill::before) {background:var(--cm-ink)!important}
+@media (max-width:767px) {
+ html[data-codex-mobile="true"] [data-testid="sidebar-primary-navigation"] {padding:12px 20px 8px}
+ html[data-codex-mobile="true"] [data-testid="sidebar-primary-navigation"]::before {height:28px;font-size:22px;line-height:28px}
+ html[data-codex-mobile="true"] [data-testid="task-new-button"] {height:40px}
+ html[data-codex-mobile="true"] [data-testid="task-new-button"] .ml-auto {top:10px;right:20px}
+ html[data-codex-mobile="true"] [data-testid="workspace-header"] button {min-width:32px;min-height:32px}
+ html[data-codex-mobile="true"] [data-composer-layout] {border-radius:16px!important}
+ html[data-codex-mobile="true"] [data-testid="virtual-project-actions"] button {min-width:28px;min-height:32px}
+}
+@media (prefers-reduced-motion:reduce) {
+ html[data-codex-mobile="true"] *,html[data-codex-mobile="true"] *::before,html[data-codex-mobile="true"] *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+@media (prefers-contrast:more) {
+ html[data-codex-mobile="true"] {--cm-muted:#50565e;--cm-faint:#50565e;--cm-line:#a2a7ae}
+ html[data-codex-mobile="true"]:is(.dark,.theme-zai-dark,.zai-dark) {--cm-muted:#c4c8ce;--cm-faint:#c4c8ce;--cm-line:#737983}
+}
+/* Move only the existing back control into the task header; keep its event handler intact. */
+html[data-codex-mobile="true"] section:has(>[data-testid="workspace-header"])>div:first-child:has(>button:first-child):has(+[data-testid="workspace-header"]){position:relative!important;z-index:1;flex:0 0 0!important;height:0!important;min-height:0!important;border-bottom-width:0!important;padding:0!important;overflow:visible!important}
+html[data-codex-mobile="true"] section:has(>[data-testid="workspace-header"])>div:first-child:has(>button:first-child):has(+[data-testid="workspace-header"])>:not(:first-child){display:none!important}
+html[data-codex-mobile="true"] section:has(>[data-testid="workspace-header"])>div:first-child:has(>button:first-child):has(+[data-testid="workspace-header"])>button:first-child{position:absolute!important;left:8px!important;top:8px!important;margin:0!important}
+html[data-codex-mobile="true"] section:has(>div:first-child>button:first-child):has(>div:first-child+[data-testid="workspace-header"])>[data-testid="workspace-header"]>div:first-child{padding-left:40px!important}
+
+
+@supports (backdrop-filter:blur(1px)) {
+ html[data-codex-mobile="true"] :is([data-slot="dropdown-menu-content"],[data-slot="dropdown-menu-sub-content"],[data-slot="context-menu-content"],[data-slot="context-menu-sub-content"],[role="menu"],[data-slot="popover-content"]) {
+  background:#fcfdfeb3!important;backdrop-filter:blur(40px) saturate(150%)!important;-webkit-backdrop-filter:blur(40px) saturate(150%)!important;
+ }
+ html[data-codex-mobile="true"]:is(.dark,.theme-zai-dark,.zai-dark) :is([data-slot="dropdown-menu-content"],[data-slot="dropdown-menu-sub-content"],[data-slot="context-menu-content"],[data-slot="context-menu-sub-content"],[role="menu"],[data-slot="popover-content"]) {background:#303136a3!important}
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+ html[data-codex-mobile="true"] :is([data-slot="dropdown-menu-content"],[data-slot="dropdown-menu-sub-content"],[data-slot="context-menu-content"],[data-slot="context-menu-sub-content"],[role="menu"],[data-slot="popover-content"]) {background:var(--cm-floating)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+}
+@media (max-width:767px) {
+ html[data-codex-mobile="true"] button[aria-label="返回任务首页"] {width:32px!important;height:32px!important;left:8px!important;top:8px!important}
+ html[data-codex-mobile="true"] [data-testid="workspace-header"]>div:first-child {min-height:48px;align-items:center;padding-left:44px!important}
+ html[data-codex-mobile="true"] [data-composer-layout] button[aria-label="添加上下文"],html[data-codex-mobile="true"] :is([data-testid="v4-composer-send"],[data-testid="v4-stop"]) {width:32px;height:32px;min-width:32px;min-height:32px}
+}
+
+/* Attachment controls are independent of composer toolbar sizing. */
+html[data-codex-mobile="true"] [data-composer-attachment-remove] {
+ width:18px!important;height:18px!important;min-width:18px!important;min-height:18px!important;
+ padding:0!important;right:3px!important;top:3px!important;border-radius:50%!important;
+ display:grid;place-items:center;opacity:1!important;
+ background:#62666b!important;color:#fff!important;border:0!important;
+ box-shadow:none!important;filter:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;line-height:0;
+}
+html[data-codex-mobile="true"] [data-composer-attachment-remove] svg {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:block;width:10px!important;height:10px!important;margin:0!important;stroke-width:1.75}
+html[data-codex-mobile="true"] [data-composer-attachment-remove]::before {content:"";position:absolute;inset:-5px;border-radius:50%}
+html[data-codex-mobile="true"] :is([data-testid="v4-composer-send"],[data-testid="v4-stop"]) svg {width:17px!important;height:17px!important}
+html[data-codex-mobile="true"] [data-composer-layout] button[aria-label="添加上下文"] svg {width:18px;height:18px}
+html[data-codex-mobile="true"] [data-testid="sidebar"] :is(h3,[data-testid="virtual-project-new-task"]) {font-size:12px;font-weight:400}
+html[data-codex-mobile="true"] [data-testid="sidebar"] [data-testid="task-list"] {gap:4px}
+html[data-codex-mobile="true"] [data-testid="sidebar"] [data-task-row-actions] {align-items:center}
+
+html[data-codex-mobile="true"] [data-composer-attachment-kind="image"] {width:56px!important;height:56px!important;border-radius:9px}
+html[data-codex-mobile="true"] [data-testid="sidebar"] h3 {font-size:12px!important;line-height:18px;font-weight:400!important}
+
+/* Sidebar grid: section labels and row icons x=20px; row text x=44px.
+ * All section labels share 12px/18px, regular weight and secondary color. */
+html[data-codex-mobile="true"] [data-testid="project-pinned-tasks"] h3 {
+ padding-left:12px!important;padding-right:12px;font-size:12px!important;line-height:18px!important;
+ font-weight:400!important;color:var(--cm-muted)!important;
+}
+html[data-codex-mobile="true"] [data-purpose-section-drag-trigger] {
+ padding-left:12px!important;font-size:12px!important;line-height:18px!important;
+ font-weight:400!important;color:var(--cm-muted)!important;
+}
+html[data-codex-mobile="true"] [data-testid^="task-item-"] {padding-left:12px!important}
+html[data-codex-mobile="true"] [data-testid="virtual-project-toggle"]>span:first-child {width:16px;height:16px;flex:0 0 16px}
+html[data-codex-mobile="true"] [data-composer-attachment-remove]::after {content:none!important}
+
+/* The header exposes only branding and theme; new actions live in their sections. */
+html[data-codex-mobile="true"] [data-testid="task-new-button"] {display:contents}
+html[data-codex-mobile="true"] [data-testid="task-new-button"]>div {display:contents}
+html[data-codex-mobile="true"] [data-testid="task-new-button"]>div>:not(.ml-auto) {display:none!important}
+/* Mobile conversation header: back | flexible single-line title | actions.
+ * Title truncation follows available space, never a fixed character count. */
+@media (max-width:767px) {
+ html[data-codex-mobile="true"] [data-testid="workspace-header"][data-workspace-header-variant="task"] [data-testid="workspace-path"] {display:none!important}
+ html[data-codex-mobile="true"] [data-testid="workspace-header"][data-workspace-header-variant="task"]>div:first-child>div:first-child {flex:1 1 0%;min-width:0;gap:8px}
+ html[data-codex-mobile="true"] [data-testid="workspace-header"][data-workspace-header-variant="task"] [data-testid="workspace-title"] {
+  display:block;flex:1 1 0%;min-width:0!important;max-width:none!important;
+  overflow:hidden;text-overflow:clip;white-space:nowrap;
+ }
+ html[data-codex-mobile="true"] [data-testid="workspace-header"][data-workspace-header-variant="task"] [data-testid="workspace-title"]>span {
+  display:block;min-width:0;overflow:hidden;text-overflow:clip;white-space:nowrap;
+ }
+ html[data-codex-mobile="true"] [data-testid="workspace-more-button"] {flex-shrink:0;margin-left:auto}
+}
+
+/* One neutral hierarchy: primary labels, secondary section text and monochrome icons. */
+html[data-codex-mobile="true"] {--cm-icon:var(--cm-muted)}
+html[data-codex-mobile="true"] [data-testid="sidebar"] :is([data-testid="sidebar-search-open"],[data-testid="sidebar-view-menu"],button[aria-label="选择主题"],[data-testid="virtual-project-actions"],[data-purpose-section-drag-trigger]) svg,
+html[data-codex-mobile="true"] [data-testid="virtual-project-toggle"] svg,
+html[data-codex-mobile="true"] [data-testid="project-pinned-tasks"] svg {
+ color:var(--cm-icon)!important;opacity:1;
+}
+html[data-codex-mobile="true"] [data-testid="virtual-project-toggle"]>span:last-child {color:var(--cm-ink)}
+html[data-codex-mobile="true"] [data-testid="virtual-project-toggle"]>span:last-child>span {color:inherit}
+/* This outer popover is a positioning shell; only its child paints a surface. */
+html[data-codex-mobile="true"] [data-slot="popover-content"]:has(>[data-testid="prompt-suggestion-panel"]) {
+ background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;
+ border-radius:0!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+html[data-codex-mobile="true"] [data-testid="sidebar-view-grouped"] {display:none!important}
+/* Recent updates are single-line task rows, without workspace subtitles. */
+html[data-codex-mobile="true"] [data-testid="project-timeline-tasks"] [data-task-workspace-label] {display:none!important}
+html[data-codex-mobile="true"] [data-testid="project-timeline-tasks"] [data-testid^="task-item-"] {align-items:center}
+html[data-codex-mobile="true"] [data-testid="project-timeline-tasks"] [data-testid^="task-item-"]>div:first-child {margin-top:0}
+html[data-codex-mobile="true"] [data-testid="project-timeline-tasks"] [data-testid^="task-item-"]>div:last-child {flex-direction:row;align-items:center;gap:8px}
+html[data-codex-mobile="true"] [data-testid="project-timeline-tasks"] [data-testid^="task-item-"]>div:last-child>div:first-child {flex:1;min-width:0}
+html[data-codex-mobile="true"] [data-testid="project-timeline-tasks"] [data-testid^="task-item-"]>div:last-child>div:last-child {display:contents}
+html[data-codex-mobile="true"] [data-testid="project-timeline-tasks"] [data-testid^="task-item-"]>div:last-child>div:last-child>div:first-child {display:none!important}
+html[data-codex-mobile="true"] [data-testid="project-timeline-tasks"] h3 {padding-left:12px!important;color:var(--cm-muted)!important}
+@media (hover:none) and (pointer:coarse) {
+ html[data-codex-mobile="true"] [role="tooltip"] {display:none!important}
+}
+
+/* Header tools share an 18px outline icon on a 32px control. */
+html[data-codex-mobile="true"] button[aria-label="选择主题"] {display:grid;place-items:center;color:var(--cm-icon);--cm-theme-icon:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%224%22%2F%3E%3Cpath%20d%3D%22M12%202v2m0%2016v2M2%2012h2m16%200h2M4.93%204.93l1.42%201.42m11.3%2011.3%201.42%201.42m0-14.14-1.42%201.42M6.35%2017.65l-1.42%201.42%22%2F%3E%3C%2Fsvg%3E")}
+html[data-codex-mobile="true"] button[aria-label="选择主题"]>svg {display:none!important}
+html[data-codex-mobile="true"] button[aria-label="选择主题"]::after {
+ content:"";display:block;width:var(--cm-action-icon,16px);height:var(--cm-action-icon,16px);background:currentColor;
+ mask:var(--cm-theme-icon) center/contain no-repeat;-webkit-mask:var(--cm-theme-icon) center/contain no-repeat;
+}
+html[data-codex-mobile="true"]:is(.dark,.theme-zai-dark,.zai-dark) button[aria-label="选择主题"] {--cm-theme-icon:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M21%2012.79A9%209%200%201%201%2011.21%203%207%207%200%200%200%2021%2012.79Z%22%2F%3E%3C%2Fsvg%3E")}
+/* Keep mobile text metrics stable, including auto-focused search and rename fields. */
+html[data-codex-mobile="true"] {-webkit-text-size-adjust:100%;text-size-adjust:100%}
+@media (max-width:767px) {
+ html[data-codex-mobile="true"] :is(input,textarea,select,[contenteditable="true"]) {font-size:16px!important}
+}
+/* Shared sidebar action grid. Content starts at 20px; the last 32px action
+ * box ends 12px from the screen edge, placing every 18px icon on one axis. */
+html[data-codex-mobile="true"] {
+ --cm-gutter:20px;--cm-action-box:32px;--cm-action-icon:14px;--cm-action-edge:12px;
+}
+html[data-codex-mobile="true"] [data-testid="task-new-button"] .ml-auto {right:var(--cm-action-edge)}
+html[data-codex-mobile="true"] [data-testid="sidebar-search-toolbar"] {right:calc(var(--cm-action-edge) + var(--cm-action-box))}
+html[data-codex-mobile="true"] [data-testid="sidebar"] :is(
+ [data-testid="virtual-project-add"],[data-testid="virtual-project-toggle-all"],
+ [data-testid="virtual-project-menu"],[data-testid="virtual-project-create-task"],
+ [data-testid="virtual-project-new-task"],[data-testid^="task-archive-"],[data-testid^="task-files-"]
+) {
+ width:var(--cm-action-box)!important;height:var(--cm-action-box)!important;
+ min-width:var(--cm-action-box)!important;min-height:var(--cm-action-box)!important;
+ padding:0!important;flex-shrink:0;border-radius:8px;color:var(--cm-icon)!important;
+}
+html[data-codex-mobile="true"] [data-testid="sidebar"] :is(
+ [data-testid="virtual-project-add"],[data-testid="virtual-project-toggle-all"],
+ [data-testid="virtual-project-menu"],[data-testid="virtual-project-create-task"],
+ [data-testid="virtual-project-new-task"],[data-testid^="task-archive-"],[data-testid^="task-files-"]
+) svg {
+ width:var(--cm-action-icon)!important;height:var(--cm-action-icon)!important;
+ color:var(--cm-icon)!important;stroke-width:1.5;opacity:1;
+}
+html[data-codex-mobile="true"] [data-purpose-section-drag-trigger] {height:36px}
+html[data-codex-mobile="true"] [data-testid="sidebar"] div:has(>[data-purpose-section-drag-trigger]) {
+ height:36px;min-height:36px;margin-right:var(--cm-action-edge);
+}
+html[data-codex-mobile="true"] [data-testid="virtual-project-row"] {margin-right:8px}
+html[data-codex-mobile="true"] [data-testid="virtual-project-actions"],
+html[data-codex-mobile="true"] [data-task-row-actions],
+html[data-codex-mobile="true"] [data-task-row-actions]>div {gap:0!important}
+html[data-codex-mobile="true"] [data-testid^="task-item-"] {margin-right:8px;padding-top:2px;padding-bottom:2px}
+html[data-codex-mobile="true"] :is([data-testid="project-pinned-tasks"],[data-testid="project-timeline-tasks"]) [data-testid^="task-item-"] {margin-right:0}
+
+html[data-codex-mobile="true"] :is([data-testid="sidebar-search-open"],[data-testid="sidebar-view-menu"]) svg {
+ width:var(--cm-action-icon)!important;height:var(--cm-action-icon)!important;
+}
+
+/* Right-hand action glyphs have one color independent of utility classes. */
+html[data-codex-mobile="true"] [data-testid="sidebar"] :is(
+ [data-testid="sidebar-search-open"],[data-testid="sidebar-view-menu"],button[aria-label="选择主题"],
+ [data-testid="virtual-project-add"],[data-testid="virtual-project-toggle-all"],
+ [data-testid="virtual-project-menu"],[data-testid="virtual-project-create-task"],
+ [data-testid="virtual-project-new-task"],[data-testid^="task-archive-"],[data-testid^="task-files-"]
+) {color:var(--cm-icon)!important;filter:none}
+html[data-codex-mobile="true"] [data-testid="sidebar"] :is(
+ [data-testid="sidebar-search-open"],[data-testid="sidebar-view-menu"],
+ [data-testid="virtual-project-add"],[data-testid="virtual-project-toggle-all"],
+ [data-testid="virtual-project-menu"],[data-testid="virtual-project-create-task"],
+ [data-testid="virtual-project-new-task"],[data-testid^="task-archive-"],[data-testid^="task-files-"]
+) svg {stroke:var(--cm-icon)!important;stroke-opacity:1;opacity:1;filter:none}
+@media (hover:none) and (pointer:coarse) {
+ html[data-codex-mobile="true"] [data-testid="virtual-project-actions"],
+ html[data-codex-mobile="true"] [data-task-row-actions],
+ html[data-codex-mobile="true"] div:has(>[data-purpose-section-drag-trigger])>div {opacity:1!important;transition:none!important}
+}
+/* Compact section rhythm, including empty/collapsed sections. */
+html[data-codex-mobile="true"] [data-testid="sidebar-task-list-region"] [data-scroll-mask]>div>div {gap:4px!important}
+html[data-codex-mobile="true"] [data-purpose-section-drag-trigger] {height:32px}
+html[data-codex-mobile="true"] [data-testid="sidebar"] div:has(>[data-purpose-section-drag-trigger]) {height:32px;min-height:32px}
+html[data-codex-mobile="true"] [data-testid="project-pinned-tasks"] [data-testid^="task-files-"] {display:none!important}
+html[data-codex-mobile="true"] [data-testid="sidebar-task-list-region"] .grid.grid-cols-1.gap-3 {gap:4px!important}
+
+/* DSH-style full-page attachments: open from the message, return to chat. */
+@media(max-width:820px){
+ html[data-codex-mobile="true"] [data-testid="workspace-header"] [data-testid="side-pane-toggle"]{display:none!important}
+ html[data-codex-mobile="true"] [data-testid="workspace-header"]>div>div:first-child{flex:1!important}
+ html[data-codex-mobile="true"] [data-testid="workspace-header"]>div>div:first-child>div:last-child{margin-left:auto!important}
+ html[data-codex-mobile="true"] [data-testid="workspace-header"]>div>div:last-child:has([data-testid="side-pane-toggle"]){display:none!important}
+ html[data-codex-mobile="true"] [data-workspace-side-frame][aria-hidden="false"]{
+  position:fixed!important;inset:0!important;width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;z-index:70!important;border:0!important;border-radius:0!important;transform:none!important;background:var(--cm-canvas)!important;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)!important;box-sizing:border-box!important;
+ }
+ html[data-codex-mobile="true"] [data-workspace-side-frame][aria-hidden="true"]{display:none!important}
+ html[data-codex-mobile="true"] [data-workspace-side-frame] [role="tablist"]{height:44px!important;min-height:44px!important;display:flex!important}
+ html[data-codex-mobile="true"] [data-cm-preview-back]{display:grid;place-items:center;flex:0 0 40px;width:40px;height:40px;border:0;background:transparent;color:var(--cm-ink);font:32px/1 -apple-system,sans-serif}
+ html[data-codex-mobile="true"] [data-workspace-side-frame] :is([data-testid="side-pane-toggle"],[aria-label="新增标签"],[aria-label="在编辑器中打开"],[aria-label="展开文件导航"],[aria-label="收起文件导航"]){display:none!important}
+ html[data-codex-mobile="true"] [data-workspace-side-frame] :has(>[data-testid="workspace-file-tree-panel"]){display:none!important}
+ html[data-codex-mobile="true"] [data-workspace-side-frame] [aria-label="调整文件目录宽度"]{display:none!important}
+ html[data-codex-mobile="true"] [data-workspace-side-frame] iframe{width:100%!important;height:100%!important;min-height:0;border:0;display:block}
+ html[data-codex-mobile="true"] [data-workspace-side-frame] [data-image-preview]{padding:8px!important}
+ html[data-codex-mobile="true"] [data-workspace-side-frame] [aria-label^="关闭 "]{opacity:1!important;visibility:visible!important}
+}
+/* The view switcher already names its menu; omit its sticky hover hint. */
+html[data-codex-mobile="true"]:has([data-testid="sidebar-view-menu"][aria-describedby]) [data-slot="tooltip-content"] {display:none!important}
+
+@media(max-width:820px){
+ html[data-codex-mobile="true"] [data-workspace-side-frame] [data-file-manager-pane] [data-testid="directory"]{display:none!important}
+ html[data-codex-mobile="true"] [data-workspace-side-frame] [data-file-manager-pane] [data-testid="preview"]{flex:1 1 100%!important;width:100%!important;min-width:0!important}
+}
+
+/* Native mobile shell has its own overlay, separate from the desktop frame.
+   The viewer is a page above the complete conversation, with no drawer gutter. */
+html[data-codex-mobile="true"] [data-mobile-side-pane-overlay]{
+ position:fixed!important;inset:0!important;width:100%!important;height:100dvh!important;z-index:100!important;transition:none!important;isolation:isolate;
+}
+html[data-codex-mobile="true"] [data-mobile-side-pane-overlay][aria-hidden="true"]{display:none!important}
+html[data-codex-mobile="true"] [data-mobile-side-pane-overlay]>button{display:none!important}
+html[data-codex-mobile="true"] [data-mobile-side-pane-overlay]>div{
+ position:absolute!important;inset:0!important;width:100%!important;max-width:100%!important;height:100%!important;display:flex!important;flex-direction:column!important;transform:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;transition:none!important;background:var(--cm-canvas)!important;
+ padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)!important;box-sizing:border-box!important;
+}
+html[data-codex-mobile="true"] [data-cm-preview-page]>:not([data-cm-preview-page-header]){flex:1!important;min-height:0!important;height:0!important;border:0!important}
+html[data-codex-mobile="true"] [data-cm-preview-page-header]{
+ display:flex;align-items:center;flex:0 0 44px;height:44px;min-width:0;padding:0 12px 0 4px;gap:4px;border-bottom:1px solid var(--cm-line);color:var(--cm-ink);background:var(--cm-canvas);
+}
+html[data-codex-mobile="true"] [data-cm-preview-page-header] [data-cm-preview-back]{display:grid;place-items:center;flex:0 0 40px;width:40px;height:40px;padding:0;border:0;background:transparent;color:inherit}
+html[data-codex-mobile="true"] [data-cm-preview-page-title]{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;font-weight:500}
+html[data-codex-mobile="true"] [data-cm-preview-page] [role="tablist"]{display:none!important}
+html[data-codex-mobile="true"] [data-cm-preview-page] :is([aria-label="显示文件导航"],[aria-label="隐藏文件导航"],[data-side-pane-add-trigger],[data-testid="side-pane-toggle"],[aria-label="在编辑器中打开"],[aria-label="展开文件导航"],[aria-label="收起文件导航"]){display:none!important}
+html[data-codex-mobile="true"] [data-cm-preview-page] [data-file-manager-pane] [data-testid="directory"],
+html[data-codex-mobile="true"] [data-cm-preview-page] [aria-label="调整文件目录宽度"]{display:none!important}
+html[data-codex-mobile="true"] [data-cm-preview-page] [data-file-manager-pane] [data-testid="preview"]{flex:1 1 100%!important;width:100%!important;min-width:0!important}
+html[data-codex-mobile="true"] [data-cm-preview-page] iframe{width:100%!important;height:100%!important;min-height:0;border:0;display:block}
+html[data-codex-mobile="true"] [data-cm-preview-page] [data-image-preview]{padding:8px!important}
+
+/* Message file links share the paragraph text edge; their hidden file glyph
+   must not reserve an extra icon-width indent. */
+html[data-codex-mobile="true"] [data-mobile-page="chat"] main p>button[title^="/"]{gap:0!important;padding:0!important;margin-left:0!important;justify-content:flex-start!important;text-align:left!important}
+html[data-codex-mobile="true"] [data-mobile-page="chat"] main p>button[title^="/"]>img{display:none!important}
+/* One filename header is sufficient for every file type. */
+html[data-codex-mobile="true"] [data-cm-preview-page] [data-file-manager-pane]>div:first-child:not([data-group]){display:none!important}
+html[data-codex-mobile="true"] [data-cm-preview-page] [data-image-preview] button[aria-label="图片操作"]{display:none!important}
+html[data-codex-mobile="true"] [data-cm-preview-page] [data-markdown-preview]{touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
