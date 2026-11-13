@@ -1,0 +1,55 @@
+connection/ingress.mjs
+  s_0d674f4657e727::t_0dadc96957855e 8,14-16,89,102-106
+connection/test/ingress.test.mjs
+  s_0d674f4657e727::t_0dadc96957855e 41-42,46,89,164-184
+  s_0d674f4657e727::t_a6cff5e6ff43c4 185
+connection/mobile-entry.mjs
+  s_0d674f4657e727::t_3a20866eeaab96 1-85
+claude-mobile/backend/server.mjs
+  s_0d674f4657e727::t_0dadc96957855e 1,216,234-238,242,246
+claude-mobile/backend/lib/entries.mjs
+  s_0d674f4657e727::t_0dadc96957855e 1,30,45
+dsh-mobile/backend/server.mjs
+  s_0d674f4657e727::t_0dadc96957855e 1,234-239,241,254,265-271,275-276,278,290,298
+  s_0d674f4657e727::t_265b9896630ce5 272-274,277
+claude-mobile/test/unified-entry.test.mjs
+  s_0d674f4657e727::t_b1744f72e57456 1-7,9-56
+  s_0d674f4657e727::t_bec976fbaa4451 8
+adapter/test/mobile-entry-http.test.mjs
+  s_0d674f4657e727::t_fbdcd9aa3155f4 1-14,16-66,68-85,99-118,120-131
+  s_0d674f4657e727::t_3f5a5bd1fdf295 15,67,86-98,119
+adapter/server.mjs
+  s_0d674f4657e727::t_1ea9c0e268f996 22,54,62-67,79,90,99-102
+  s_0d674f4657e727::t_8a1a8688e5c4ec 68
+connection/install-local.mjs
+  s_0d674f4657e727::t_3f5a5bd1fdf295 29
+  s_0d674f4657e727::t_1ea9c0e268f996 11,26-28
+README.md
+  s_0d674f4657e727::t_00982096d47eab 51-52
+docs/architecture.md
+  s_0d674f4657e727::t_00982096d47eab 24-25
+dsh-mobile/test/gateway.test.mjs
+  s_0d674f4657e727::t_b1744f72e57456 11-12,64-66,144,150,153,155,161,255-293
+connection/test/dsh-entry.test.mjs
+  s_0d674f4657e727::t_492a7c10791b9b 57,61-63,66,68-69,74-75,103,105-110,112
+connection/test/mobile-entry.test.mjs
+  s_0d674f4657e727::t_c128bbfffb7d80 1-134
+scripts/install-preflight.mjs
+  s_0d674f4657e727::t_bd86e71a9e2f92 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "26da4ba11b7dd3cf538194b4c11c118fa23750f4",
+  "prompts": {},
+  "sessions": {
+    "s_0d674f4657e727": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1d319-aec6-7980-a005-1f7906dc7f8b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    }
+  }
+}
