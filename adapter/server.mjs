@@ -19,6 +19,7 @@ import {createSupportServices} from './frontend-stage/support-services.mjs';
 import {wrapReadEvents} from './read-services/events.mjs';
 import {createQueuedAttachmentResolver} from './queued-attachments.mjs';
 import {createConversationReadServices} from './frontend-stage/conversation-read.mjs';
+import {isHubFrameRequest,unifiedEntryTarget,hubEntryGuard} from '../connection/mobile-entry.mjs';
 
 const root=resolve(import.meta.dirname),port=Number(process.env.CODEX_MOBILE_ADAPTER_PORT||8796),origin='http://127.0.0.1:'+port;
 if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid loopback adapter port');
@@ -50,14 +51,21 @@ function createConnection(){
   return{services:rejectMissingChannels(writes.channels),dispose(){conversations.dispose();controllerChanges.dispose();readEvents.dispose();controller.dispose();}};
 }
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.wasm':'application/wasm'};
+const htmlEntries=new Set(['/','/legacy/','/mobile/','/mobile/index.html','/remote/v4','/remote/v4/','/remote/v4/3.16.3/index.html']);
 function json(res,status,value,headers={}){res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff',...headers});res.end(JSON.stringify(value));}
 async function readBody(req){let s='';for await(const part of req){s+=part;if(s.length>2048)throw Error('请求过大');}return JSON.parse(s);}
 async function navigationContext(){const [tree,status]=await Promise.all([sharedServices.project.readTree(),api.get('/api/status')]);return{tree,status,getTaskMeta:params=>sharedServices['zcode-task'].getTaskMeta(params)};}
 async function serverInfo(){const {tree,status}=await navigationContext();return workspaceInfo(tree,status,{readOnly:false});}
 const server=createServer(async(req,res)=>{
   try{
-    if(!sameOrigin(req.headers,origin))return json(res,403,{error:'只允许本机同源连接'});
     const url=new URL(req.url,origin);
+    const htmlEntry=htmlEntries.has(decodeURIComponent(url.pathname));
+    if(htmlEntry&&['GET','HEAD'].includes(req.method)&&!isHubFrameRequest(req,url)){
+      // The target is independent of the old URL and its token/query/hash.
+      res.writeHead(302,{'location':await unifiedEntryTarget(),'cache-control':'no-store','referrer-policy':'no-referrer'});
+      return res.end();
+    }
+    if(!sameOrigin(req.headers,origin))return json(res,403,{error:'只允许本机同源连接'});
     if(req.method==='GET'&&url.pathname==='/healthz')return json(res,200,{service:'codex-original-zcode-bridge',readOnly:false});
     if(req.method==='GET'&&url.pathname==='/local/info')return json(res,200,{url:origin+'/#'+pairing.token,readOnly:false});
     if(req.method==='POST'&&url.pathname==='/api/pair'){
@@ -68,7 +76,7 @@ const server=createServer(async(req,res)=>{
       if(!pairing.allows(req.headers))return json(res,401,{error:'请先扫描桌面「手机连接」文件夹中的统一二维码'});
       return await mobileApi(req,res,url);
     }
-    // Old bookmarks also open the single ZCode interface. Never serve a second UI.
+    // Only the unified hub's internal iframe may render the Codex document.
     if(url.pathname.startsWith('/mobile/')&&!['/mobile/','/mobile/index.html'].includes(url.pathname))return json(res,410,{error:'该旧版资源已移除，请返回首页'});
     if(url.pathname.startsWith('/api/')||url.pathname==='/__audit'){
       if(!pairing.allows(req.headers))return json(res,401,{error:'请先配对'});
@@ -79,7 +87,7 @@ const server=createServer(async(req,res)=>{
     }
     if(req.method!=='GET'&&req.method!=='HEAD')return json(res,405,{error:'不支持的请求'});
     let path,bytes,type;
-    if(['/', '/legacy/', '/mobile/', '/mobile/index.html', '/remote/v4','/remote/v4/'].includes(url.pathname)){
+    if(htmlEntry){
       path=join(web,'remote/v4/3.16.3/index.html');
       const html=await readFile(path,'utf8');
       const expected='<script type="module" crossorigin src="/remote/v4/3.16.3/assets/index-BsmXQHMM.js"></script>';
@@ -88,7 +96,10 @@ const server=createServer(async(req,res)=>{
       const themeStyle='<style id="codex-mobile-theme">'+await readFile(join(root,'mobile-theme.css'),'utf8')+'</style>';
       const startupStyle='<style id="codex-startup-surface">.zcode-boot-loading{background:#fff!important}.zcode-boot-loading__logo-shell{display:none!important}</style>';
       const mobileHtml=html.replace(/<meta[^>]+name="viewport"[^>]*>/i,'<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />');
-      bytes=Buffer.from(mobileHtml.replace(expected,'<script type="module" crossorigin src="/codex-entry.mjs"></script>').replace('</head>',startupStyle+themeStyle+'</head>'));type=types['.html'];
+      const document=mobileHtml.replace(expected,'<script type="module" crossorigin src="/codex-entry.mjs"></script>').replace('</head>',startupStyle+themeStyle+'</head>');
+      // Headerless browsers need hub_frame=1, but the marker is not proof that
+      // this is framed. Hide/redirect a real top-level document before startup.
+      bytes=Buffer.from(hubEntryGuard(document,await unifiedEntryTarget()));type=types['.html'];
     }else if(url.pathname==='/codex-entry.mjs'){path=join(root,'codex-entry.mjs');}
     else if(url.pathname==='/mobile-connection.mjs'){path=join(root,'mobile-connection.mjs');}
     else if(url.pathname==='/image-recovery.mjs'){path=join(root,'image-recovery.mjs');}

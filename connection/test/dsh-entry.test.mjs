@@ -54,25 +54,25 @@ gateway.setPublicOrigin(origin);
 gateway.setMode('codex-read');
 const port = await listen(gateway.server);
 
-test('a QR-scan entry navigation reaches the Harness gateway', async () => {
+test('an old Harness QR navigation converges on the unified hub', async () => {
   dshCalls.length = 0;
   const response = await request(port, '/dsh/?t=secret-token', { headers: navigation });
   assert.equal(response.status, 302);
-  assert.equal(response.headers.location, '/dsh/');
-  assert.equal(dshCalls.length, 1);
-  assert.equal(dshCalls[0].url, '/dsh/?t=secret-token');
-  assert.equal(dshCalls[0].method, 'GET');
+  assert.equal(response.headers.location, '/m/#');
+  assert.equal(response.headers['set-cookie'], undefined);
+  assert.equal(dshCalls.length, 0);
 });
 
-test('the redirected entry document is also allowed', async () => {
+test('an authenticated bare Harness URL also converges on the hub', async () => {
   const response = await request(port, '/dsh/', { headers: navigation });
-  assert.equal(response.status, 200);
-  assert.equal(response.body, '<html>dsh</html>');
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.location, '/m/#');
 });
 
 test('HEAD entry navigation is allowed for scanners that probe first', async () => {
   const response = await request(port, '/dsh/', { method: 'HEAD', headers: navigation });
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.location, '/m/#');
 });
 
 test('a webview that stamps its own Origin on the entry navigation is still allowed', async () => {
@@ -100,10 +100,16 @@ test('cross-site API calls and non-document requests are still rejected', async 
   assert.equal(dshCalls.length, 0);
 });
 
-test('the Codex entry paths keep working', async () => {
+test('old Codex entry paths converge on the same hub', async () => {
   const response = await request(port, '/', { headers: navigation });
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.location, '/m/#');
+});
+
+test('same-origin internal Harness iframe keeps its scoped gateway', async () => {
+  const response = await request(port, '/dsh/?hub_frame=1', { headers: { 'sec-fetch-site': 'same-origin', 'sec-fetch-dest': 'iframe', 'sec-fetch-mode': 'navigate' } });
   assert.equal(response.status, 200);
-  assert.equal(response.body, 'codex');
+  assert.equal(response.body, '<html>dsh</html>');
 });
 
 test.after(async () => {

@@ -8,6 +8,8 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {runInNewContext} from 'node:vm';
+import {pinnedTest} from './pinned-fixture.mjs';
 
 /**
  * 端到端：假上游 + 真实网关进程。
@@ -59,6 +61,9 @@ async function waitFor(predicate, timeoutMs = 8000) {
 before(async () => {
   home = await mkdtemp(join(tmpdir(), 'dshm-home-'));
   await mkdir(join(home, '.dsh'), { recursive: true });
+  const tunnelState=join(home,'Library/Application Support/CodexMobileCpolar');
+  await mkdir(tunnelState,{recursive:true});
+  await writeFile(join(tunnelState,'state.json'),JSON.stringify({status:'online',mode:'codex-read',origin:'https://mobile.example:10443'}));
   const secret = Buffer.alloc(32, 3);
   await writeFile(join(home, '.dsh', '.credentials.yaml'), `version: 1
 records:
@@ -136,24 +141,24 @@ test('rejects paths outside the configured base path', async () => {
 
 test('unauthenticated requests get 401 before reaching the upstream', async () => {
   const before = received.length;
-  const response = await fetch(url('/dsh/'));
+  const response = await fetch(url('/dsh/'),{headers:{'sec-fetch-dest':'iframe'},redirect:'manual'});
   assert.equal(response.status, 401);
   assert.equal(received.length, before);
 });
 
 test('token exchange sets the phone cookie and redirects into the prefix', async () => {
-  const bad = await fetch(url('/dsh/?t=wrong'));
+  const bad = await fetch(url('/dsh/?t=wrong'),{headers:{'sec-fetch-dest':'iframe'},redirect:'manual'});
   assert.equal(bad.status, 401);
 
-  const good = await fetch(url(`/dsh/?t=${token}`), { redirect: 'manual' });
+  const good = await fetch(url(`/dsh/?t=${token}`), { redirect: 'manual',headers:{'sec-fetch-dest':'iframe'} });
   assert.equal(good.status, 302);
-  assert.equal(good.headers.get('location'), '/dsh/');
+  assert.equal(good.headers.get('location'), '/dsh/?hub_frame=1');
   assert.match(good.headers.get('set-cookie') ?? '', /^dshm-auth=/);
   assert.match(good.headers.get('set-cookie') ?? '', /HttpOnly/);
 });
 
 test('forwards with rewritten host and injected DSH cookie, injecting the mobile shell', async () => {
-  const response = await fetch(url('/dsh/'), { headers: { cookie: `dshm-auth=${token}` } });
+  const response = await fetch(url('/dsh/'), { headers: { cookie: `dshm-auth=${token}`,'sec-fetch-dest':'iframe' } });
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /id="dshm-mobile"/);
@@ -246,4 +251,43 @@ test('WebSocket upgrades without the phone cookie are refused', async () => {
 test('status is local-only and never exposes the phone cookie', async () => {
   const response = await fetch(url('/_dsh/status'), { headers: { 'x-forwarded-for': '203.0.113.7' } });
   assert.equal(response.status, 403);
+});
+
+for(const method of ['GET','HEAD'])for(const path of ['/dsh','/dsh/','/dsh/index.html'])test(`${method} ${path} top-level old QR redirects without token, cookie upgrade or inherited fragment`,async()=>{
+ const before=received.length;
+ const response=await fetch(url(path+`?t=${token}&hub_frame=1#old-secret`),{method,headers:{'sec-fetch-dest':'document',cookie:`dshm-auth=${token}`},redirect:'manual'});
+ assert.equal(response.status,302);assert.equal(response.headers.get('location'),'https://mobile.example:10443/m/#');assert.equal(response.headers.get('set-cookie'),null);assert.equal(received.length,before);
+});
+test('headerless legacy navigation redirects, while an explicitly marked iframe preserves its own authentication',async()=>{
+ const legacy=await fetch(url('/dsh/?t='+token),{redirect:'manual'});assert.equal(legacy.status,302);assert.equal(legacy.headers.get('location'),'https://mobile.example:10443/m/#');assert.equal(legacy.headers.get('set-cookie'),null);
+ const auth=await fetch(url('/dsh/?t='+token+'&hub_frame=1'),{redirect:'manual'});assert.equal(auth.status,302);assert.equal(auth.headers.get('location'),'/dsh/?hub_frame=1');assert.match(auth.headers.get('set-cookie'),/^dshm-auth=/);assert.doesNotMatch(auth.headers.get('set-cookie'),/desk-auth/);
+ const response=await fetch(url(auth.headers.get('location')),{headers:{cookie:`dshm-auth=${token}`},redirect:'manual'});assert.equal(response.status,200);
+ const html=await response.text(),guard=html.match(/<script data-hub-entry-guard>([\s\S]*?)<\/script>/)?.[1];assert.ok(guard);assert.ok(html.indexOf('data-hub-entry-guard')<html.indexOf('id="dshm-mobile"'));
+ let redirected,stopped=false;const window={self:{},stop(){stopped=true;},location:{replace:value=>{redirected=value;}}};window.top=window.self;const document={documentElement:{style:{}}};runInNewContext(guard,{window,document});assert.equal(redirected,'https://mobile.example:10443/m/#');assert.equal(document.documentElement.style.visibility,'hidden');assert.equal(stopped,true);
+ redirected=null;window.top={};runInNewContext(guard,{window,document});assert.equal(redirected,null);
+});
+test('non-iframe fetch metadata cannot use the marker as an HTML entry bypass',async()=>{
+ for(const destination of ['empty','script','']){
+  const response=await fetch(url('/dsh/?hub_frame=1'),{headers:{'sec-fetch-dest':destination,cookie:`dshm-auth=${token}`},redirect:'manual'});
+  assert.equal(response.status,302);assert.equal(response.headers.get('location'),'https://mobile.example:10443/m/#');
+ }
+});
+
+pinnedTest('guarded pinned HTML survives real gzip/br GET and HEAD requests without stale encoding or lengths',async t=>{
+ const port=await freePort(),state=join(home,'pinned-state'),secret='p'.repeat(43);
+ await mkdir(state,{recursive:true});await writeFile(join(state,'access-token'),secret);
+ const child=spawn(process.execPath,[join(project,'backend/server.mjs')],{cwd:project,env:{...process.env,HOME:home,DSH_HOME:join(home,'.dsh'),DSHM_STATE:state,DSHM_FRONTEND_MODE:'pinned',DSHM_PORT:String(port),DSHM_BASE_PATH:'/dsh',DSHM_UPSTREAM:`http://127.0.0.1:${upstreamPort}`},stdio:['ignore','ignore','pipe']});
+ let errors='';child.stderr.on('data',data=>errors+=data);
+ t.after(async()=>{if(child.exitCode===null){const exited=new Promise(resolve=>child.once('exit',resolve));child.kill('SIGTERM');await exited;}});
+ assert.ok(await waitFor(async()=>{const response=await fetch(`http://127.0.0.1:${port}/_dsh/ping`);return response.ok;}),'pinned gateway did not start: '+errors);
+ const request=(method,encoding)=>new Promise((resolve,reject)=>{
+  const req=http.request({hostname:'127.0.0.1',port,path:'/dsh/?hub_frame=1',method,headers:{cookie:'dshm-auth='+secret,'accept-encoding':encoding,'sec-fetch-dest':'iframe'}},res=>{
+   const chunks=[];res.on('data',chunk=>chunks.push(chunk));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks)}));res.on('error',reject);
+  });req.on('error',reject);req.end();
+ });
+ for(const encoding of ['gzip','br']){
+  const get=await request('GET',encoding);assert.equal(get.status,200);assert.equal(get.headers['content-encoding'],undefined);assert.equal(get.headers.etag,undefined);assert.equal(get.headers['cache-control'],'no-store');assert.equal(Number(get.headers['content-length']),get.body.length);
+  const html=get.body.toString('utf8');assert.match(html,/^<!doctype html>/i);assert.match(html,/<script data-hub-entry-guard>/);assert.ok(html.indexOf('data-hub-entry-guard')<html.indexOf('globalThis["__DSH_BOOT__"]'));
+  const head=await request('HEAD',encoding);assert.equal(head.status,200);assert.equal(head.body.length,0);assert.equal(head.headers['content-encoding'],undefined);assert.equal(head.headers.etag,undefined);assert.equal(Number(head.headers['content-length']),get.body.length);
+ }
 });

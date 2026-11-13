@@ -18,7 +18,7 @@ export async function checkTunnelConfiguration(state){
  }catch{throw Error('Existing tunnel configuration/client is missing or invalid; no services were stopped. This command maintains an already provisioned installation.');}
 }
 export async function checkInstallPrerequisites({base,home=homedir()}={}){
- await assertInstallFiles(base,['adapter/frontend-stage/assets/index-BsmXQHMM.js','adapter/vendor/rpc.mjs','vendor/zcode-web/remote/v4/3.16.3/index.html',
+ await assertInstallFiles(base,['connection/mobile-entry.mjs','adapter/frontend-stage/assets/index-BsmXQHMM.js','adapter/vendor/rpc.mjs','vendor/zcode-web/remote/v4/3.16.3/index.html',
   'dsh-mobile/frontend/manifest.json','dsh-mobile/frontend/index.html','dsh-mobile/frontend/public/index.html',
   'claude-mobile/backend/vendor/marked.umd.js','claude-mobile/backend/vendor/marked.esm.js','claude-mobile/backend/vendor/pdfjs/loader.mjs']);
  // No access keys or pairing values leave this preflight.

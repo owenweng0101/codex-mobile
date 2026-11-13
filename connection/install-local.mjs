@@ -8,7 +8,7 @@ import {checkTunnelConfiguration} from '../scripts/install-preflight.mjs';
 const source=import.meta.dirname,project=resolve(source,'..'),state=join(homedir(),'Library/Application Support/CodexMobileCpolar');
 const services=join(state,'services'),adapterName='adapter',adapterSource=join(project,adapterName),adapter=join(services,adapterName),app=join(state,'app');
 const readLabel='com.owen.codex-original-read',label='com.owen.codex-cpolar',domain='gui/'+process.getuid();
-const connectionFiles=['server.mjs','ingress.mjs','dsh-proxy.mjs','cpolar.mjs','sakura.mjs','control-client.mjs','package.json'];
+const connectionFiles=['server.mjs','ingress.mjs','dsh-proxy.mjs','cpolar.mjs','sakura.mjs','control-client.mjs','mobile-entry.mjs','package.json'];
 const adapterFiles=['mobile-theme.css','attachment-scope.mjs','image-recovery.mjs','queued-attachments.mjs','mobile-connection.mjs','attachment-upload.mjs','server.mjs','api-client.mjs','mobile-api.mjs','mobile-history.mjs','mobile-image.mjs','write-client.mjs','write-services','auth.mjs','rpc-server.mjs','navigation.mjs','unavailable-services.mjs','package.json','vendor','read-services'];
 const frontendFiles=['platform-services.mjs','support-services.mjs','conversation-read.mjs','browser-adapter.mjs','assets'];
 await assertInstallFiles(source,connectionFiles);await assertInstallFiles(adapterSource,[...adapterFiles,'codex-entry.mjs']);
@@ -23,6 +23,10 @@ for(const name of [label,readLabel])bootout(name);
 stopOwned(8797,[join(source,'server.mjs'),join(app,'server.mjs')]);stopOwned(8796,[join(adapter,'server.mjs'),'zcode-codex-adapter-20261025/server.mjs']);
 for(let i=0;i<30;i++){let busy=false;for(const port of [8796,8797,8798]){try{execFileSync('lsof',['-t','-iTCP:'+port,'-sTCP:LISTEN'],{stdio:'pipe'});busy=true;}catch{}}if(!busy)break;if(i===29)throw Error('Old isolated service has not exited');await new Promise(r=>setTimeout(r,100));}
 await mkdir(app,{recursive:true,mode:0o700});await mkdir(adapter,{recursive:true,mode:0o700});
+// adapter/server imports ../connection/mobile-entry.mjs in the installed tree;
+// ingress imports ./mobile-entry.mjs from app. Prepare both before importers.
+await mkdir(join(services,'connection'),{recursive:true,mode:0o700});
+await cp(join(source,'mobile-entry.mjs'),join(services,'connection','mobile-entry.mjs'));
 // Stage shared projection and content-addressed chunks before their importers.
 await mkdir(join(services,'backend'),{recursive:true,mode:0o700});
 for(const file of ['mobile-history-shared.mjs','conversation-rows.mjs'])await cp(join(project,'backend',file),join(services,'backend',file));

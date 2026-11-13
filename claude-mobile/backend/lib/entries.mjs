@@ -1,3 +1,4 @@
+import {withHubFrame} from '../../../connection/mobile-entry.mjs';
 import {readFile} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import {join} from 'node:path';
@@ -26,7 +27,7 @@ async function codexEntry(origin){
     const info=await response.json();
     const secret=new URL(info.url).hash;
     if(!/^#[A-Za-z0-9_-]{43}$/.test(secret))return {ready:false,reason:'Codex 配对信息异常'};
-    return {ready:true,url:tunnel.origin+'/'+secret};
+    return {ready:true,url:withHubFrame(tunnel.origin+'/'+secret)};
   }catch{
     return {ready:false,reason:'Codex 本机适配器未就绪'};
   }
@@ -41,7 +42,7 @@ async function dshEntry(origin){
     const value=await response.json();
     if(value?.service!=='dsh-mobile'||!['online','local'].includes(value.status))return {ready:false,reason:'DSH 手机网关未就绪'};
     if(typeof value.phoneUrl!=='string')return {ready:false,reason:'DSH 手机地址无效'};
-    return {ready:true,url:value.phoneUrl,upstreamReady:value.upstreamReady===true};
+    return {ready:true,url:withHubFrame(value.phoneUrl),upstreamReady:value.upstreamReady===true};
   }catch{
     return {ready:false,reason:'DSH 手机网关未启动'};
   }

@@ -38,12 +38,12 @@ test('external QR navigation can load only the entry document without relaxing A
  const bp=await listen(backend),gateway=createIngress({backend:'http://127.0.0.1:'+bp});gateway.setPublicOrigin(origin);gateway.setMode('codex-read');const port=await listen(gateway.server);
  t.after(async()=>{await gateway.close();await new Promise(r=>backend.close(r));});
  const navigation={'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
- for(const path of ['/','/legacy/','/mobile/','/mobile/index.html'])assert.equal((await request(port,path,{headers:navigation})).status,200,path);
- assert.equal(calls.length,4);assert.ok(calls.every(x=>x.site==='none'));
+ for(const path of ['/','/legacy/','/mobile/','/mobile/index.html']){const response=await request(port,path,{headers:navigation});assert.equal(response.status,302,path);assert.equal(response.headers.location,'/m/#');}
+ assert.equal(calls.length,0);
  for(const path of ['/api/server-info','/api/pair','/mobile/api/history','/codex-entry.mjs','/local/info','/ws'])assert.equal((await request(port,path,{headers:navigation})).status,403,path);
  for(const headers of [{...navigation,origin:'https://evil.example'},{...navigation,host:'attacker.example'},{...navigation,'sec-fetch-mode':'cors'},{...navigation,'sec-fetch-dest':'iframe'},{'sec-fetch-site':'cross-site'}])assert.equal((await request(port,'/',{headers})).status,403);
  assert.equal((await request(port,'/',{method:'POST',headers:navigation})).status,403);
- assert.equal(calls.length,4);
+ assert.equal(calls.length,0);
 });
 test('public binary RPC authenticates upstream first and retains its immediate first frame',{timeout:3000},async()=>{
  const backend=http.createServer(),wss=new WebSocketServer({noServer:true}),initial=Buffer.from([0,7,255]);
@@ -86,7 +86,7 @@ test('mobile production assets and legacy entry use an exact GET/HEAD allowlist'
  assert.equal((await request(port,'/mobile/skills.mjs?v=build')).status,404);assert.equal(calls.length,0);
  gateway.setMode('codex-read');
  for(const path of paths){
-  for(const method of ['GET','HEAD']){assert.equal((await request(port,path+'?v=build',{method})).status,200,path);assert.equal(calls.at(-1),path+'?v=build');}
+  for(const method of ['GET','HEAD']){assert.equal((await request(port,path+'?v=build',{method,headers:{'sec-fetch-dest':'iframe'}})).status,200,path);assert.equal(calls.at(-1),path+'?v=build');}
   assert.equal((await request(port,path,{method:'POST'})).status,404,path);
  }
  const before=calls.length;
@@ -160,4 +160,26 @@ test('every local startup module imported by the real mobile entry is reachable 
   assert.equal((await request(port,path,{headers:{origin:'https://evil.example'}})).status,403);
  }
  for(const path of ['/image-recovery.test.mjs','/image-recovery.mjs.map','/auth.mjs'])assert.equal((await request(port,path)).status,404);
+});
+
+
+test('retired QR document entries converge on hub while iframe documents keep their scoped adapter',async t=>{
+ const calls=[],backend=http.createServer((req,res)=>{calls.push(req.url);res.end('module document');});
+ const bp=await listen(backend),gateway=createIngress({backend:'http://127.0.0.1:'+bp,dshTarget:'http://127.0.0.1:'+bp,claudeTarget:'http://127.0.0.1:'+bp});
+ gateway.setPublicOrigin(origin);gateway.setMode('codex-read');const port=await listen(gateway.server);
+ t.after(async()=>{await gateway.close();await new Promise(r=>backend.close(r));});
+ const paths=['/','/legacy/','/mobile/','/mobile/index.html','/remote/v4','/remote/v4/','/remote/v4/3.16.3/index.html','/dsh','/dsh/','/dsh/index.html','/claude','/claude/','/claude/index.html'];
+ for(const path of paths){
+  for(const method of ['GET','HEAD'])for(const headers of [{},{'sec-fetch-dest':'document'},{'sec-fetch-dest':'empty'}]){
+   const response=await request(port,path+'?t=old-secret&hub_frame=1',{method,headers});
+   assert.equal(response.status,headers['sec-fetch-dest']===undefined?200:302,path);
+   if(headers['sec-fetch-dest']!==undefined){assert.equal(response.headers.location,'/m/#');assert.equal(response.headers['set-cookie'],undefined);}
+  }
+  const legacy=await request(port,path+'?t=old-secret');assert.equal(legacy.status,302,path);assert.equal(legacy.headers.location,'/m/#');
+  const frame=await request(port,path+'?hub_frame=1',{headers:{'sec-fetch-dest':'iframe'}});assert.equal(frame.status,200,path);
+ }
+ // Headerless old browsers may embed with a marker; the adapter injects the
+ // top-level guard. Explicit document metadata always wins over that marker.
+ assert.ok(calls.length>0);
+ assert.equal((await request(port,'/m/',{headers:{'sec-fetch-dest':'document'}})).status,200);
 });

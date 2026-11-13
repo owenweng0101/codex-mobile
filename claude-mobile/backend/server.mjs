@@ -1,3 +1,4 @@
+import {withHubFrame,isHubFrameRequest,hubEntryGuard,unifiedEntryTarget} from '../../connection/mobile-entry.mjs';
 import {NativeRead} from './lib/native-read.mjs';
 import {injectHtmlPreview} from './lib/html-preview.mjs';
 import {embedHtmlAssets,resolveReferencedFile} from './lib/file-references.mjs';
@@ -212,7 +213,7 @@ async function start(req,res){
     return json(res,200,{
       codex:entries.codex,
       dsh:entries.dsh,
-      claude:ready.cli&&ready.launch?{ready:true,url:'/claude/'}:{ready:false,reason:ready.error??'Claude 手机入口未就绪'},
+      claude:ready.cli&&ready.launch?{ready:true,url:withHubFrame('/claude/')}:{ready:false,reason:ready.error??'Claude 手机入口未就绪'},
     });
   }
 
@@ -230,15 +231,19 @@ async function start(req,res){
     }catch{return json(res,404,{error:'资源不存在'});}
   }
 
-  if(path==='/claude'||path==='/claude/'){
+  if(path==='/claude'||path==='/claude/'||path==='/claude/index.html'){
+    if((req.method==='GET'||req.method==='HEAD')&&!isHubFrameRequest(req,url)){
+      res.writeHead(302,{location:await unifiedEntryTarget(),'cache-control':'no-store','referrer-policy':'no-referrer'});
+      return res.end();
+    }
     if(url.searchParams.get('t')!==null){
       if(url.searchParams.get('t')!==accessToken)return json(res,401,{error:'口令无效'});
       res.setHeader('set-cookie',[cookie(COOKIE_CLAUDE,accessToken,'/claude',publicOriginFrom(req)!==null)]);
-      res.writeHead(302,{location:'/claude/','cache-control':'no-store'});
+      res.writeHead(302,{location:withHubFrame('/claude/'),'cache-control':'no-store'});
       return res.end();
     }
     if(readCookie(req.headers.cookie,COOKIE_CLAUDE)!==accessToken)return json(res,401,{error:'需要手机连接口令：请重新扫描二维码'});
-    return page(res,chatHtml());
+    return page(res,hubEntryGuard(chatHtml(),await unifiedEntryTarget()));
   }
 
   if(path==='/claude/api/file'&&req.method==='GET'){
