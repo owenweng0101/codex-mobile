@@ -1,0 +1,381 @@
+claude-mobile/test/desktop-intent.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-449
+claude-mobile/test/stable-assistant-render.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-164
+dsh-mobile/package.json
+  s_0d674f4657e727::t_17b4d80a00cf62 1-16
+claude-mobile/test/desktop-delivery.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-447
+dsh-mobile/backend/session-restore.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-28
+dsh-mobile/backend/proxy.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-174
+scripts/stop.mjs
+  s_0d674f4657e727::t_535c059478885a 1-2
+dsh-mobile/backend/preview-zoom.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-62
+dsh-mobile/test/file-read-recovery.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-23
+dsh-mobile/backend/file-read-recovery.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-26
+dsh-mobile/test/page-state.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-41
+THIRD_PARTY.md
+  s_0d674f4657e727::t_0701a64cab3e3b 24-35
+desktop/mobile-qr/shortcut.test.mjs
+  s_0d674f4657e727::t_0c0fdab2688289 1-23
+claude-mobile/test/chat-cwd.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-62
+claude-mobile/backend/lib/live.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-111
+dsh-mobile/scripts/install.mjs
+  s_0d674f4657e727::t_0bc37feeb12df1 113
+  s_0d674f4657e727::t_17b4d80a00cf62 1-112,114-125
+package.json
+  s_0d674f4657e727::t_48c8e74c5b30b3 6,14-16,23-26
+claude-mobile/test/transcript.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-34
+scripts/test/mobile-services.test.mjs
+  s_0d674f4657e727::t_dddf1846231539 42,44-49
+  s_0d674f4657e727::t_85d08d600d9b22 43
+  s_0d674f4657e727::t_535c059478885a 1-41
+desktop/mobile-qr/install.mjs
+  s_0d674f4657e727::t_0c0fdab2688289 1
+  s_0d674f4657e727::t_41ce281e423127 2-69
+scripts/mobile-services.mjs
+  s_0d674f4657e727::t_85d08d600d9b22 7,34,40
+  s_0d674f4657e727::t_535c059478885a 1-6,8-33,35,37-39,41-46,49-81
+  s_0d674f4657e727::t_dddf1846231539 36,47-48
+claude-mobile/backend/server.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-478
+claude-mobile/test/composer-fixed-height.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-134
+dsh-mobile/test/pdf-compat.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-40
+claude-mobile/.gitignore
+  s_0d674f4657e727::t_17b4d80a00cf62 1-6
+dsh-mobile/test/proxy.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-60
+dsh-mobile/test/upstream.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-67
+dsh-mobile/backend/image-preview-touch.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-64
+scripts/install-preflight.mjs
+  s_0d674f4657e727::t_85d08d600d9b22 1-33
+dsh-mobile/backend/mobile.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-1056
+claude-mobile/test/ordered-transcript.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-242
+dsh-mobile/backend/sidebar-touch.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-27
+dsh-mobile/test/image-preview-touch.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-45
+scripts/runtime-dependencies.mjs
+  s_0d674f4657e727::t_cbfbbaad0ff23b 1-57,59-81
+claude-mobile/test/native-ui-delivery.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-276
+dsh-mobile/backend/pdf-compat.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-80
+dsh-mobile/test/frontend.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 2-7,9-80,86-100
+  s_0d674f4657e727::t_4030ef02899729 1,8,81-85
+desktop/mobile-qr/README.md
+  s_0d674f4657e727::t_0443dd72158c70 1-64
+claude-mobile/package.json
+  s_0d674f4657e727::t_17b4d80a00cf62 1-18
+claude-mobile/backend/lib/sessions.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-309
+dsh-mobile/backend/page-state.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-21
+dsh-mobile/test/preview-navigation.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-28
+claude-mobile/backend/lib/entries.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-59
+claude-mobile/backend/lib/message-renderer.js
+  s_0d674f4657e727::t_17b4d80a00cf62 1-152
+dsh-mobile/backend/frontend.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-84
+dsh-mobile/backend/mobile-profile.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-89
+claude-mobile/test/desktop-catalog.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-35
+AGENTS.md
+  s_0d674f4657e727::t_c9693cc407c605 1-12
+claude-mobile/backend/lib/claude-cli.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-20,22-138
+  s_0d674f4657e727::t_8eec124731f817 21
+claude-mobile/test/session-list-refresh.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-131
+claude-mobile/backend/lib/ui.mjs
+  s_0d674f4657e727::t_2d7cfba7a42c5e 961
+  s_0d674f4657e727::t_17b4d80a00cf62 1-960,962-1173
+claude-mobile/test/desktop-models.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-185
+dsh-mobile/backend/preview-navigation.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-25
+dsh-mobile/backend/dsh-auth.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-73
+claude-mobile/backend/lib/desktop-unread.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-156
+.gitignore
+  s_0d674f4657e727::t_1dd98fb72ffbfa 38-39
+  s_0d674f4657e727::t_18b01c0659e329 28-29
+  s_0d674f4657e727::t_39cf2609cb43c8 25-27,30-37,40-42
+desktop/mobile-qr/update.mjs
+  s_0d674f4657e727::t_41ce281e423127 1-2,4-23,25-67
+  s_0d674f4657e727::t_0c0fdab2688289 3,24
+claude-mobile/test/native-read-client.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-109
+scripts/test.mjs
+  s_0d674f4657e727::t_535c059478885a 3-16
+claude-mobile/test/command-ledger.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-270
+claude-mobile/test/hub-dsh-motion.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-187
+claude-mobile/test/navigation-interactions.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-285
+claude-mobile/scripts/install.mjs
+  s_0d674f4657e727::t_0bc37feeb12df1 81
+  s_0d674f4657e727::t_17b4d80a00cf62 1-80,82-94
+claude-mobile/test/native-session-status.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-5
+dsh-mobile/frontend/manifest.json
+  s_0d674f4657e727::t_17b4d80a00cf62 1-396
+dsh-mobile/test/preview-single-pane.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-25,27-33
+  s_0d674f4657e727::t_dd092a5e24b888 26
+claude-mobile/backend/lib/peer-envelope.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-21
+claude-mobile/backend/lib/chat-cwd.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-20
+dsh-mobile/test/session-restore.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 2-14,17-128
+  s_0d674f4657e727::t_f31dbb2d07f49e 1,15-16
+claude-mobile/test/unread-indicator.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-177
+claude-mobile/test/media-preview.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-38
+connection/打开国内扫码.command
+  s_0d674f4657e727::t_0443dd72158c70 1-9
+claude-mobile/scripts/uninstall.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-12
+claude-mobile/test/peer-envelope.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-23
+dsh-mobile/AGENTS.md
+  s_0d674f4657e727::t_a2c2cd8ac825ad 13-18
+  s_0d674f4657e727::t_17b4d80a00cf62 1-12
+desktop/mobile-qr/install.test.mjs
+  s_0d674f4657e727::t_efece840064c86 1-5,7-38,40-54
+  s_0d674f4657e727::t_0c0fdab2688289 6,39
+claude-mobile/test/message-renderer.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-173
+desktop/mobile-qr/update.test.mjs
+  s_0d674f4657e727::t_efece840064c86 1-76
+claude-mobile/test/desktop-attachments.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-131
+dsh-mobile/backend/mobile-assets.json
+  s_0d674f4657e727::t_17b4d80a00cf62 1-3
+claude-mobile/backend/lib/assistant-view.js
+  s_0d674f4657e727::t_17b4d80a00cf62 1-137
+dsh-mobile/test/dsh-auth.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-66
+connection/使用说明.md
+  s_0d674f4657e727::t_97f2de2025c462 1-41
+claude-mobile/backend/lib/desktop-models.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-137
+.gitattributes
+  s_0d674f4657e727::t_a4923ab80527de 1-2
+dsh-mobile/scripts/status.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-17,19-37
+  s_0d674f4657e727::t_d6664054d4fb27 18
+dsh-mobile/backend/server.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-336
+claude-mobile/backend/lib/unread-indicator.js
+  s_0d674f4657e727::t_17b4d80a00cf62 1-164
+claude-mobile/test/files.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-6
+claude-mobile/test/independent-interaction-audit.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-110
+claude-mobile/backend/lib/native-read.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-116
+dsh-mobile/test/sidebar-touch.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-22
+claude-mobile/test/native-read.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-53
+dsh-mobile/backend/upstream.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-79
+dsh-mobile/test/preview-zoom.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-37
+claude-mobile/test/file-reference-dependencies.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-239
+claude-mobile/backend/lib/html-preview.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-20
+claude-mobile/test/desktop-unread.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-214
+backend/server.mjs
+  s_0d674f4657e727::t_76c335af759fb2 639-643,661
+connection/install-local.mjs
+  s_0d674f4657e727::t_6cdadf4264fe38 20-24
+  s_0d674f4657e727::t_85d08d600d9b22 1-19,25-55
+dsh-mobile/test/gateway.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-249
+claude-mobile/README.md
+  s_0d674f4657e727::t_17b4d80a00cf62 1-2,5-88,90-91
+  s_0d674f4657e727::t_a2c2cd8ac825ad 3-4
+  s_0d674f4657e727::t_0701a64cab3e3b 89
+dsh-mobile/README.md
+  s_0d674f4657e727::t_a2c2cd8ac825ad 3-4
+  s_0d674f4657e727::t_0701a64cab3e3b 10,12,42-43,70-73,81,84,87,116,122
+  s_0d674f4657e727::t_17b4d80a00cf62 1-2,5-9,11,13-41,44-69,74-80,82-83,85-86,88-115,117-121,123-128
+claude-mobile/test/media-preview.browser.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-176
+claude-mobile/test/model-menu.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-170
+dsh-mobile/.gitignore
+  s_0d674f4657e727::t_17b4d80a00cf62 1-7
+claude-mobile/backend/lib/command-ledger.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-147
+claude-mobile/test/peer-channel.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-4
+claude-mobile/backend/lib/file-references.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-174
+desktop/mobile-qr/status.test.mjs
+  s_0d674f4657e727::t_efece840064c86 1-80
+claude-mobile/backend/lib/hub-chrome.js
+  s_0d674f4657e727::t_17b4d80a00cf62 1-256
+dsh-mobile/backend/mobile-modules.json
+  s_0d674f4657e727::t_17b4d80a00cf62 1-52
+claude-mobile/test/chat-receipt.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-28
+dsh-mobile/backend/preview-single-pane.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-37
+claude-mobile/backend/lib/desktop-attachments.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-188
+desktop/mobile-qr/status.mjs
+  s_0d674f4657e727::t_41ce281e423127 1-85
+dsh-mobile/scripts/pin-frontend.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-41
+scripts/status.mjs
+  s_0d674f4657e727::t_535c059478885a 1-2
+dsh-mobile/test/mobile-shell.test.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-162
+claude-mobile/backend/lib/desktop-intent.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-317
+scripts/start.mjs
+  s_0d674f4657e727::t_535c059478885a 1-3
+backend/install-local.mjs
+  s_0d674f4657e727::t_0bc37feeb12df1 1,46
+  s_0d674f4657e727::t_85d08d600d9b22 2-45,47-71
+claude-mobile/backend/lib/desktop-delivery.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-195
+claude-mobile/scripts/status.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-21
+scripts/install.mjs
+  s_0d674f4657e727::t_535c059478885a 1-3
+claude-mobile/backend/lib/media-preview.js
+  s_0d674f4657e727::t_17b4d80a00cf62 1-303
+dsh-mobile/scripts/uninstall.mjs
+  s_0d674f4657e727::t_17b4d80a00cf62 1-16
+README.md
+  s_0d674f4657e727::t_ea54a81d39bc42 1,3,5,7,9,11-17,19,21,23,25,30-32,35,37,39-44,47,49,51,53,55-58,60,62,64,66,68-71,74,76,78,80
+adapter/attachment-upload.mjs
+  s_0d674f4657e727::t_5fa41b0f12c283 5,13-20,89,91-92,97,172-173
+adapter/codex-entry.mjs
+  s_0d674f4657e727::t_5015064adb113d 21,29
+adapter/frontend-stage/CONVERSATION-V4.md
+  s_0d674f4657e727::t_69eb3ee2fb0f17 1-46
+adapter/frontend-stage/INTEGRATION.md
+  s_0d674f4657e727::t_aa9ada041398d9 1-136
+adapter/image-recovery.mjs
+  s_0d674f4657e727::t_58e848098dfb7f 311-313,317
+adapter/mobile-api.mjs
+  s_0d674f4657e727::t_d0e79a5fdad15a 7,102-103
+adapter/mobile-theme.css
+  s_0d674f4657e727::t_270e9b13e71e06 96-106
+adapter/read-services/README.md
+  s_0d674f4657e727::t_6070c77b093361 1-143
+adapter/read-services/original-controller-manifest.json
+  s_0d674f4657e727::t_a8f6da4eb560d7 1-9
+adapter/server.mjs
+  s_0d674f4657e727::t_15ff5e55700d83 68
+adapter/test/attachment-upload.test.mjs
+  s_0d674f4657e727::t_448b87de69afc8 40-58
+adapter/test/file-picker-anchor.test.mjs
+  s_0d674f4657e727::t_af196b90677f94 3
+adapter/test/mobile-api.test.mjs
+  s_0d674f4657e727::t_1f075207e5a3bb 150-158
+adapter/write-services/README.md
+  s_0d674f4657e727::t_b7a59d490786d1 1-95
+backend/test/history-media.test.mjs
+  s_0d674f4657e727::t_84b58e578d6a68 107,131
+backend/test/native-media-http.test.mjs
+  s_0d674f4657e727::t_aeb6ecfab79e64 32
+backend/test/view-media.test.mjs
+  s_0d674f4657e727::t_65bcd1b9af26df 6,40,42,45
+claude-mobile/AGENTS.md
+  s_0d674f4657e727::t_3933addc0a4aac 1-13
+claude-mobile/TESTING.md
+  s_0d674f4657e727::t_989fa43a0dbfa2 1-17
+claude-mobile/THIRD_PARTY.md
+  s_0d674f4657e727::t_33135bc81aee33 1-16
+claude-mobile/backend/vendor/marked-LICENSE.md
+  s_0d674f4657e727::t_1f7d60b60444fb 1-44
+claude-mobile/backend/vendor/marked.esm.js
+  s_0d674f4657e727::t_c20b7c0faf9926 1-72
+claude-mobile/backend/vendor/marked.umd.js
+  s_0d674f4657e727::t_e435ea45ac3fe7 1-74
+claude-mobile/backend/vendor/pdfjs/LICENSE.txt
+  s_0d674f4657e727::t_b80833c2714f20 1-943
+claude-mobile/backend/vendor/pdfjs/SOURCE.md
+  s_0d674f4657e727::t_c7856a2178e294 1-3
+claude-mobile/backend/vendor/pdfjs/binary-assets.mjs
+  s_0d674f4657e727::t_9627e8336d87d1 1-1160
+claude-mobile/backend/vendor/pdfjs/compat.mjs
+  s_0d674f4657e727::t_6e066a4da35adb 1-72
+claude-mobile/backend/vendor/pdfjs/loader.mjs
+  s_0d674f4657e727::t_75d11624882fd9 1-8
+claude-mobile/backend/vendor/pdfjs/pdf.mjs
+  s_0d674f4657e727::t_8038fc11412062 1-24339
+claude-mobile/backend/vendor/pdfjs/pdf.worker.mjs
+  s_0d674f4657e727::t_12be4b7137284b 1-31
+claude-mobile/package-lock.json
+  s_0d674f4657e727::t_c0994043d2e40f 1-321
+connection/dsh-proxy.mjs
+  s_0d674f4657e727::t_f8fa568d2a8067 17-20,23,34,36-37,56-57,62-65,69-71
+connection/ingress.mjs
+  s_0d674f4657e727::t_6034db99f19665 17-18,48,54-56,87-88,100-101,116-117,179
+connection/server.mjs
+  s_0d674f4657e727::t_6af5491cded70b 58
+connection/test/dsh-proxy-post.test.mjs
+  s_0d674f4657e727::t_64613ba200efb6 1-80
+connection/停止国内入口.command
+  s_0d674f4657e727::t_e6679d59ecc0e2 1-3
+connection/恢复国内入口.command
+  s_0d674f4657e727::t_ac55106e6e5d7a 1-5
+docs/architecture.md
+  s_0d674f4657e727::t_4ce67bc045662c 1,3-16,18,20,22,24,26
+dsh-mobile/TESTING.md
+  s_0d674f4657e727::t_3f5b6f57bc4282 1-30
+dsh-mobile/package-lock.json
+  s_0d674f4657e727::t_f60319bd9496ef 1-321
+dsh-mobile/test/pinned-fixture.mjs
+  s_0d674f4657e727::t_c06d97aaa245ef 1-14
+package-lock.json
+  s_0d674f4657e727::t_533807647b87a5 14-16,46-52,61-67,752-755,839-842
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "d775255a0a1ab5681155298335e30da952c8e094",
+  "prompts": {},
+  "sessions": {
+    "s_0d674f4657e727": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1d319-aec6-7980-a005-1f7906dc7f8b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    }
+  }
+}
