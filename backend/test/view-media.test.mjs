@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { displayItem,displayTurn,desktopItemEvents,cleanUserText } from '../view.mjs';
 
 const ctx={threadId:'thread-one',turnId:'turn-one'};
-const user={id:'user-one',type:'userMessage',content:[{type:'text',text:'看这两张图'},{type:'localImage',path:'/home/demo/Documents/image.png'},{type:'image',url:'data:image/png;base64,iVBORw0KGgo='}]};
+const user={id:'user-one',type:'userMessage',content:[{type:'text',text:'看这两张图'},{type:'localImage',path:'/home/private/Documents/image.png'},{type:'image',url:'data:image/png;base64,iVBORw0KGgo='}]};
 
 test('assistant inline image spans survive double projection without changing reply text',()=>{
  const raw={id:'assistant-one',type:'agentMessage',phase:'final_answer',text:'看图：\n\n![图片](/work/photo.png)\n\n正文不变'};
@@ -37,12 +37,12 @@ test('ordinary upload cards that flatten text do not shift the native raw image 
 
 test('projected native refs are whitelisted, context-bound and URL is rebuilt rather than trusting caller URL/message',()=>{
  const reference={...ctx,itemId:'user-one',index:9};
- const raw={id:'user-one',type:'userMessage',content:[{type:'image',reference,url:'file:///home/demo',status:'candidate',path:'/home/demo',data:'data:image/private'}]};
+ const raw={id:'user-one',type:'userMessage',content:[{type:'image',reference,url:'file:///home/private',status:'candidate',path:'/home/private',data:'data:image/private'}]};
  const item=displayItem(raw,ctx);assert.match(item.content[0].url,/^\/api\/thread-media\?/);safe(item);assert.equal(item.content[0].reference.index,9);
- for(const broken of [{...reference,path:'/home/demo'},{...reference,itemId:'other'},{...reference,threadId:'other'},{...reference,turnId:'other'},{...reference,index:-1}]){
+ for(const broken of [{...reference,path:'/home/private'},{...reference,itemId:'other'},{...reference,threadId:'other'},{...reference,turnId:'other'},{...reference,index:-1}]){
   const result=displayItem({...raw,content:[{...raw.content[0],reference:broken}]},ctx);assert.equal(result.content[0].reason,'INVALID_REFERENCE');assert.equal(result.content[0].url,undefined);safe(result);
  }
- const failed=displayItem({...raw,content:[{...raw.content[0],status:'unresolved',reason:'MEDIA_NOT_FOUND',message:'/home/demo'}]},ctx);assert.equal(failed.content[0].reason,'MEDIA_NOT_FOUND');safe(failed);assert.deepEqual(displayItem(failed,ctx),failed);
+ const failed=displayItem({...raw,content:[{...raw.content[0],status:'unresolved',reason:'MEDIA_NOT_FOUND',message:'/home/private'}]},ctx);assert.equal(failed.content[0].reason,'MEDIA_NOT_FOUND');safe(failed);assert.deepEqual(displayItem(failed,ctx),failed);
 });
 
 test('imageGeneration exposes only safe single-media ref and remains stable across repeated projection',()=>{

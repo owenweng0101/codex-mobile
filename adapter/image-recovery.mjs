@@ -308,14 +308,13 @@ export function bindPdfTouch(viewport){
  return()=>{release();viewport.style.touchAction=oldAction;viewport.removeEventListener('touchstart',start,true);viewport.removeEventListener('touchend',end,true);viewport.removeEventListener('touchcancel',release,true);};
 }
 
-// WebKit anchors its native photo/camera/file menu to the file input's box.
-// A display:none input has no box, so the native menu can fall back to the
-// old selection or viewport center. Give that input the plus button's geometry
-// before its click default action, retaining the original React change handler.
+// Let the native file input receive the actual tap over the plus button.
+// A programmatic input.click() can use WebKit's old activation/selection anchor
+// even when its DOM rectangle matches the button. Keep the React change owner.
 export function positionFilePickerAtTrigger(input,trigger){
  const target=trigger.getBoundingClientRect();if(target.width<=0||target.height<=0)return false;
  input.style.setProperty('display','block','important');
- Object.assign(input.style,{position:'absolute',left:'0px',top:'0px',width:target.width+'px',height:target.height+'px',opacity:'0',pointerEvents:'none',margin:'0',padding:'0',border:'0',boxSizing:'border-box'});
+ Object.assign(input.style,{position:'absolute',left:'0px',top:'0px',width:target.width+'px',height:target.height+'px',opacity:'0.001',pointerEvents:'auto',zIndex:'20',margin:'0',padding:'0',border:'0',boxSizing:'border-box'});
  const origin=input.getBoundingClientRect(),sx=origin.width/target.width||1,sy=origin.height/target.height||1;
  input.style.left=(target.left-origin.left)/sx+'px';input.style.top=(target.top-origin.top)/sy+'px';
  input.style.width=target.width/sx+'px';input.style.height=target.height/sy+'px';

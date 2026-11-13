@@ -1,0 +1,9 @@
+{
+  "installedAppVersion": "3.16.3.8992",
+  "source": "out/host/index.js",
+  "start": 1883541,
+  "end": 1891476,
+  "sha256": "885957bca49ab76ed73e2d4945eeb891124ee131ce73fe5c92f95d2cc2c1650e",
+  "originalFunction": "pre/createWindowHostControllerProjection",
+  "sourceModified": false
+}

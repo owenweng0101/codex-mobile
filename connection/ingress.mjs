@@ -14,7 +14,8 @@ const staticPath=p=>mobileAssets.has(p)||['/mobile/','/mobile/index.html','/','/
 const uploadBodyLimit=800*1024;
 const validPath=p=>!/%|\\|\0/.test(p)&&!p.split('/').some(v=>v==='.'||v==='..');
 function json(res,status,data){res.writeHead(status,{'content-type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
-function secureHeaders(res){res.setHeader('cache-control','no-store');res.setHeader('x-content-type-options','nosniff');res.setHeader('referrer-policy','no-referrer');res.setHeader('x-frame-options','DENY');}
+// 三合一入口用同源 iframe 承载三个手机界面；仅允许同源内嵌，跨站仍然禁止。
+function secureHeaders(res){res.setHeader('cache-control','no-store');res.setHeader('x-content-type-options','nosniff');res.setHeader('referrer-policy','no-referrer');res.setHeader('x-frame-options','SAMEORIGIN');}
 const safeHeaders=['cookie','content-type','content-length','accept','accept-encoding','if-none-match','range','sec-fetch-site','sec-fetch-mode','sec-fetch-dest'];
 const gzipBuffer=promisify(gzip),brotliBuffer=promisify(brotliCompress),brotliOptions={params:{[zlibConstants.BROTLI_PARAM_QUALITY]:9}};
 const versionedAsset=path=>mobileAssets.has(path)||path.startsWith('/remote/v4/3.16.3/assets/');
@@ -44,12 +45,15 @@ function weakEtag(headers){if(headers.etag&&!headers.etag.startsWith('W/'))heade
 
 /** A dedicated tunnel port with no local control routes. The upstream remains
  * loopback-only. Its pairing and original RPC binary protocol stay intact. */
-export function createIngress({backend='http://127.0.0.1:8796',instance=randomUUID(),compressionCache=createCompressionCache(),heartbeatIntervalMs=15000,dshTarget='http://127.0.0.1:18902',dshPrefix='/dsh'}={}){
+export function createIngress({backend='http://127.0.0.1:8796',instance=randomUUID(),compressionCache=createCompressionCache(),heartbeatIntervalMs=15000,dshTarget='http://127.0.0.1:18902',dshPrefix='/dsh',claudeTarget='http://127.0.0.1:18903'}={}){
  const upstream=new URL(backend);if(upstream.hostname!=='127.0.0.1'||upstream.protocol!=='http:')throw Error('Upstream must be loopback HTTP');
  if(!Number.isSafeInteger(heartbeatIntervalMs)||heartbeatIntervalMs<1||heartbeatIntervalMs>300000)throw Error('Invalid WebSocket heartbeat interval');
  let publicOrigin=null,mode='probe';const sockets=new Set(),upstreamSockets=new Set(),bridges=new Set();
  // Harness 手机入口挂在同一隧道的子路径下；它有自己的访问口令，不共享 Codex 的配对。
  const dsh=dshTarget?createDshProxy({target:dshTarget,prefix:dshPrefix}):null;
+ // Claude 手机入口与三合一页签入口复用同一转发器（不同子路径）。
+ const claudeProxy=claudeTarget?createDshProxy({target:claudeTarget,prefix:'/claude'}):null;
+ const hubProxy=claudeTarget?createDshProxy({target:claudeTarget,prefix:'/m'}):null;
  // Control-frame pings do not enter the RPC stream. A missing pong closes both
  // legs so the browser can reconnect instead of retaining a half-open session.
  const heartbeat=setInterval(()=>{
@@ -80,8 +84,8 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
   const path=pathOf(req);
   if(path===null)return false;
   if(['/','/legacy/','/mobile/','/mobile/index.html'].includes(path))return true;
-  if(dsh===null)return false;
-  return path===dsh.prefix||path===dsh.prefix+'/';
+  for(const proxy of [dsh,claudeProxy,hubProxy])if(proxy&&(path===proxy.prefix||path===proxy.prefix+'/'))return true;
+  return false;
  }
  function allowed(req){return !!publicOrigin&&req.headers.host===new URL(publicOrigin).host&&(!requestOrigin(req)||requestOrigin(req)===publicOrigin)&&(req.headers['sec-fetch-site']!=='cross-site'||externalEntry(req));}
  function pathOf(req){try{const u=new URL(req.url,'http://ingress.invalid');if(u.origin!=='http://ingress.invalid'||!validPath(req.url.split('?')[0]))return null;return u.pathname;}catch{return null;}}
@@ -93,6 +97,8 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
   if(!allowed(req))return json(res,403,{error:'Origin not allowed'});
   if(!path||blocked.has(path)||path.startsWith('/local/'))return json(res,404,{error:'Not available'});
   if(dsh&&dsh.handles(path))return dsh.forward(req,res);
+  if(claudeProxy&&claudeProxy.handles(path))return claudeProxy.forward(req,res);
+  if(hubProxy&&hubProxy.handles(path))return hubProxy.forward(req,res);
   if(req.method==='GET'&&path==='/healthz')return json(res,200,{service:'codex-cpolar-ingress',instance,mode});
   if(req.method==='GET'&&path==='/probe.js'){res.writeHead(200,{'content-type':'text/javascript; charset=utf-8'});res.end(probeScript);return;}
   if(req.method==='GET'&&(path==='/probe'||mode==='probe'&&path==='/')){res.writeHead(200,{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'"});res.end(probeHtml);return;}
@@ -107,6 +113,8 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
   const proxy=http.request({hostname:upstream.hostname,port:upstream.port,path:req.url,method:req.method,headers:headers(req),timeout:path==='/mobile/api/changes'?30000:20000},response=>{
    response.on('error',()=>{if(!res.headersSent&&!res.writableEnded)json(res,502,{error:'Local adapter unavailable'});else res.destroy();});
    const copied={...response.headers};delete copied['transfer-encoding'];
+   // 三合一入口使用同源 iframe；仅把上游的 DENY 收敛为 SAMEORIGIN，跨站仍不可内嵌。
+   if(copied['x-frame-options']!==undefined)copied['x-frame-options']='SAMEORIGIN';
    const privateImage=req.method==='GET'&&path==='/mobile/api/image'&&response.statusCode===200&&/^image\/(?:png|jpeg|gif|webp|avif|bmp)(?:;|$)/i.test(copied['content-type']||'')&&/^private,\s*max-age=300$/i.test(copied['cache-control']||'')&&!copied['set-cookie'];
    if(privateImage){
     // Keep only authenticated image bytes in the browser's private cache. A
@@ -168,5 +176,5 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
    });
   });
  });
- return{server,instance,get mode(){return mode;},get publicOrigin(){return publicOrigin;},setPublicOrigin(value){if(value===null){publicOrigin=null;return;}const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash)throw Error('HTTPS origin required');publicOrigin=u.origin;},setMode(value){if(!['probe','codex-read'].includes(value))throw Error('Invalid mode');mode=value;},async close(){dsh?.dispose();clearInterval(heartbeat);for(const bridge of bridges)bridge.client.terminate();bridges.clear();for(const ws of upstreamSockets)ws.terminate();for(const ws of wss.clients)ws.terminate();wss.close();for(const s of sockets)s.destroy();compressionCache.clear();await new Promise(r=>server.close(r));}};
+ return{server,instance,get mode(){return mode;},get publicOrigin(){return publicOrigin;},setPublicOrigin(value){if(value===null){publicOrigin=null;return;}const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash)throw Error('HTTPS origin required');publicOrigin=u.origin;},setMode(value){if(!['probe','codex-read'].includes(value))throw Error('Invalid mode');mode=value;},async close(){dsh?.dispose();claudeProxy?.dispose();hubProxy?.dispose();clearInterval(heartbeat);for(const bridge of bridges)bridge.client.terminate();bridges.clear();for(const ws of upstreamSockets)ws.terminate();for(const ws of wss.clients)ws.terminate();wss.close();for(const s of sockets)s.destroy();compressionCache.clear();await new Promise(r=>server.close(r));}};
 }

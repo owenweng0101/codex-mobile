@@ -65,7 +65,7 @@ const server=createServer(async(req,res)=>{
       return session?json(res,200,{paired:true},{'set-cookie':'codex_native_pair='+session+'; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000'}):json(res,401,{error:'配对链接已失效'});
     }
     if(url.pathname.startsWith('/mobile/api/')){
-      if(!pairing.allows(req.headers))return json(res,401,{error:'请先扫描模型网关中的二维码'});
+      if(!pairing.allows(req.headers))return json(res,401,{error:'请先扫描桌面「手机连接」文件夹中的统一二维码'});
       return await mobileApi(req,res,url);
     }
     // Old bookmarks also open the single ZCode interface. Never serve a second UI.

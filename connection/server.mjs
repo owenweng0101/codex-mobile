@@ -55,6 +55,6 @@ await new Promise((resolve,reject)=>{gateway.server.once('error',reject);gateway
 await rm(controlSocketPath,{force:true});
 await new Promise((resolve,reject)=>{control.once('error',reject);control.listen(controlSocketPath,resolve);});
 await chmod(controlSocketPath,0o600);
-await saveState(state());console.log('Phone connection panel: http://127.0.0.1:18901/');
+await saveState(state());console.log('Phone QR codes: ~/Desktop/手机连接/');
 try{await startTunnel();}catch{console.error('Phone tunnel configuration is unavailable');}
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,async()=>{if(stopping)return;stopping=true;tunnel?.stop();await gateway.close();for(const s of localSockets)s.destroy();control.close(()=>process.exit(0));});

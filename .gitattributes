@@ -1,0 +1,2 @@
+# Preserve the original third-party build and license bytes.
+claude-mobile/backend/vendor/** -text -whitespace

@@ -4,6 +4,7 @@ import {digest} from './write-services/ledger.mjs';
 import {createImagePreview} from './mobile-image.mjs';
 import {createWriteServices} from './write-services/index.mjs';
 import {projectMobileHistory,resolveMobileImagePath} from './mobile-history.mjs';
+import {canonicalDocumentMime} from './attachment-upload.mjs';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fault=(message,statusCode=400,code='INVALID_INPUT')=>Object.assign(Error(message),{statusCode,code,sent:false});
@@ -98,7 +99,8 @@ export function createMobileApi({api,baseServices,ledgerDir,uploads,resolveAttac
    const response=await api.fetch(api.origin+ref+'&meta=1',{headers:{authorization:'Bearer '+api.bearer},redirect:'error',signal:AbortSignal.timeout(20000)});
    if(!response.ok)throw fault('无法读取队列附件信息，请稍后重试',response.status,'ATTACHMENT_UNAVAILABLE');value=await response.json();
   }
-  if(value?.id!==id||typeof value.name!=='string'||!value.name||!/^image\/(png|jpeg|gif|webp)$/.test(value.mime||'')||!Number.isSafeInteger(value.size)||value.size<1||value.size>8*1024*1024)throw fault('队列附件信息不完整，无法退回编辑',409,'INVALID_ATTACHMENT');
+  const document=canonicalDocumentMime(value.name,value.mime),image=/^image\/(png|jpeg|gif|webp)$/.test(value.mime||'');
+  if(value?.id!==id||typeof value.name!=='string'||!value.name||!image&&!document||!Number.isSafeInteger(value.size)||value.size<1||value.size>(document?20:8)*1024*1024)throw fault('队列附件信息不完整，无法退回编辑',409,'INVALID_ATTACHMENT');
   return{ref,fileName:value.name,mime:value.mime,bytes:value.size};
  }
  async function restoredItem(page,item){

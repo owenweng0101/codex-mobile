@@ -93,6 +93,17 @@ html[data-codex-mobile="true"] [data-slot="dialog-overlay"] {background:rgb(18 2
 html[data-codex-mobile="true"] [data-testid="workspace-header"] {min-height:48px;background:var(--cm-canvas)!important;border-bottom:1px solid var(--cm-line)!important}
 html[data-codex-mobile="true"] [data-composer-layout] {background:var(--cm-panel)!important;border:1px solid var(--cm-line)!important;border-radius:16px!important;box-shadow:0 2px 10px rgb(24 30 40 / .025)!important;gap:8px;padding:10px}
 html[data-codex-mobile="true"] [data-composer-layout] [contenteditable="true"] {font-size:16px;line-height:1.6}
+/* Match the original empty min-h-10 editor. Text scrolls inside this fixed
+ * editing area; attachments and the toolbar keep their existing layout. */
+@media (max-width:767px), (pointer:coarse) {
+ html[data-codex-mobile="true"] [data-testid="v4-composer-input"] {
+  height:calc(var(--spacing,.25rem)*10)!important;
+  min-height:calc(var(--spacing,.25rem)*10)!important;
+  max-height:calc(var(--spacing,.25rem)*10)!important;
+  overflow-y:auto!important;
+  overscroll-behavior-y:contain;
+ }
+}
 html[data-codex-mobile="true"] :is([data-testid="v4-composer-send"],[data-testid="v4-stop"]) {border-radius:50%!important;width:32px;height:32px;min-width:32px;min-height:32px}
 html[data-codex-mobile="true"] [data-v4-user-input-bubble="true"] {background:var(--cm-bubble)!important;border:0!important;border-radius:18px!important}
 html[data-codex-mobile="true"] [data-markdown-table-frame] .rounded-xl {border-color:var(--cm-line)!important}

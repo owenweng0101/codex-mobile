@@ -1,0 +1,7 @@
+node_modules/
+outputs/
+.backup/
+*.log
+frontend/index.html
+frontend/public/
+frontend/bundles/

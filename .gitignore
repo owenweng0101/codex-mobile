@@ -22,3 +22,21 @@ cpolar.yml
 
 # Generated mobile split metrics and bundles
 /build/
+
+# Pinned DSH UI remains a local installation resource. Do not capture a newer
+# desktop UI during installation or commit plugin inventories/compiled bundles.
+/dsh-mobile/frontend/*
+!/dsh-mobile/frontend/manifest.json
+/dsh-mobile/.backup/
+/claude-mobile/.backup/
+**/outputs/
+**/*-receipt.json
+**/verification.json
+
+# These two browser libraries have their upstream licenses alongside them.
+!claude-mobile/backend/vendor/
+!claude-mobile/backend/vendor/marked.umd.js
+!claude-mobile/backend/vendor/marked.esm.js
+!claude-mobile/backend/vendor/marked-LICENSE.md
+!claude-mobile/backend/vendor/pdfjs/
+!claude-mobile/backend/vendor/pdfjs/**

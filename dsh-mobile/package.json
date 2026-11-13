@@ -1,0 +1,16 @@
+{
+  "name": "dsh-mobile",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Phone gateway for DeepSeek Harness: scan a QR code and drive the live DSH sessions from a phone.",
+  "scripts": {
+    "start": "node backend/server.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test:pinned": "DSHM_TEST_PINNED=1 node --test --test-concurrency=1 test/*.test.mjs"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
+  },
+  "license": "Apache-2.0"
+}

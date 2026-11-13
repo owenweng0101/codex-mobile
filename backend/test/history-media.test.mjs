@@ -104,7 +104,7 @@ test('local image uses scoped roots, permission check before IO, stable file han
 });
 
 test('Documents permission denial is injected and does not stat, realpath, open or actually probe any protected directory',async()=>{
- const f=fixture(user([{type:'localImage',path:'/home/demo/Documents/private.png'}]),{denied:true,config:{allowedRoots:['/home/demo/Documents']}});
+ const f=fixture(user([{type:'localImage',path:'/home/fixture/Documents/private.png'}]),{denied:true,config:{allowedRoots:['/home/fixture/Documents']}});
  const result=await f.manager.read(ref);assert.equal(result.reason,'PERMISSION_REQUIRED');assert.equal(f.operations.length,0);assertPrivate(result);
 });
 
@@ -128,7 +128,7 @@ test('server-only resolveRoots may supply an additional exact boundary, and boun
 });
 
 test('unresolved reasons stay within fixed enum and never echo private underlying errors',async()=>{
- const f=fixture(user([{type:'localImage',path:'/allowed/root/image.png'}]));f.manager.io.lstat=async()=>{throw Error('/home/demo PRIVATE data:image/png;base64,secret');};
+ const f=fixture(user([{type:'localImage',path:'/allowed/root/image.png'}]));f.manager.io.lstat=async()=>{throw Error('/home/secret PRIVATE data:image/png;base64,secret');};
  const result=await f.manager.read(ref);assert.equal(Object.hasOwn(MEDIA_REASONS,result.reason),true);assert.equal(result.reason,'MEDIA_UNAVAILABLE');assertPrivate(result);
 });
 

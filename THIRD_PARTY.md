@@ -21,3 +21,15 @@
 ws、qrcode、marked、DOMPurify、xterm、@iarna/toml 等通过 npm 安装，各自许可见对应包。浏览器所需的 npm 构建文件在本机准备，不提交到 Git。frpc 是使用者从樱花官方单独取得的客户端，仓库不包含其二进制或访问密钥。
 
 本项目不包含 Codex CLI、Codex 桌面应用或模型账号凭据。
+
+## DeepSeek Harness 手机适配
+
+`dsh-mobile/` 是手机网关和兼容层。上游 DeepSeek Harness 的许可证为 MIT；固定前端的捕获元数据位于 `dsh-mobile/frontend/manifest.json`。其 release/commit 只表示本地已审核快照记录，不作为已核实的上游 Git 提交声明。完整捕获构建和本机插件不随仓库再分发，也不在安装或 CI 时自动抓取。
+
+公开 manifest 去除了本机 `@local` 插件记录。迁移当前安装时使用用户已有的固定资源；公开 CI 对依赖这些资源的测试明确报告跳过，见 `dsh-mobile/TESTING.md`。
+
+## Marked 与 PDF.js
+
+`claude-mobile/backend/vendor/marked.*` 随 MIT 许可证保留。PDF.js 固定为 6.3.289，来自既有 DSH 固定构建，包含源码／构建来源说明、原有第三方许可和薄 ESM 兼容层，见同目录 `pdfjs/SOURCE.md`、`pdfjs/LICENSE.txt`。这些库与需要本机准备的整套上游 UI 构建分开管理。
+
+仓库不包含 Claude 桌面应用、Claude CLI、修改后的应用归档或会话数据库。

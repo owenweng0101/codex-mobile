@@ -147,6 +147,15 @@ test('missing or mismatched attachment metadata blocks queue removal',async t=>{
  }
 });
 
+test('queued documents retain canonical metadata when restored to the composer',async t=>{
+ for(const [name,mime] of [['notes.md','text/plain'],['report.pdf','application/pdf']]){
+  let items=[queueItem];
+  const f=await fixture(t,{history:()=>({queue:queueOf(items)}),options:{resolveAttachment:async()=>({id:attachmentId})},fetch:async()=>Response.json({id:attachmentId,name,mime,size:1024}),post:async()=>{items=[];return queueOf(items);}});
+  const listed=await f.get('/mobile/api/queue?threadId='+id);assert.deepEqual(listed.value.items[0].attachments,[{ref:descriptor.ref,fileName:name,mime,bytes:1024}]);
+  const removed=await f.post('/mobile/api/queue',{threadId:id,requestId:'restore-doc',action:'delete',id:queueItem.id});assert.equal(removed.status,200);assert.deepEqual(removed.value.restored.attachments,[{ref:descriptor.ref,fileName:name,mime,bytes:1024}]);
+ }
+});
+
 test('queue actions map to existing scoped commands and reject forged queues',async t=>{
  const f=await fixture(t,{history:()=>({queue:queueOf([{...queueItem,attachments:[]}])}),post:async()=>queueOf([])});
  for(const [action,native]of [['sendNow','sendNow'],['edit','edit'],['resume','resume'],['pause','pause']]){

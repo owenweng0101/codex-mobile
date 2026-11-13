@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 
 const MAX_BYTES = 256 * 1024 * 1024;
 const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+const DOCUMENT_MAX_BYTES = 20 * 1024 * 1024;
 const MAX_CHUNK_BYTES = 512 * 1024; // Original UI emits 384 KiB; V4 accepts up to 512 KiB.
 const MAX_CHUNKS = 1024;
 const MAX_ACTIVE = 4;
@@ -9,6 +10,14 @@ const MAX_RECEIPTS = 128;
 const TTL_MS = 5 * 60 * 1000;
 const IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 const VIDEO_MIMES = new Set(['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm']);
+const DOCUMENT_MIMES = {pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',zip:'application/zip'};
+const TEXT_EXTENSIONS = new Set('txt md markdown csv tsv json jsonl yaml yml xml html htm css scss js jsx ts tsx py rb go rs java c h cpp hpp cs sh bash zsh sql log ini cfg conf toml r swift kt kts vue svelte'.split(' '));
+export function canonicalDocumentMime(fileName,mime) {
+  const extension=typeof fileName==='string'?fileName.split('.').pop().toLowerCase():'';
+  if(Object.hasOwn(DOCUMENT_MIMES,extension))return [DOCUMENT_MIMES[extension],'application/octet-stream',...(extension==='zip'?['application/x-zip-compressed']:[])].includes(mime)?DOCUMENT_MIMES[extension]:null;
+  if(TEXT_EXTENSIONS.has(extension)&&typeof mime==='string'&&(/^(text\/|application\/(?:octet-stream|json|xml|javascript|typescript|x-yaml|yaml|toml|x-sh)$)/.test(mime)))return extension==='csv'?'text/csv':extension==='json'?'application/json':'text/plain';
+  return null;
+}
 const hash = value => createHash('sha256').update(value).digest('hex');
 const fail = (message, code = 'CODEX_ATTACHMENT_INVALID_INPUT') => Object.assign(new Error(message), {code});
 
@@ -77,13 +86,15 @@ export function createAttachmentUploadServices({api, scope} = {}) {
       nextChunkIndex: record.nextChunkIndex, ...(record.ref ? {ref: record.ref} : {})};
   }
   function metadata(p) {
+    const documentMime=canonicalDocumentMime(p.fileName,p.mime);
     if (typeof p.fileName !== 'string' || !p.fileName.trim() || p.fileName.length > 255 || /[\0\r\n]/.test(p.fileName) ||
-        (!IMAGE_MIMES.has(p.mime) && !VIDEO_MIMES.has(p.mime)) ||
+        (!IMAGE_MIMES.has(p.mime) && !VIDEO_MIMES.has(p.mime) && !documentMime) ||
+        (documentMime && p.totalBytes > DOCUMENT_MAX_BYTES) ||
         (IMAGE_MIMES.has(p.mime) && p.totalBytes > IMAGE_MAX_BYTES) || !Number.isSafeInteger(p.totalBytes) || p.totalBytes < 1 || p.totalBytes > MAX_BYTES ||
         !Number.isSafeInteger(p.totalChunks) || p.totalChunks < 1 || p.totalChunks > (IMAGE_MIMES.has(p.mime) ? 64 : MAX_CHUNKS) ||
         p.totalChunks > p.totalBytes || p.totalBytes > p.totalChunks * MAX_CHUNK_BYTES ||
         typeof p.checksum !== 'string' || p.checksum.length !== 71 || !/^sha256:[a-f0-9]{64}$/.test(p.checksum)) {
-      throw fail('图片最多8MB；MP4、MOV、M4V、WebM视频最多256MB，且分块元数据必须有效');
+      throw fail('图片最多8MB，普通文档最多20MB，视频最多256MB，且文件类型和分块元数据必须有效');
     }
     return JSON.stringify([p.fileName, p.mime, p.totalBytes, p.totalChunks, p.checksum]);
   }
@@ -158,7 +169,8 @@ export function createAttachmentUploadServices({api, scope} = {}) {
       record.pending = Promise.race([posted, canceled]).then(result => {
         if (uploads.get(key) !== record) throw fail('附件上传已取消', 'CODEX_ATTACHMENT_ABORTED');
         const id = attachmentRefToUploadId(result?.url);
-        if (result?.id !== id || (result?.mime !== record.mime && !(record.mime === 'video/mp4' && /\.m4v$/i.test(record.fileName) && result?.mime === 'video/x-m4v')) || result?.size !== record.totalBytes || typeof result?.name !== 'string') {
+        const expectedMime=canonicalDocumentMime(record.fileName,record.mime)||record.mime;
+        if (result?.id !== id || (result?.mime !== expectedMime && !(record.mime === 'video/mp4' && /\.m4v$/i.test(record.fileName) && result?.mime === 'video/x-m4v')) || result?.size !== record.totalBytes || typeof result?.name !== 'string') {
           throw fail('原生上传回执无效', 'CODEX_ATTACHMENT_INVALID_RECEIPT');
         }
         record.ref = '/api/attachment?id=' + id;

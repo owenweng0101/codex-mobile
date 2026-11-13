@@ -14,9 +14,13 @@ const HOP_BY_HOP = new Set([
 ]);
 
 function forwardedHeaders(req) {
+  // Connection may nominate additional hop-by-hop fields. Node has already
+  // decoded incoming chunks; the outgoing HTTP stack owns the new framing.
+  const hop = new Set([...HOP_BY_HOP, ...String(req.headers.connection ?? '')
+    .split(',').map(value => value.trim().toLowerCase()).filter(Boolean)]);
   const out = {};
   for (const [key, value] of Object.entries(req.headers)) {
-    if (value === undefined || HOP_BY_HOP.has(key.toLowerCase())) continue;
+    if (value === undefined || hop.has(key.toLowerCase())) continue;
     out[key] = value;
   }
   return out;
@@ -27,8 +31,10 @@ function forwardedHeaders(req) {
  * @param {string} [options.target] 本机 Harness 手机网关地址
  * @param {string} [options.prefix] 对外路径前缀
  * @param {number} [options.timeoutMs] 上游空闲超时
+ * @param {function} [options.onError] 仅接收前缀、方法、错误码与复用状态，不含口令和请求体
  */
-export function createDshProxy({ target = 'http://127.0.0.1:18902', prefix = '/dsh', timeoutMs = 300000 } = {}) {
+export function createDshProxy({ target = 'http://127.0.0.1:18902', prefix = '/dsh', timeoutMs = 300000,
+  onError = details => console.error('mobile proxy error', JSON.stringify(details)) } = {}) {
   const upstream = new URL(target);
   if (upstream.protocol !== 'http:' || upstream.hostname !== '127.0.0.1') throw new Error('dsh proxy target must be loopback HTTP');
   const agent = new http.Agent({ keepAlive: true, maxSockets: 64 });
@@ -47,22 +53,22 @@ export function createDshProxy({ target = 'http://127.0.0.1:18902', prefix = '/d
       agent,
       timeout: timeoutMs,
     }, (response) => {
-      const headers = {};
-      for (const [key, value] of Object.entries(response.headers)) {
-        if (value === undefined || HOP_BY_HOP.has(key.toLowerCase())) continue;
-        if (key.toLowerCase() === 'x-frame-options') continue;
-        headers[key] = value;
-      }
+      const headers = forwardedHeaders(response);
+      delete headers['x-frame-options'];
       res.writeHead(response.statusCode ?? 502, headers);
       response.on('error', () => res.destroy());
       response.pipe(res);
     });
-    proxy.on('timeout', () => proxy.destroy());
-    proxy.on('error', () => {
+    proxy.on('timeout', () => proxy.destroy(Object.assign(new Error('Upstream timeout'), { code: 'ETIMEDOUT' })));
+    proxy.on('error', error => {
+      const code = /^[A-Z0-9_]+$/.test(error.code ?? '') ? error.code : 'UPSTREAM_ERROR';
+      onError({ prefix, method: req.method, code, reusedSocket: proxy.reusedSocket });
       if (res.writableEnded) return;
       if (!res.headersSent) {
         res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ error: 'Harness 手机网关未启动' }));
+        const name = ['/claude', '/m'].includes(prefix) ? 'Claude' : 'Harness';
+        // A reset, parse error or timeout does not mean the gateway is stopped.
+        res.end(JSON.stringify({ error: `${name} 手机网关暂时无法连接`, code }));
       } else {
         res.destroy();
       }

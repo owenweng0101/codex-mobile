@@ -18,7 +18,7 @@ function deadline(promise,ms,message){let timer;return Promise.race([promise,new
 export async function loadCodexMobile({origin,token='',request=fetch,loadModule=path=>import(path),onPaired=()=>{},onStage=()=>{},onBrand=()=>{},onInfo=()=>{},resourceTimeoutMs=90000,connectTimeoutMs=30000}={}){
  const readWorkspaceInfo=async()=>{
   const ready=await request('/api/server-info',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(45000)});
-  if(!ready.ok)throw Error(ready.status===401?'请重新扫描这台 Mac 模型网关中的二维码':'电脑上的项目暂时没有读取成功，请重试');
+  if(!ready.ok)throw Error(ready.status===401?'请重新扫描桌面「手机连接」文件夹中的统一二维码':'电脑上的项目暂时没有读取成功，请重试');
   const info=await ready.json();onInfo(info);return info;
  };
  onStage('resources','active');onStage('paired','active');
@@ -26,7 +26,7 @@ export async function loadCodexMobile({origin,token='',request=fetch,loadModule=
  const metadata=(async()=>{
   if(token){
    const response=await request('/api/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token}),credentials:'same-origin',signal:AbortSignal.timeout(20000)});
-   if(!response.ok)throw Error('配对已失效，请重新扫描电脑模型网关中的二维码');
+   if(!response.ok)throw Error('配对已失效，请重新扫描桌面「手机连接」文件夹中的统一二维码');
   }
   onStage('metadata','active');
   const info=await readWorkspaceInfo();

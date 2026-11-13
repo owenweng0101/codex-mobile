@@ -636,9 +636,12 @@ const server = http.createServer(async (req, res) => {
       return fail(res, 404, '接口不存在');
     }
     if (req.method !== 'GET') return fail(res, 405, '不支持');
-    const routes = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'], '/pair': ['pair.html', 'text/html'], '/pair.js': ['pair.js', 'text/javascript'], '/vendor/marked.js': ['vendor/marked.js', 'text/javascript'], '/vendor/purify.js': ['vendor/purify.js', 'text/javascript'], '/vendor/xterm.js': ['vendor/xterm.js', 'text/javascript'], '/vendor/xterm-fit.js': ['vendor/xterm-fit.js', 'text/javascript'], '/vendor/xterm.css': ['vendor/xterm.css', 'text/css'] };
+    if (['/','/app.js','/style.css','/pair','/pair.js'].includes(pathname)) {
+      res.writeHead(410, { 'Content-Type':'text/plain; charset=utf-8', 'Cache-Control':'no-store' });
+      return res.end('独立 Codex 页面已退役。请扫描桌面「手机连接」文件夹中的统一二维码，在顶部切换 Codex / DSH / Claude。');
+    }
+    const routes = { '/vendor/marked.js': ['vendor/marked.js', 'text/javascript'], '/vendor/purify.js': ['vendor/purify.js', 'text/javascript'], '/vendor/xterm.js': ['vendor/xterm.js', 'text/javascript'], '/vendor/xterm-fit.js': ['vendor/xterm-fit.js', 'text/javascript'], '/vendor/xterm.css': ['vendor/xterm.css', 'text/css'] };
     const file = routes[pathname]; if (!file) return fail(res, 404, '页面不存在');
-    if (pathname.startsWith('/pair') && !local(req)) return fail(res, 403, '请在电脑本机打开配对页面');
     res.writeHead(200, { 'Content-Type': `${file[1]}; charset=utf-8` }); res.end(await readFile(resolve(root, 'public', file[0])));
   } catch (e) {
     if (!res.headersSent && e.code === 'THREAD_ARCHIVED') send(res, 409, { error:e.message, code:e.code, archived:true });
@@ -655,7 +658,7 @@ const receipts = new Map();
 await new Promise((ok, no) => { server.once('error', no); server.listen(port, process.env.CODEX_MOBILE_BIND || '127.0.0.1', ok); });
 await writeFile(resolve(stateDir, 'server.pid'), String(process.pid), { mode: 0o600 });
 await writeFile(resolve(stateDir, 'connection.json'), JSON.stringify({ port, token: accessToken }), { mode: 0o600 });
-console.log(`Codex Mobile ready: http://127.0.0.1:${port}/pair`);
+console.log(`Codex backend ready on ${port}; scan the unified QR in ~/Desktop/手机连接/`);
 catalog().catch(() => {});
 Promise.all(Object.keys(messageQueue.threads).map(desktopHistoryFor)).then(() => messageQueue.kickAll()).catch(() => {});
 if (!process.argv.includes('--no-tunnel') && (gateway || process.argv.includes('--temporary-tunnel'))) {

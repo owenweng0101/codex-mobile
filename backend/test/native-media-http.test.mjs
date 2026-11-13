@@ -29,7 +29,7 @@ test('native media HTTP rejects missing, duplicate or widened references before 
 
 test('native media HTTP streams original bytes and returns only fixed failure reasons',async t=>{
   const bytes=Buffer.from([137,80,78,71,13,10,26,10]);let mode='ready';
-  const base=await server(t,async ref=>{assert.deepEqual(ref,reference);if(mode==='throw')throw Error('/home/demo/hidden.png');if(mode==='permission')return{status:'unresolved',reason:'PERMISSION_REQUIRED',message:'/home/demo/hidden.png'};return{status:'ready',body:bytes,headers:{'Content-Type':'image/png','Content-Length':bytes.length,'Cache-Control':'private, no-store'}};});
+  const base=await server(t,async ref=>{assert.deepEqual(ref,reference);if(mode==='throw')throw Error('/home/private/hidden.png');if(mode==='permission')return{status:'unresolved',reason:'PERMISSION_REQUIRED',message:'/home/private/hidden.png'};return{status:'ready',body:bytes,headers:{'Content-Type':'image/png','Content-Length':bytes.length,'Cache-Control':'private, no-store'}};});
   const url=base+'/?'+new URLSearchParams(reference);let response=await fetch(url);assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'image/png');assert.deepEqual(Buffer.from(await response.arrayBuffer()),bytes);
   mode='permission';response=await fetch(url);assert.equal(response.status,423);let body=await response.json();assert.equal(body.permissionRequired,true);assert.doesNotMatch(JSON.stringify(body),/\/Users\//);assert.equal(response.headers.get('cache-control'),'no-store');
   mode='throw';response=await fetch(url);assert.equal(response.status,503);body=await response.json();assert.equal(body.reason,'MEDIA_UNAVAILABLE');assert.doesNotMatch(JSON.stringify(body),/\/Users\//);

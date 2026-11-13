@@ -1,0 +1,18 @@
+{
+  "name": "claude-mobile",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Phone gateway for Claude Code: scan one QR code, chat with Claude and switch between Codex, DSH and Claude.",
+  "scripts": {
+    "start": "node backend/server.mjs",
+    "install:service": "node scripts/install.mjs",
+    "status": "node scripts/status.mjs",
+    "uninstall": "node scripts/uninstall.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
+  },
+  "license": "Apache-2.0"
+}

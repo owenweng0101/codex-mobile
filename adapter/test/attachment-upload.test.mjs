@@ -37,6 +37,25 @@ async function stage(methods, f) {
 }
 const code = expected => error => error.code === expected;
 
+test('ordinary documents use the native upload and canonical MIME receipts',async t=>{
+ const {AttachmentStore}=await import('../../backend/attachments.mjs');
+ const {mkdtemp,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const {join}=await import('node:path');
+ const directory=await mkdtemp(join(tmpdir(),'codex-doc-upload-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+ const store=new AttachmentStore({directory});
+ const {methods}=harness(t,{post:(_path,body)=>store.upload(body)});
+ for(const [name,mime,text] of [['example.txt','text/plain','文档上传测试'],['example.md','text/markdown','# 标题\n正文'],['example.html','text/html','<h1>网页</h1>'],['example.json','application/json','{"ok":true}']]){
+  const f=fixture(Buffer.from(text),{uploadId:name});Object.assign(f.begin,{fileName:name,mime});
+  await stage(methods,f);const result=await methods.attachmentCommitV4(f.identity),id=attachmentRefToUploadId(result.ref);
+  const meta=await store.metadata(id);assert.equal(meta.name,name);assert.equal(meta.mime,name.endsWith('.json')?'application/json':'text/plain');
+  const input=await store.inputs([id]);assert.match(input[0].text,/extracted-document-text/);
+  assert.deepEqual(await methods.resolveAttachment({...f.identity,ref:result.ref}),{id});
+ }
+ const oversized=fixture(Buffer.alloc(20*1024*1024+1),{uploadId:'too-large'});Object.assign(oversized.begin,{fileName:'large.txt',mime:'text/plain'});
+ await assert.rejects(methods.attachmentBeginV4(oversized.begin),code('CODEX_ATTACHMENT_INVALID_INPUT'));
+ const invalid=fixture(Buffer.from('binary'),{uploadId:'executable'});Object.assign(invalid.begin,{fileName:'app.exe',mime:'application/octet-stream'});
+ await assert.rejects(methods.attachmentBeginV4(invalid.begin),code('CODEX_ATTACHMENT_INVALID_INPUT'));
+});
+
 test('original 384 KiB protocol, canonical native ref, and idempotent Begin/Commit', async t => {
   const {methods, calls, scopes} = harness(t), f = fixture();
   assert.deepEqual(Object.keys(methods), ['attachmentBeginV4', 'attachmentChunkV4', 'attachmentCommitV4', 'attachmentAbortV4']);

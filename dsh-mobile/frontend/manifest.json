@@ -1,0 +1,396 @@
+{
+  "mode": "pinned",
+  "capturedAt": "2026-11-06T12:09:40.490Z",
+  "release": {
+    "version": "0.2.2-rc.1",
+    "commit": "c59d10a"
+  },
+  "autoUpdate": false,
+  "resources": {
+    "/plugins/??@deepseek-ai/dsh-api-gateway/client.js&rev=50a771bd2d73": {
+      "file": "bundles/3204e21629175db87fe0a50212e71e23a62e70208843bb5ffe719ac3ee717b6d.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "3204e21629175db87fe0a50212e71e23a62e70208843bb5ffe719ac3ee717b6d"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-file-actions/client.js&rev=b69a0f273a10": {
+      "file": "bundles/30af5d969f1450929f95288ee2782f66627bc77ca2b8fc0d3aa2f3cc391db2c1.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "30af5d969f1450929f95288ee2782f66627bc77ca2b8fc0d3aa2f3cc391db2c1"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-context-menu/client.js&rev=34f9a1706d0a": {
+      "file": "bundles/e3a7afd4d288af9ee38cd452a61d598d99d097821f85b8e7204c544b0654f569.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "e3a7afd4d288af9ee38cd452a61d598d99d097821f85b8e7204c544b0654f569"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-open-in-app/client.js&rev=7eeaf6cfc40d": {
+      "file": "bundles/679a7e18b8d2640ac6bbb4943233e678802ea22a3574f0d6f5ffff6a61d13165.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "679a7e18b8d2640ac6bbb4943233e678802ea22a3574f0d6f5ffff6a61d13165"
+    },
+    "/plugins/??@deepseek-ai/dsh-api-job-controller/client.js&rev=fcd88cfac2ed": {
+      "file": "bundles/3987667cc4630a3791a9687b342f26cedf8769f73b90ea7081339784192650a7.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "3987667cc4630a3791a9687b342f26cedf8769f73b90ea7081339784192650a7"
+    },
+    "/plugins/??@deepseek-ai/dsh-api-terminal-controller/client.js&rev=d50f03fb5328": {
+      "file": "bundles/fc38ac1a027d6a2f5286b764f674c155ac43b05e35e3b78ff838df1491467fea.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "fc38ac1a027d6a2f5286b764f674c155ac43b05e35e3b78ff838df1491467fea"
+    },
+    "/plugins/??@deepseek-ai/dsh-api-workspace-files/client.js&rev=052eb1e36dca": {
+      "file": "bundles/71bf32dbb0b79f326a5dbde0f2fe179d83187bf78c9932f4ac42a31619136dc7.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "71bf32dbb0b79f326a5dbde0f2fe179d83187bf78c9932f4ac42a31619136dc7"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-account/client.js&rev=dda4ac3a8027": {
+      "file": "bundles/ef7f28a62ea7bd127fb114969c86b22e6ae5d3fdc72ec5dbf62720c844566f37.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "ef7f28a62ea7bd127fb114969c86b22e6ae5d3fdc72ec5dbf62720c844566f37"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-modules/client.js&rev=f7d612ae8cf3": {
+      "file": "bundles/2d8eecc9f1a0ff055c7017c4617765aaa754a8ef787fcc0417740b871c378d5b.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "2d8eecc9f1a0ff055c7017c4617765aaa754a8ef787fcc0417740b871c378d5b"
+    },
+    "/plugins/??@deepseek-ai/dsh-cordis-client-runner/client.js&rev=047f05f87f50": {
+      "file": "bundles/8b731907e157da45722ae735b6e35a32c1c3c6eafc13669dc98bbd19196738d3.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "8b731907e157da45722ae735b6e35a32c1c3c6eafc13669dc98bbd19196738d3"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-theme/client.js&rev=790b9bda0722": {
+      "file": "bundles/5b4278266a7e6bf17daa2bb3f6567e3dd3fe7e1ce6e959e236948ff5dabc4c96.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "5b4278266a7e6bf17daa2bb3f6567e3dd3fe7e1ce6e959e236948ff5dabc4c96"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-locale/client.js&rev=e4e6ebfa9291": {
+      "file": "bundles/46f01dbb5cf650a94cfaa725647b0c45d28d6b287e51d0532b805f68f1feebb4.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "46f01dbb5cf650a94cfaa725647b0c45d28d6b287e51d0532b805f68f1feebb4"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-shortcuts/client.js&rev=0f16f7625acd": {
+      "file": "bundles/413e284aa11a210a0ac57475793b6e0011702bad7b6a14124181f71e7f6821f8.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "413e284aa11a210a0ac57475793b6e0011702bad7b6a14124181f71e7f6821f8"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-shortcuts/client.js&rev=49bce4d15a4c": {
+      "file": "bundles/2a9a4108e1e0679316eed1bdf9828536f90e887a155ddadb19a50579ff8ef5fb.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "2a9a4108e1e0679316eed1bdf9828536f90e887a155ddadb19a50579ff8ef5fb"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-layout/client.js&rev=568efbfc476d": {
+      "file": "bundles/bb3a0fe6782567806e9e953744b1f0846b8217ed73be545035d58824be6d4ceb.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "bb3a0fe6782567806e9e953744b1f0846b8217ed73be545035d58824be6d4ceb"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-renderer/client.js&rev=8167c1dc4319": {
+      "file": "bundles/7701f3502cc4af788364cbc66cee43312eeb727e0c91bfd840b4ecc3d654a5f8.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "7701f3502cc4af788364cbc66cee43312eeb727e0c91bfd840b4ecc3d654a5f8"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-session/client.js&rev=5d6d10a95a9b": {
+      "file": "bundles/d1e0e1c0ac6aaf8a5600b4487638f8c0e4d9749d4fc27772a87e0b175278abcd.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "d1e0e1c0ac6aaf8a5600b4487638f8c0e4d9749d4fc27772a87e0b175278abcd"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-resources/client.js&rev=3bbd34bfd4dc": {
+      "file": "bundles/a16a789963981aad7cfc3d285178b682160f4b864cb32f976a67bec2df72e11f.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "a16a789963981aad7cfc3d285178b682160f4b864cb32f976a67bec2df72e11f"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-sidebar/client.js&rev=5a56987ab64e": {
+      "file": "bundles/a359246c185e0555e57c7451ed1c969e53fa2918cb6fb7071e087ebe594e5fef.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "a359246c185e0555e57c7451ed1c969e53fa2918cb6fb7071e087ebe594e5fef"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-sidebar-right/client.js&rev=5b282505e0e6": {
+      "file": "bundles/b0095146b28d6203ef4d31d75ba87a331f5c1e853976d49015bfff8762a4cf30.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "b0095146b28d6203ef4d31d75ba87a331f5c1e853976d49015bfff8762a4cf30"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client.js&rev=4a265491ea06": {
+      "file": "bundles/8398231cdc7fb51c8d8a6f4401ff221bbcfc86998e70a65a521ecac1a5c3180e.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "8398231cdc7fb51c8d8a6f4401ff221bbcfc86998e70a65a521ecac1a5c3180e"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-sidebar-browser/client.js&rev=c3eeb2e3a912": {
+      "file": "bundles/13c3881797a5eddff21f5d40cde3b6447a9b67adb37c50c3afda08f5d9431e64.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "13c3881797a5eddff21f5d40cde3b6447a9b67adb37c50c3afda08f5d9431e64"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-sidebar-terminal/client.js&rev=4a27ee5e8aef": {
+      "file": "bundles/0b00122b2a555469631c03003a44e4a0e547dedfc7f37e23056da69f7c2c01a2.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "0b00122b2a555469631c03003a44e4a0e547dedfc7f37e23056da69f7c2c01a2"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-sidebar-files/client.js&rev=489258b69173": {
+      "file": "bundles/09a69f4a0d4f2b41c746ee0214cca01e1b100c7a01ae03d354f052bf3fa846bf.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "09a69f4a0d4f2b41c746ee0214cca01e1b100c7a01ae03d354f052bf3fa846bf"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings/client.js&rev=a425d3e51d00": {
+      "file": "bundles/7a81351904703f5944c61fe022d0c08393fa3ac05ccd1caa1dcf657c243d8643.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "7a81351904703f5944c61fe022d0c08393fa3ac05ccd1caa1dcf657c243d8643"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-general/client.js&rev=0acb17a712db": {
+      "file": "bundles/3bcaedb5ecb5a477ff2a7d25f4a013aff97a2f3b1ceec9024f74fad66cfdf505.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "3bcaedb5ecb5a477ff2a7d25f4a013aff97a2f3b1ceec9024f74fad66cfdf505"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-models/client.js&rev=73ccec0fb051": {
+      "file": "bundles/e0b02b63fbea977c62fa95588402df089a64080c0b3d36b3fd5ffe199d662047.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "e0b02b63fbea977c62fa95588402df089a64080c0b3d36b3fd5ffe199d662047"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-plugin-manager/client.js&rev=1a4ed6dc031c": {
+      "file": "bundles/07835a6665bef617d84310b14499689758da9e77e3ff75251f1796b9d43822e0.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "07835a6665bef617d84310b14499689758da9e77e3ff75251f1796b9d43822e0"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-plugin-inventory/client.js&rev=f7bf7f86e054": {
+      "file": "bundles/7622e57bd188c5c5bee71daa8fed9d6f5866434097c2f7beb1801282b5788e05.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "7622e57bd188c5c5bee71daa8fed9d6f5866434097c2f7beb1801282b5788e05"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-conversation/client.js&rev=0e882af46f77": {
+      "file": "bundles/deabf8ae465a77ec622f6a3e82a56987620623bc6f26da9dcfbd61fbc689b739.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "deabf8ae465a77ec622f6a3e82a56987620623bc6f26da9dcfbd61fbc689b739"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-approval/client.js&rev=e4fb1c534501": {
+      "file": "bundles/d33177a507d4d20dde97a2d833c2dfd5771f282e0132b8d739f47fa155dded60.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "d33177a507d4d20dde97a2d833c2dfd5771f282e0132b8d739f47fa155dded60"
+    },
+    "/plugins/??@deepseek-ai/dsh-message-quotes/client.js&rev=b9059f2cb0e9": {
+      "file": "bundles/ef185adfb215d3fa5d59adbe726fcead3bd63d8db28250444782b83ab4a071b6.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "ef185adfb215d3fa5d59adbe726fcead3bd63d8db28250444782b83ab4a071b6"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-chat/client.js&rev=57207b54c082": {
+      "file": "bundles/b368a90ed07d85e1797a4bd0c79e83f07d1d1a45bc27f2cf934fe1e217603599.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "b368a90ed07d85e1797a4bd0c79e83f07d1d1a45bc27f2cf934fe1e217603599"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-brand-official/client.js&rev=9503169c1a08": {
+      "file": "bundles/57abec5a670cc7cc6c07fc4f4b6c534d5ea24033fdafe380bd8d53dfafba84ac.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "57abec5a670cc7cc6c07fc4f4b6c534d5ea24033fdafe380bd8d53dfafba84ac"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-attachment/client.js&rev=517121a51b0f": {
+      "file": "bundles/a5e59cde2c944c8f30a645c2b7968e02f5655747929b0e9c2de90d1fd3c4fbbf.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "a5e59cde2c944c8f30a645c2b7968e02f5655747929b0e9c2de90d1fd3c4fbbf"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-file-drag/client.js&rev=26a70521098e": {
+      "file": "bundles/650bcaec31ab935f4221d4db2037de19eaf3cbdcdfe4b3d5998261551b210329.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "650bcaec31ab935f4221d4db2037de19eaf3cbdcdfe4b3d5998261551b210329"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-tool/client.js&rev=e3995ed39e75": {
+      "file": "bundles/64dfe6389e4e279844f97c72e6fde01f7cd85a98bdf7bd9909271c052e965293.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "64dfe6389e4e279844f97c72e6fde01f7cd85a98bdf7bd9909271c052e965293"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-cordis/client.js&rev=eb33372aadd7": {
+      "file": "bundles/c82cc16e3497a6aeff96804bd7d43786bba270ec2573d47679d85c29abf83af1.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "c82cc16e3497a6aeff96804bd7d43786bba270ec2573d47679d85c29abf83af1"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-workspace/client.js&rev=52f4e0507845": {
+      "file": "bundles/23a780e29dfe9ddcd44294f46e9519dbbc43a3c06a91c74bc796ab9c05e0b54f.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "23a780e29dfe9ddcd44294f46e9519dbbc43a3c06a91c74bc796ab9c05e0b54f"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-workflow-run/client.js&rev=56dafad12aed": {
+      "file": "bundles/6e6bdc2f12ea93a711ba03db3fe66c469c9be8a0d9f4b43c4ef95b2e992d5aba.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "6e6bdc2f12ea93a711ba03db3fe66c469c9be8a0d9f4b43c4ef95b2e992d5aba"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-input-trigger/client.js&rev=088464ca4dd3": {
+      "file": "bundles/38c2162f5a8c608b5bde89fef1524174d0a35f305914b6dd867604fecf60be1c.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "38c2162f5a8c608b5bde89fef1524174d0a35f305914b6dd867604fecf60be1c"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-commands/client.js&rev=f6969128e4b3": {
+      "file": "bundles/dd3b853f767dc0aa5727c3ed42a12e7fa9f22d47c0004a47e30f551254c08458.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "dd3b853f767dc0aa5727c3ed42a12e7fa9f22d47c0004a47e30f551254c08458"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-skill/client.js&rev=be368c8d7e5a": {
+      "file": "bundles/ebb860e0873a5a74d246fdf1ca36cb7c3ac1cd5ff657a4e4bdc79426d16c8476.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "ebb860e0873a5a74d246fdf1ca36cb7c3ac1cd5ff657a4e4bdc79426d16c8476"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-subagent/client.js&rev=7d5c3fc48c99": {
+      "file": "bundles/80432abc3761e99f66898333ef7b3a8f3e66b0efed24b5fa6286c8402ff07372.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "80432abc3761e99f66898333ef7b3a8f3e66b0efed24b5fa6286c8402ff07372"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-reference/client.js&rev=a0b808dd8f83": {
+      "file": "bundles/7a4c2ce43d1976bc8c898a05ea0b08b529fa1e138efd0ec77aa4a0549cb8a9ae.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "7a4c2ce43d1976bc8c898a05ea0b08b529fa1e138efd0ec77aa4a0549cb8a9ae"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-secret-mask/client.js&rev=c0ca4c3c6bdb": {
+      "file": "bundles/56431b9aa0178a4a377d04bae111ef87b5975df9e08642b9b24932ef9e403efe.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "56431b9aa0178a4a377d04bae111ef87b5975df9e08642b9b24932ef9e403efe"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-jobs/client.js&rev=a3398336813c": {
+      "file": "bundles/df734935deabc301d3015960c471822cabd8734fe450259a9de2ba5fc752aaf1.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "df734935deabc301d3015960c471822cabd8734fe450259a9de2ba5fc752aaf1"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-schedule/client.js&rev=263a9d39a848": {
+      "file": "bundles/4ad5f0479011751c82f44878c7636c6844d3be9b02cf336338014728007c47c5.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "4ad5f0479011751c82f44878c7636c6844d3be9b02cf336338014728007c47c5"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-goal/client.js&rev=49eb30b4da9d": {
+      "file": "bundles/f6fa850d03476bfb1921a5ec2c4590fd1d58f5e3572e4f77a52e2a59528375eb.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "f6fa850d03476bfb1921a5ec2c4590fd1d58f5e3572e4f77a52e2a59528375eb"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-message-feedback/client.js&rev=af4d6a80d2b6": {
+      "file": "bundles/871beda72c84521703a0b57e6b5ab94d2817ab24dabe2dea8eb21c475181d4d9.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "871beda72c84521703a0b57e6b5ab94d2817ab24dabe2dea8eb21c475181d4d9"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-model-selection/client.js&rev=531ab8c8159d": {
+      "file": "bundles/16aec05d5be4168d9b75492e4f80ab5ff618b20cbde71100f91a4d0c5a2d34f6.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "16aec05d5be4168d9b75492e4f80ab5ff618b20cbde71100f91a4d0c5a2d34f6"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-permission-presets/client.js&rev=376eb3f002c4": {
+      "file": "bundles/d26220c8c1dd1e728470870f6fc8eb5dfd20d3ac6f7bb85d188d995b902dbac7.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "d26220c8c1dd1e728470870f6fc8eb5dfd20d3ac6f7bb85d188d995b902dbac7"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-agent-preset/client.js&rev=d0a1cf105daf": {
+      "file": "bundles/33df00f066245fe2406cfd697201e8d0be6efea619a9788481e4560699af9b83.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "33df00f066245fe2406cfd697201e8d0be6efea619a9788481e4560699af9b83"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-entry-customization/client.js&rev=6a6c37dd24f0": {
+      "file": "bundles/44e9f505eb1b760fdc75d9eba49fe314ac8ba9bb8847edca56e27d2a3b8bfa1d.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "44e9f505eb1b760fdc75d9eba49fe314ac8ba9bb8847edca56e27d2a3b8bfa1d"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-session-log/client.js&rev=ec37ede45b34": {
+      "file": "bundles/c9df11945b8f496632a2340bac2d0738a90f5c840e315d0a65b96a0b7f253149.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "c9df11945b8f496632a2340bac2d0738a90f5c840e315d0a65b96a0b7f253149"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-plugins/client.js&rev=794226e7059a": {
+      "file": "bundles/8f751dcb244a1af83169b8ed7a524ef0367fdcda6b60e1981135d59b64d49b33.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "8f751dcb244a1af83169b8ed7a524ef0367fdcda6b60e1981135d59b64d49b33"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-shell/client.js&rev=1e612187f5cc": {
+      "file": "bundles/a26faf1388ebeeee00b8352fa0c4d314ab909de0f856740f095ee641c85a2d45.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "a26faf1388ebeeee00b8352fa0c4d314ab909de0f856740f095ee641c85a2d45"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-agent-loop/client.js&rev=7b8bc7abb2ee": {
+      "file": "bundles/3a6e675b0cff1da0aacc52cd21c9b70b88af2a555d58172715595ab8a3255422.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "3a6e675b0cff1da0aacc52cd21c9b70b88af2a555d58172715595ab8a3255422"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-subagent/client.js&rev=1e65791ff023": {
+      "file": "bundles/1c45c9cb918d6a72aa465bc7d6dd3cee3a1884eec9950559c6961fea0513f385.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "1c45c9cb918d6a72aa465bc7d6dd3cee3a1884eec9950559c6961fea0513f385"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-settings-web-search/client.js&rev=b78bdef69328": {
+      "file": "bundles/5033b8197fce1ac134d03370dab499dd017e51fdf429722c2ffd8400d8ce8d8f.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "5033b8197fce1ac134d03370dab499dd017e51fdf429722c2ffd8400d8ce8d8f"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-plan/client.js&rev=404d32f51190": {
+      "file": "bundles/17fa3b34c82ba15291afb114a4b42ab09d82daebb9c0cd9788bbdb5d6c9681af.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "17fa3b34c82ba15291afb114a4b42ab09d82daebb9c0cd9788bbdb5d6c9681af"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-user-questions/client.js&rev=466f574b0d35": {
+      "file": "bundles/e487af5db3e6889408543fa16752fe6591c1054ec1e058b82073a944b7630834.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "e487af5db3e6889408543fa16752fe6591c1054ec1e058b82073a944b7630834"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-trajectory/client.js&rev=1ae1ecf4399e": {
+      "file": "bundles/df14f21ff0439e2f2b01f8d9bed689835d3b977dbaf99d6477995a0eabced53c.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "df14f21ff0439e2f2b01f8d9bed689835d3b977dbaf99d6477995a0eabced53c"
+    },
+    "/plugins/??@deepseek-ai/dsh-api-remote-access/client.js&rev=2898fc53dfa0": {
+      "file": "bundles/e91b82094d84141bf68bc7d5fd9f8bf9df522bc09bd49ebaae229765b97b8a7e.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "e91b82094d84141bf68bc7d5fd9f8bf9df522bc09bd49ebaae229765b97b8a7e"
+    },
+    "/plugins/??@deepseek-ai/dsh-session-log-export/client.js&rev=84432fd95a38": {
+      "file": "bundles/e7e6cac320ff580f766e02890c878e28622639cb256e88fdbe93340ac434d2eb.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "e7e6cac320ff580f766e02890c878e28622639cb256e88fdbe93340ac434d2eb"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-file-upload/client.js&rev=57037b2d152d": {
+      "file": "bundles/9045cf50f35148dc9547064a7510d4ed7e2f903d5971e57e21759b31bdf6c258.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "9045cf50f35148dc9547064a7510d4ed7e2f903d5971e57e21759b31bdf6c258"
+    },
+    "/plugins/??@deepseek-ai/dsh-api-remotes/client.js&rev=6b47bc84b05a": {
+      "file": "bundles/d85a67a03d877e3cb6166563f17fe1c45c37475fdf5bbf8106cac6d0b53600e3.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "d85a67a03d877e3cb6166563f17fe1c45c37475fdf5bbf8106cac6d0b53600e3"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-deliverables/client.js&rev=9e445abf5bde": {
+      "file": "bundles/3f0b1c13cef0e1585114114dffc4f4a33ddbbd5b723a41893086b499d7c271c7.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "3f0b1c13cef0e1585114114dffc4f4a33ddbbd5b723a41893086b499d7c271c7"
+    },
+    "/plugins/??@deepseek-ai/dsh-typert-registry/client.js&rev=e66074d57b7c": {
+      "file": "bundles/48a6da9e9018908b36c53a1fbce0506e3860c6680ef612ba81a131d9ed2dd8e0.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "48a6da9e9018908b36c53a1fbce0506e3860c6680ef612ba81a131d9ed2dd8e0"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-product-analytics/client.js&rev=90e202d8a6d5": {
+      "file": "bundles/322302c441b4cebe7827c24fc6a72ec75b42824538e9b7300b3a34ef8da7da0a.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "322302c441b4cebe7827c24fc6a72ec75b42824538e9b7300b3a34ef8da7da0a"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-connection/client.js&rev=210e22f7904e": {
+      "file": "bundles/e923122bd4992cc7cbb17bf6925255371a84fd6a4622f06cff013db7020e474e.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "e923122bd4992cc7cbb17bf6925255371a84fd6a4622f06cff013db7020e474e"
+    },
+    "/plugins/??@deepseek-ai/dsh-api-session-controller/client.js&rev=e4ca6fc52a55": {
+      "file": "bundles/2551db3e39cb2c44c21df9fe39b9bb53e609f89b6f8254216e8fdca283cfb89d.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "2551db3e39cb2c44c21df9fe39b9bb53e609f89b6f8254216e8fdca283cfb89d"
+    },
+    "/plugins/??@deepseek-ai/dsh-api-workspace-controller/client.js&rev=e1cd12a3568d": {
+      "file": "bundles/2cf91820da95a04797a666b93cf9ef75d8d09fb987de8eeaa5c2b08dee2ffde0.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "2cf91820da95a04797a666b93cf9ef75d8d09fb987de8eeaa5c2b08dee2ffde0"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-ui-directory-picker-native/client.js&rev=6cc0c7b679fc": {
+      "file": "bundles/7f8b0747f348dee67c55ad291a8970acec56057de8d588dc3ffaab8bd2441517.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "7f8b0747f348dee67c55ad291a8970acec56057de8d588dc3ffaab8bd2441517"
+    },
+    "/plugins/??@deepseek-ai/dsh-client-modules/client.js&rev=e2da13e90c5b": {
+      "file": "bundles/cd2c4ec6dd9a93dc13fa4ca29c544a44561afa0314ab14b8d78605a36e896f0e.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "cd2c4ec6dd9a93dc13fa4ca29c544a44561afa0314ab14b8d78605a36e896f0e"
+    },
+    "/plugins/??@deepseek-ai/dsh-api-gateway/client.js,@deepseek-ai/dsh-client-ui-file-actions/client.js,@deepseek-ai/dsh-client-ui-context-menu/client.js,@deepseek-ai/dsh-client-ui-open-in-app/client.js,@deepseek-ai/dsh-api-job-controller/client.js,@deepseek-ai/dsh-api-terminal-controller/client.js,@deepseek-ai/dsh-api-workspace-files/client.js,@deepseek-ai/dsh-client-ui-settings-account/client.js,@deepseek-ai/dsh-client-hmr/client.js,@deepseek-ai/dsh-cordis-client-runner/client.js,@deepseek-ai/dsh-client-ui-theme/client.js,@deepseek-ai/dsh-client-locale/client.js,@deepseek-ai/dsh-client-shortcuts/client.js,@deepseek-ai/dsh-client-ui-shortcuts/client.js,@deepseek-ai/dsh-client-ui-layout/client.js,@deepseek-ai/dsh-client-ui-renderer/client.js,@deepseek-ai/dsh-client-ui-session/client.js,@deepseek-ai/dsh-client-resources/client.js,@deepseek-ai/dsh-client-ui-sidebar/client.js,@deepseek-ai/dsh-client-ui-sidebar-right/client.js,@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client.js,@deepseek-ai/dsh-client-ui-sidebar-browser/client.js,@deepseek-ai/dsh-client-ui-sidebar-terminal/client.js,@deepseek-ai/dsh-client-ui-sidebar-files/client.js,@deepseek-ai/dsh-client-ui-settings/client.js,@deepseek-ai/dsh-client-ui-settings-general/client.js,@deepseek-ai/dsh-client-ui-settings-models/client.js,@deepseek-ai/dsh-client-ui-plugin-manager/client.js,@deepseek-ai/dsh-client-ui-settings-plugin-inventory/client.js,@deepseek-ai/dsh-client-ui-conversation/client.js,@deepseek-ai/dsh-client-ui-approval/client.js,@deepseek-ai/dsh-message-quotes/client.js,@deepseek-ai/dsh-client-ui-chat/client.js,@deepseek-ai/dsh-client-ui-brand-official/client.js,@deepseek-ai/dsh-client-ui-attachment/client.js,@deepseek-ai/dsh-client-ui-file-drag/client.js,@deepseek-ai/dsh-client-ui-tool/client.js,@deepseek-ai/dsh-client-ui-cordis/client.js,@deepseek-ai/dsh-client-ui-workspace/client.js,@deepseek-ai/dsh-client-ui-workflow-run/client.js,@deepseek-ai/dsh-client-ui-input-trigger/client.js,@deepseek-ai/dsh-client-ui-commands/client.js,@deepseek-ai/dsh-client-ui-skill/client.js,@deepseek-ai/dsh-client-ui-subagent/client.js,@deepseek-ai/dsh-client-ui-reference/client.js,@deepseek-ai/dsh-client-ui-secret-mask/client.js,@deepseek-ai/dsh-client-ui-jobs/client.js,@deepseek-ai/dsh-client-ui-schedule/client.js,@deepseek-ai/dsh-client-ui-goal/client.js,@deepseek-ai/dsh-client-ui-message-feedback/client.js,@deepseek-ai/dsh-client-ui-model-selection/client.js,@deepseek-ai/dsh-client-ui-permission-presets/client.js,@deepseek-ai/dsh-client-ui-agent-preset/client.js,@deepseek-ai/dsh-client-ui-entry-customization/client.js,@deepseek-ai/dsh-client-ui-settings-session-log/client.js,@deepseek-ai/dsh-client-ui-settings-plugins/client.js,@deepseek-ai/dsh-client-ui-settings-shell/client.js&rev=3c5852135218": {
+      "file": "bundles/2d89b2d303a32133943f45fec2dac1850a87b8d6c8e046fc17dede99fb1bff81.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "2d89b2d303a32133943f45fec2dac1850a87b8d6c8e046fc17dede99fb1bff81"
+    },
+    "/plugins/@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client.pdf.js?rev=e25cd2dda8f5a90d": {
+      "file": "bundles/4999b2541e43e0d71c6affd28bb60969f7a06dc2e45f78ed9d2010ae86f3ccec.js",
+      "type": "text/javascript; charset=utf-8",
+      "sha256": "4999b2541e43e0d71c6affd28bb60969f7a06dc2e45f78ed9d2010ae86f3ccec"
+    }
+  }
+}
