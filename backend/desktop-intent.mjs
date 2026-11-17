@@ -30,6 +30,22 @@ export async function ensureDesktopOwner(threadId,{isOwned,isStale,owner,attach}
     throw Object.assign(new Error('Codex 桌面尚未接管这条会话，请重试连接原会话后再操作'),{threadId,persisted:true,writerReleased:true,needsAttach:true,recoverable:true,cause});
   }
 }
+// Operation admission needs a fresh, validated Desktop state, not merely a live
+// IPC socket or a successful owner lookup. Preserve protocol errors all the way
+// to the phone instead of turning an incompatible Desktop update into a timeout.
+export async function desktopSnapshotForOperation(snapshot, {attempts = 2} = {}) {
+  let cause;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try { const state = await snapshot(); if (state) return state; }
+    catch (error) {
+      cause = error;
+      if (['DESKTOP_PROTOCOL_UNSUPPORTED', 'DESKTOP_STATE_INVALID'].includes(error.code)) {
+        throw Object.assign(new Error(error.message), {code:error.code, statusCode:503, sent:false, cause:error});
+      }
+    }
+  }
+  throw Object.assign(new Error('电脑端会话状态尚未同步，本次消息尚未发送；请重新连接后重试'), {code:'DESKTOP_STATE_UNAVAILABLE', statusCode:503, sent:false, cause});
+}
 async function openDesktopThread(threadId) {
   if (process.platform !== 'darwin') throw new Error('当前系统暂不支持 Codex 桌面会话交接');
   await execute('/usr/bin/open', [desktopThreadUrl(threadId)], {timeout:10000});

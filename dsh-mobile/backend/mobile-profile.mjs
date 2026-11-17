@@ -1,7 +1,12 @@
 import { patchImagePreviewTouch } from './image-preview-touch.mjs';
 import { patchSinglePreviewPane } from './preview-single-pane.mjs';
 import { patchPdfCompatibility } from './pdf-compat.mjs';
-import { patchWorkspaceRestoration, patchConversationRestoration } from './session-restore.mjs';
+import { patchWorkspaceRestoration, patchConversationRestoration, patchChatReadiness } from './session-restore.mjs';
+import { patchConversationReloadSafety } from './reload-safety.mjs';
+import { patchWorkspaceDraftNavigation } from './draft-navigation.mjs';
+import { patchMobileComposerActions } from './composer-actions.mjs';
+import { patchMobileHistoryWindow } from './history-window.mjs';
+import { patchInitialReadableWindow } from './initial-readable-window.mjs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -37,8 +42,10 @@ export async function buildMobileProfile(root, source, manifest) {
     let body = await readFile(resolve(root, record.file));
     const patch = entry.id === '@deepseek-ai/dsh-client-ui-sidebar-documentpreview' ? patchImagePreviewTouch
       : entry.id === '@deepseek-ai/dsh-client-ui-sidebar-right' ? patchSinglePreviewPane
-      : entry.id === '@deepseek-ai/dsh-client-ui-workspace' ? patchWorkspaceRestoration
-      : entry.id === '@deepseek-ai/dsh-client-ui-conversation' ? patchConversationRestoration : null;
+      : entry.id === '@deepseek-ai/dsh-client-ui-workspace' ? source => patchWorkspaceDraftNavigation(patchWorkspaceRestoration(source))
+      : entry.id === '@deepseek-ai/dsh-client-ui-conversation' ? source => patchMobileComposerActions(patchConversationReloadSafety(patchConversationRestoration(source)))
+      : entry.id === '@deepseek-ai/dsh-client-ui-chat' ? source => patchInitialReadableWindow(patchChatReadiness(source))
+      : entry.id === '@deepseek-ai/dsh-api-session-controller' ? patchMobileHistoryWindow : null;
     if (patch) {
       body = Buffer.from(patch(body.toString()));
       if (entry.id === '@deepseek-ai/dsh-client-ui-sidebar-documentpreview') {

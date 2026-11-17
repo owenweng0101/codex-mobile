@@ -53,7 +53,13 @@ html[data-codex-mobile="true"]:is(.dark,.theme-zai-dark,.zai-dark) {
   color-scheme:dark;
 }
 html[data-codex-mobile="true"] body {background:var(--cm-canvas);font-family:inherit}
-html[data-codex-mobile="true"],html[data-codex-mobile="true"] body {overflow-x:clip}
+/* The mobile shell owns the only scrollport. Locking the root keeps the iOS
+ * rubber-band from dragging the whole page and leaves the conversation timeline
+ * as the single scroller; the ingress-injected sheet makes this unconditional. */
+html[data-codex-mobile="true"],html[data-codex-mobile="true"] body {position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overflow-x:clip;overscroll-behavior:none}
+/* Older history loads into the same scroller. Keep it sized by the flex column
+ * and able to scroll even when an ancestor loses an explicit height. */
+html[data-codex-mobile="true"] [data-v4-timeline-scroll="true"] {min-height:0;max-height:100%;overflow-y:auto!important;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
 html[data-codex-mobile="true"] :is(button,[role="button"],[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"]) {touch-action:manipulation}
 html[data-codex-mobile="true"] :is(button,[tabindex]):focus-visible {outline:2px solid var(--cm-muted);outline-offset:3px}
 html[data-codex-mobile="true"] :is(button,[role="button"]):active:not(:disabled) {opacity:.7}

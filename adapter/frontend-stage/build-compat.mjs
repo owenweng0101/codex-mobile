@@ -95,6 +95,8 @@ patch('codex-wordmark',section('function fNt({className:e}){','function kz(e){')
 const literals=[...new Set([...compat.matchAll(/`(?:\\.|[^`\\])*`/g)].map(match=>match[0]).filter(value=>/\bZCode\b/.test(value)))];
 for(const [index,literal] of literals.entries())patch('shell-brand-literal-'+index,literal,literal.replace(/\bZCode\b/g,'Codex'),compat.split(literal).length-1);
 patch('codex-logo-identifier','"data-app-logo":`zcode`','"data-app-logo":`codex`');
+// Reviewed patches carry behavior the phone needs on top of the original app,
+// including the 10 MB text/code preview window (upstream asks for 256 KB).
 for(const item of JSON.parse(await readFile(new URL('./reviewed-compat-patches.json',import.meta.url),'utf8')))patch(item.name,item.needle,item.replacement,item.count);
 await mkdir(new URL('./assets/',import.meta.url),{recursive:true});
 await writeFile(new URL('./assets/index-BsmXQHMM.js',import.meta.url),compat);
@@ -104,8 +106,14 @@ const intl=await readFile(new URL('../../vendor/zcode-web/remote/v4/3.16.3/asset
 const intlNeedle='export{p as a';
 if(intl.split(intlNeedle).length!==2)throw Error('Original locale export changed');
 const intlBranding=`for(const messages of Object.values(_)){for(const [key,value] of Object.entries(messages))if(typeof value==="string")messages[key]=value.replace(/\\bZCode\\b/gi,"Codex");const locale=messages===_["zh-CN"]?"zh-CN":"en-US";for(const key of ["chat.placeholder.newTask","chat.placeholder.newTaskMobile"])messages[key]=locale==="zh-CN"?"向 Codex 发送消息":"Send a message to Codex";}export{p as a`;
-const intlCompat=intl.replace(intlNeedle,intlBranding);
+// The phone previews text up to 10 MB, so the copy names that window instead
+// of the original 256 KB code-viewer ceiling.
+// The phone previews text up to 10 MB, so the copy names that window instead
+// of the original 256 KB code-viewer ceiling.
+const localeTextReplacements=[{needle:'256 KB',replacement:'10 MB'}];
+let intlCompat=intl.replace(intlNeedle,intlBranding);
+for(const {needle,replacement} of localeTextReplacements)intlCompat=intlCompat.split(needle).join(replacement);
 await writeFile(new URL('./assets/IntlProvider-itolvRb2.js',import.meta.url),intlCompat);
 const hash=value=>createHash('sha256').update(value).digest('hex');
-await writeFile(new URL('./bundle-patch-manifest.json',import.meta.url),JSON.stringify({baselineSHA256:hash(baseline),compatSHA256:hash(compat),exactReplacementCount:patches.length,patches,localePatch:{sourceSHA256:hash(intl),compatSHA256:hash(intlCompat),needle:intlNeedle,replacement:intlBranding},originalEntryFunctionRetained:true,autoOriginalEntryDisabled:true,uiFunctionsModified:['jE','PHt','DEt','LAt','m3t','SQt','$3t','dNt','fNt'],canonicalURL:'/remote/v4/3.16.3/assets/index-BsmXQHMM.js',reason:'Authenticated original UI with native model defaults, lazy create on first send, Codex branding, and no unrelated account/settings entry.'},null,2));
+await writeFile(new URL('./bundle-patch-manifest.json',import.meta.url),JSON.stringify({baselineSHA256:hash(baseline),compatSHA256:hash(compat),exactReplacementCount:patches.length,patches,localePatch:{sourceSHA256:hash(intl),compatSHA256:hash(intlCompat),needle:intlNeedle,replacement:intlBranding,textReplacements:localeTextReplacements},originalEntryFunctionRetained:true,autoOriginalEntryDisabled:true,uiFunctionsModified:['jE','PHt','DEt','LAt','m3t','SQt','$3t','dNt','fNt'],canonicalURL:'/remote/v4/3.16.3/assets/index-BsmXQHMM.js',reason:'Authenticated original UI with native model defaults, lazy create on first send, Codex branding, and no unrelated account/settings entry.'},null,2));
 console.log(JSON.stringify({baselineSHA256:hash(baseline),compatSHA256:hash(compat),patchCount:patches.length}));

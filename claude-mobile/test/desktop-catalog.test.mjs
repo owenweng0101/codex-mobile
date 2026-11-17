@@ -24,10 +24,10 @@ test('all desktop rows survive without transcripts; title, membership and order 
 
 test('unread membership uses desktop IDs and never treats an idle live owner as unread',async()=>{
  const catalog=async()=>[{cliSessionId:id(1),sessionId:'desktop-1',lastAssistantUuid:'reply-1'},{cliSessionId:id(2),sessionId:'desktop-2',lastAssistantUuid:'reply-2'}];
- const running=async()=>new Map([[id(1),{status:'idle'}]]);
+ const running=async()=>new Map([[id(1),{status:'idle',hostSessionId:'desktop-1',pid:101}]]);
  const unread=async()=>({known:true,unreadIds:new Set(['desktop-2']),explicitUnreadIds:new Set()});
  const result=await listSessions({catalog,entries:async()=>[],running,unread});
- assert.equal(result[0].running,true);assert.equal(result[0].unread,false);
+ assert.equal(result[0].attached,true);assert.equal(result[0].running,false);assert.equal(result[0].runningState,'idle');assert.equal(result[0].unread,false);
  assert.equal(result[1].running,false);assert.equal(result[1].unread,true);
  assert.equal(result[1].unreadVersion,'reply-2:reply');
  const manual=await listSessions({catalog,entries:async()=>[],running,unread:async()=>({known:true,unreadIds:new Set(),explicitUnreadIds:new Set(['desktop-1'])})});

@@ -33,8 +33,8 @@ export async function readDesktopOwners(id,{directory=join(homedir(),'.claude/se
     if(!/^\d+\.json$/.test(name))continue;
     let value;try{value=JSON.parse(await readFile(join(directory,name),'utf8'));}catch(e){if(e.code==='ENOENT'||e instanceof SyntaxError)continue;throw e;}
     if(value.sessionId!==id)continue;
-    const {pid,sessionId,hostSessionId,entrypoint,status,cwd}=value;
-    owners.push({pid,sessionId,hostSessionId,entrypoint,status,cwd});
+    const {pid,sessionId,hostSessionId,entrypoint,status,cwd,waitingFor}=value;
+    owners.push({pid,sessionId,hostSessionId,entrypoint,status,cwd,waitingFor});
   }
   return owners;
 }
@@ -180,10 +180,11 @@ export class DesktopIntent{
   async owners(id){const value=await this.liveSession(id);return (Array.isArray(value)?value:value?[value]:[]).filter(v=>this.isPidAlive(v.pid));}
   async readState(id){
     id=validId(id);const meta=await this.metadata(id),owners=await this.owners(id);
+    if(owners.length>1)throw fail('DESKTOP_OWNER_AMBIGUOUS','同一会话出现多个活动写入者，不能自动接管',{sessionId:id,recoverable:true});
     const owner=meta?.cliSessionId===id&&typeof meta.sessionId==='string'
       ?owners.find(v=>v.sessionId===id&&nativeEntry.has(v.entrypoint)&&v.hostSessionId===meta.sessionId):null;
     const attached=!!owner,status=owner?.status??(owners.length?'foreign-writer':meta?'pendingDesktop':'detached');
-    return {desktopSessionId:meta?.cliSessionId===id?meta.sessionId:null,attached,running:attached&&status==='busy',status,canInterrupt:false,...desktopFields(meta?.cliSessionId===id?meta:null)};
+    return {desktopSessionId:meta?.cliSessionId===id?meta.sessionId:null,attached,nativePid:owner?.pid??null,running:attached&&status==='busy',status,waitingFor:owner?.waitingFor??null,canInterrupt:false,...desktopFields(meta?.cliSessionId===id?meta:null)};
   }
   async assertNoForeignWriter(id){
     const owners=await this.owners(id);
@@ -246,7 +247,7 @@ export class DesktopIntent{
     record.phase='titleWriterReleased';record.titleExit={code:exit.code,signal:exit.signal};await this.save(record);
   }
   async create(options){
-    const id=validId(options?.sessionId),{model,permissionMode='acceptEdits'}=options;
+    const id=validId(options?.sessionId),{model,permissionMode='bypassPermissions'}=options;
     const title=normalizeDesktopTitle(options.title);
     // /model receives one literal argument string, not shell code. Catalog
     // names include spaces and [1m]; forbid line/control/XML delimiter injection.

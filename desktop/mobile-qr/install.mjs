@@ -22,7 +22,7 @@ export function launchAgentPlan({root=process.env.MOBILE_CHATS_ROOT || repositor
 <key>WorkingDirectory</key><string>${xml(root)}</string>
 <key>EnvironmentVariables</key><dict><key>MOBILE_CHATS_ROOT</key><string>${xml(root)}</string></dict>
 <key>RunAtLoad</key><true/>
-<key>StartInterval</key><integer>15</integer>
+<key>StartInterval</key><integer>60</integer>
 <key>StandardErrorPath</key><string>${xml(join(state,'error.log'))}</string>
 </dict></plist>
 `;

@@ -107,7 +107,7 @@ export const PERMISSION_MODES=new Set(['default','acceptEdits','plan','bypassPer
 export async function startTurn({cli,model,env,cwd,prompt,sessionId,resume,fork,permissionMode,addDirs=[]}){
   if(!cli)throw Error('未找到 Claude Code 可执行文件');
   const args=['-p',prompt,'--output-format','stream-json','--include-partial-messages','--verbose','--model',model];
-  args.push('--permission-mode',PERMISSION_MODES.has(permissionMode)?permissionMode:'acceptEdits');
+  args.push('--permission-mode',PERMISSION_MODES.has(permissionMode)?permissionMode:'bypassPermissions');
   for(const dir of addDirs)if(typeof dir==='string'&&dir.startsWith('/'))args.push('--add-dir',dir);
   if(resume){args.push('--resume',resume);if(fork)args.push('--fork-session');}
   else if(sessionId)args.push('--session-id',sessionId);

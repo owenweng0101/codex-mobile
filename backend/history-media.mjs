@@ -46,6 +46,10 @@ function mediaUrl(reference) { return '/api/thread-media?' + new URLSearchParams
 // Offsets let the mobile adapter replace only the image, preserving the reply.
 export function assistantImageReferences(item) {
   if (item?.type !== 'agentMessage' || typeof item.text !== 'string') return [];
+  // Both inline and reference-style Markdown images require this literal opener.
+  // Most history rows contain no images: do not lex all their Markdown merely
+  // to establish that fact during a cold metadata/index scan.
+  if (!item.text.includes('![')) return [];
   const result=[];
   function visit(tokens, text, base=0, stripped=false, table=false) {
     let cursor=0;

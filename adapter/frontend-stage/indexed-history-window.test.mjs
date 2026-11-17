@@ -7,19 +7,47 @@ import {RolloutConversationIndex} from '../../backend/conversation-index.mjs';
 import {projectConversationRows} from '../../backend/conversation-rows.mjs';
 import {conversationFixture,fixtureId,fixtureThread,turnRecords} from '../../backend/test/conversation-fixture.mjs';
 const params={sessionId:fixtureId,workspacePath:fixtureThread.cwd};
-async function fixture(t){
- const f=await conversationFixture(t),index=new RolloutConversationIndex(),calls=[],frames=[],events=new Emitter();let gate=null;
- const api={async get(path,options){calls.push({path,signal:options?.signal});assert(path.startsWith('/api/history-window?'),'must never traverse the full body history API');const q=new URL(path,'http://local').searchParams;const page=await index.read(f.file,{threadId:fixtureId,thread:fixtureThread,limit:Number(q.get('limit')||60),beforeRowId:q.has('beforeRowId')?Number(q.get('beforeRowId')):undefined,fromRowId:q.has('fromRowId')?Number(q.get('fromRowId')):undefined,sourceEpoch:q.get('sourceEpoch')??undefined,metadataOnly:q.get('metadataOnly')==='1'});if(gate&&q.has('beforeRowId'))await gate;return{thread:fixtureThread,turns:page.lastTurn?[page.lastTurn]:[],...page};}};
- const service=createConversationReadServices({indexedHistory:true,api,baseServices:{project:{readTree:async()=>({tasks:[{taskId:fixtureId,workspacePath:fixtureThread.cwd}]})},'zcode-task':{onDynamicTaskEvent:()=>events.event}}});
+async function fixture(t,{initialHistoryRows=60,writable=false}={}){
+ const f=await conversationFixture(t),index=new RolloutConversationIndex(),calls=[],frames=[],events=new Emitter();let gate=null,metadata={};
+ const api={async get(path,options){calls.push({path,signal:options?.signal});assert(path.startsWith('/api/history-window?'),'must never traverse the full body history API');const q=new URL(path,'http://local').searchParams;const page=await index.read(f.file,{threadId:fixtureId,thread:fixtureThread,activeTurn:metadata.activeTurn||null,limit:Number(q.get('limit')||60),beforeRowId:q.has('beforeRowId')?Number(q.get('beforeRowId')):undefined,fromRowId:q.has('fromRowId')?Number(q.get('fromRowId')):undefined,sourceEpoch:q.get('sourceEpoch')??undefined,metadataOnly:q.get('metadataOnly')==='1',ifRevision:q.get('ifRevision')??undefined});calls.at(-1).diagnostics=page.diagnostics;calls.at(-1).notModified=page.notModified===true;if(gate&&q.has('beforeRowId'))await gate;return{thread:fixtureThread,turns:page.lastTurn?[page.lastTurn]:[],...page,...metadata};}};
+ const service=createConversationReadServices({indexedHistory:true,initialHistoryRows,writable,api,baseServices:{project:{readTree:async()=>({tasks:[{taskId:fixtureId,workspacePath:fixtureThread.cwd}]})},'zcode-task':{onDynamicTaskEvent:()=>events.event}}});
  const agent=service.channels['zcode-agent'],listener=agent.onDynamicConversationFrame(params)(frame=>frames.push(frame));t.after(()=>{listener.dispose();service.dispose();events.dispose();});
  const {ack}=await agent.subscribeConversationV4(params);
- return{...f,index,service,agent,ack,calls,frames,setGate(value){gate=value;}};
+ return{...f,index,service,agent,ack,calls,frames,setGate(value){gate=value;},setMetadata(value){metadata=value;}};
 }
 test('indexed subscribe reads one sixty-row body window and row ranges fetch older bodies only on demand',async t=>{
  const f=await fixture(t),snapshot=f.frames[0].frame.payload.snapshot,expected=projectConversationRows({thread:fixtureThread,turns:f.turns});
  assert.equal(f.calls.length,1);assert.equal(snapshot.rows.totalCount,120);assert.deepEqual(snapshot.rows.window,expected.slice(-60));
  const before=f.calls.length,older=await f.agent.conversationRowsRangeV4({...params,beforeRowId:61,limit:60});assert.equal(f.calls.length,before+1);assert.deepEqual(older.rows,expected.slice(0,60));assert.equal(older.hasMore,false);assert.equal(older.atLogEpoch,snapshot.logEpoch);
 });
+test('twenty-row startup requests fewer bodies but leaves default older paging at sixty',async t=>{
+ const f=await fixture(t,{initialHistoryRows:20}),snapshot=f.frames[0].frame.payload.snapshot;
+ assert.equal(new URL(f.calls[0].path,'http://fixture').searchParams.get('limit'),'20');assert.equal(snapshot.rows.window.length,20);assert.equal(snapshot.rows.totalCount,120);
+ const older=await f.agent.conversationRowsRangeV4({...params,beforeRowId:snapshot.rows.window[0].rowId});
+ assert.equal(older.rows.length,60);assert.equal(older.hasMore,true);assert.equal(new URL(f.calls.at(-1).path,'http://fixture').searchParams.get('limit'),'60');
+ await f.agent.resyncConversationV4({...params,subscriptionId:f.ack.subscriptionId});
+ assert.equal(f.calls.at(-1).notModified,true);assert.equal(f.calls.at(-1).diagnostics.bodyReadBytes,0);assert.equal(f.frames.at(-1).frame.payload.snapshot.rows.window.length,80);
+});
+test('conditional row reuse still publishes current queue, active work and connection metadata',async t=>{
+ const f=await fixture(t,{writable:true}),initial=f.frames[0].frame.payload.snapshot;
+ f.setMetadata({queue:{items:[{id:'queued-one',text:'queued',createdAt:1}]}});
+ await f.agent.resyncConversationV4({...params,subscriptionId:f.ack.subscriptionId});let current=f.frames.at(-1).frame.payload.snapshot;
+ assert.equal(f.calls.at(-1).notModified,true);assert.equal(current.queue.items.length,1);assert.equal(current.inputRouting.mode,'enqueue');assert(current.revision>initial.revision);
+ f.setMetadata({activeTurn:'turn-39',attached:true,desktopConnected:true});await f.agent.resyncConversationV4({...params,subscriptionId:f.ack.subscriptionId});current=f.frames.at(-1).frame.payload.snapshot;
+ assert.equal(f.calls.at(-1).notModified,false);assert.equal(current.control.canStop,true);
+ f.setMetadata({activeTurn:'turn-39',attached:true,desktopConnected:false});await f.agent.resyncConversationV4({...params,subscriptionId:f.ack.subscriptionId});current=f.frames.at(-1).frame.payload.snapshot;
+ assert.equal(f.calls.at(-1).notModified,true);assert.equal(current.control.canStop,false);assert.equal(current.rows.window.length,60);
+});
+
+test('unchanged retained history resync has zero body reads and keeps all loaded rows',async t=>{
+ const f=await fixture(t),initial=f.frames[0].frame.payload.snapshot;
+ await f.agent.conversationRowsRangeV4({...params,beforeRowId:61,limit:60});
+ await f.agent.resyncConversationV4({...params,subscriptionId:f.ack.subscriptionId});
+ const current=f.frames.at(-1).frame.payload.snapshot;
+ assert.equal(f.calls.at(-1).notModified,true);assert.equal(f.calls.at(-1).diagnostics.bodyReadBytes,0);
+ assert.equal(current.rows.window.length,120);assert.equal(current.logEpoch,initial.logEpoch);assert.deepEqual(current.rows.window,projectConversationRows({thread:fixtureThread,turns:f.turns}));
+});
+
 test('loading older rows does not change revision validity and resync retains the whole loaded window',async t=>{
  const f=await fixture(t),initial=f.frames[0].frame.payload.snapshot;
  await f.agent.conversationRowsRangeV4({...params,beforeRowId:61,limit:60});

@@ -29,13 +29,19 @@ test('blocked browser storage does not prevent navigation or corrupt stored host
  assert.equal(createMobilePageState({storage:broken,history:null}).page,'chat');
  assert.throws(()=>state.setPage('unsupported'),/Invalid mobile page/);assert.equal(state.page,'list');
 });
-test('the delivered shell restores its drawer before DOM ready and only explicit navigation persists',()=>{
+test('the delivered shell restores before DOM ready; only navigation and explicit refresh persist',()=>{
  const html=injectMobileShell('<html><head></head><body></body></html>');
  const script=html.match(/<script id="dshm-mobile-shell">([\s\S]*?)<\/script>/)[1];
  assert.doesNotThrow(()=>new Function(script));
  assert.match(script,/let listOpen = pageState.page === 'list'/);
  assert.ok(script.lastIndexOf('applyListState();')<script.indexOf("if (document.readyState === 'loading')"));
- assert.equal((script.match(/pageState\.setPage\(/g)||[]).length,2);
+ assert.equal((script.match(/pageState\.setPage\(/g)||[]).length,4);
+ const refresh = script.slice(script.indexOf('window.__dshMobilePrepareRefresh ='), script.indexOf('function applyListState()'));
+ const env = environment(), pageState = createMobilePageState(env), window = {};
+ new Function('window','pageState','listOpen',refresh)(window,pageState,true);
+ assert.equal(window.__dshMobilePrepareRefresh().page,'list');
+ assert.equal(createMobilePageState(env).page,'list');
+ assert.equal(env.history.state.hostRoute,'preserve');
  const layout=script.slice(script.indexOf('function layout()'),script.indexOf('function tagChrome()'));
  assert.doesNotMatch(layout,/setPage/);
 });

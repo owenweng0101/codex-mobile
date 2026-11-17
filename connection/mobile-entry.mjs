@@ -4,7 +4,10 @@ import {join} from 'node:path';
 import {isIP} from 'node:net';
 
 export const HUB_FRAME_PARAM = 'hub_frame';
-const FALLBACK = 'http://127.0.0.1:18903/m/#';
+// 统一入口的兜底目标。必须是同源相对路径：隧道 state 缺失或异常时，手机需要
+// 留在当前请求的 origin 上，绝对地址会把它送到手机自己的 127.0.0.1。
+// ingress 的旧入口 302 与各模块的兜底跳转都使用这一个常量。
+export const HUB_FALLBACK = '/m/#';
 
 // Keep existing query bytes and the fragment intact, replacing only our marker.
 export function withHubFrame(url) {
@@ -71,15 +74,17 @@ function publicHost(hostname) {
 
 // `request` is accepted for callers, but Host/Origin/forwarded headers never
 // influence this target. This helper does not inspect or translate credentials.
+// A missing or invalid tunnel state falls back to the same-origin HUB_FALLBACK,
+// so the phone stays on whatever origin it actually reached.
 export async function unifiedEntryTarget({request: _request, statePath = join(homedir(), 'Library/Application Support/CodexMobileCpolar/state.json')} = {}) {
   try {
     const raw = await readFile(statePath, 'utf8');
-    if (raw.length > 100000) return FALLBACK;
+    if (raw.length > 100000) return HUB_FALLBACK;
     const origin = JSON.parse(raw)?.origin;
-    if (typeof origin !== 'string' || /[\u0000-\u0020\u007f]/.test(origin)) return FALLBACK;
+    if (typeof origin !== 'string' || /[\u0000-\u0020\u007f]/.test(origin)) return HUB_FALLBACK;
     const url = new URL(origin);
     if (url.protocol !== 'https:' || url.username || url.password || !publicHost(url.hostname)
-      || url.pathname !== '/' || url.search || url.hash) return FALLBACK;
+      || url.pathname !== '/' || url.search || url.hash) return HUB_FALLBACK;
     return url.origin + '/m/#';
-  } catch { return FALLBACK; }
+  } catch { return HUB_FALLBACK; }
 }

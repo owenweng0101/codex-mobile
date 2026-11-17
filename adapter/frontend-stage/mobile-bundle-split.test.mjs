@@ -13,7 +13,7 @@ const component=vm.runInNewContext('('+source.slice(end,componentEnd).trim()+')'
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('the split rebuild preserves every original compatibility patch and all content-hash assets',async()=>{
  let original=await readFile(new URL('./baseline/index-BsmXQHMM.js',import.meta.url),'utf8');
- assert.equal(manifest.patches.length,87);assert.equal(manifest.exactReplacementCount,87);
+ assert.equal(manifest.patches.length,88);assert.equal(manifest.exactReplacementCount,88);
  for(const patch of manifest.patches){assert.equal(original.split(patch.needle).length-1,patch.count,patch.name);original=original.split(patch.needle).join(patch.replacement);}
  assert.equal(bundleSha(original),split.inputSha256);assert.equal(applyMobileSplit(original,split),source);assert.equal(bundleSha(source),split.outputSha256);
  assert(source.includes('"data-testid":`sidebar-view-timeline`'));

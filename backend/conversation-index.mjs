@@ -74,12 +74,14 @@ export class RolloutConversationIndex{
   for(const turn of nativeTurns)if(tailIds.has(turn.id))overlays.set(turn.id,displayTurn(turn,{threadId:thread.id}));
   const nativeLast=nativeTurns.findIndex(turn=>turn.id===last);
   const appended=nativeLast>=0?nativeTurns.slice(nativeLast+1):[];
+  // Source hash/end participate in revision: sanitized media items may compare
+  // equal while their underlying image or authorized rollout cursor changed.
   const descriptors=entry.turns.map((turn,index)=>{
    const native=overlays.get(turn.id);if(native){const rows=projectConversationRows({thread,turns:[native]});return{id:turn.id,turn:native,rows,keys:rows.map(rowKey),count:rows.length,stateRevision:digest(JSON.stringify(native))};}
    const header=projectConversationRows({thread,turns:[{...turn,items:[]}]}).length>0;
    const items=[...turn.items.values()].filter(item=>item.kind);
    const keys=[...(header?['turnHeader\0turn-header:'+turn.id]:[]),...items.map(item=>item.kind+'\0'+item.id)];
-   return{id:turn.id,turn:Object.fromEntries(['id','status','startedAt','completedAt','durationMs'].filter(key=>turn[key]!==undefined).map(key=>[key,turn[key]])),header,items,keys,count:keys.length,stateRevision:digest(JSON.stringify([Object.fromEntries(['id','status','startedAt','completedAt','durationMs','errorDigest'].map(key=>[key,turn[key]??null])),[...turn.items.values()].filter(item=>item.stateHash).map(item=>[item.id,item.stateHash])])),cursor:'rollout:'+(entry.turns[index+1]?.start??entry.scanOffset)};
+   return{id:turn.id,turn:Object.fromEntries(['id','status','startedAt','completedAt','durationMs'].filter(key=>turn[key]!==undefined).map(key=>[key,turn[key]])),header,items,keys,count:keys.length,stateRevision:digest(JSON.stringify([Object.fromEntries(['id','status','startedAt','completedAt','durationMs','errorDigest'].map(key=>[key,turn[key]??null])),[...turn.items.values()].filter(item=>item.stateHash).map(item=>[item.id,item.stateHash,item.hash,item.end])])),cursor:'rollout:'+(entry.turns[index+1]?.start??entry.scanOffset)};
   });
   for(const raw of appended)if(!entry.byId.has(raw.id)){const turn=displayTurn(raw,{threadId:thread.id}),rows=projectConversationRows({thread,turns:[turn]});descriptors.push({id:turn.id,turn,rows,keys:rows.map(rowKey),count:rows.length,stateRevision:digest(JSON.stringify(turn))});}
   let changed=false;const previous=entry.layout;
@@ -95,7 +97,7 @@ export class RolloutConversationIndex{
   let total=0;for(const turn of descriptors){turn.offset=total;total+=turn.count;}
   return{descriptors,total,sourceEpoch:entry.generation+':'+entry.layoutGeneration,stateRevision:digest(JSON.stringify(descriptors.map(turn=>[turn.id,turn.stateRevision])))};
  }
- async read(filePath,{threadId,thread={id:threadId},nativeTurns=[],activeTurn=null,beforeRowId,fromRowId,limit=60,sourceEpoch,metadataOnly=false}={}){
+ async read(filePath,{threadId,thread={id:threadId},nativeTurns=[],activeTurn=null,beforeRowId,fromRowId,limit=60,sourceEpoch,metadataOnly=false,ifRevision}={}){
   if(typeof threadId!=='string'||thread.id!==threadId)throw fail('历史编号无效','HISTORY_WINDOW_INVALID',400);
   if(!integer(limit,1,200)||beforeRowId!==undefined&&!integer(beforeRowId,1,Number.MAX_SAFE_INTEGER)||fromRowId!==undefined&&!integer(fromRowId,1,Number.MAX_SAFE_INTEGER)||beforeRowId!==undefined&&fromRowId!==undefined)throw fail('历史窗口参数无效','HISTORY_WINDOW_INVALID',400);
   const {entry,scannedBytes}=await this.ensure(filePath,threadId),layout=this.layout(entry,{thread,nativeTurns});
@@ -103,9 +105,11 @@ export class RolloutConversationIndex{
   if(beforeRowId!==undefined&&beforeRowId>layout.total+1||fromRowId!==undefined&&fromRowId>Math.max(1,layout.total))throw fail('历史窗口已更新，请重新读取','HISTORY_WINDOW_CHANGED');
   const end=beforeRowId===undefined?layout.total:beforeRowId-1,start=metadataOnly?end:fromRowId===undefined?Math.max(0,end-limit):fromRowId-1;
   const generation=entry.generation,layoutGeneration=entry.layoutGeneration;
-  const revision=digest(entry.generation+'\0'+layout.stateRevision+'\0'+String(activeTurn||''));
+  const revision=digest(entry.generation+'\0'+layout.stateRevision+'\0'+String(activeTurn||'')+'\0'+String(thread.model||''));
   const rows=[];let bodyReadBytes=0;
-  if(!metadataOnly&&start<end){
+  // Revalidate appends and the epoch before reusing the caller's retained rows.
+  const notModified=typeof ifRevision==='string'&&ifRevision===revision;
+  if(!metadataOnly&&!notModified&&start<end){
    const file=await open(filePath,'r');
    try{
     const info=await file.stat();if(String(info.dev)+':'+String(info.ino)!==entry.identity||info.size<entry.scanOffset)throw fail('历史索引已更新，请重新读取','HISTORY_WINDOW_CHANGED');
@@ -134,7 +138,7 @@ export class RolloutConversationIndex{
   if(entry.generation!==generation||entry.layoutGeneration!==layoutGeneration)throw fail('历史索引已更新，请重新读取','HISTORY_WINDOW_CHANGED');
   const last=layout.descriptors.at(-1)?.turn;
   const lastTurn=last?Object.fromEntries(['id','status','startedAt','completedAt','durationMs'].filter(key=>last[key]!==undefined).map(key=>[key,last[key]])):null;
-  return{lastTurn,rows:{window:rows,totalCount:layout.total,firstRowId:layout.total?1:null},sourceEpoch:layout.sourceEpoch,revision,hasMore:start>0,diagnostics:{scannedBytes,bodyReadBytes,indexedTurns:entry.turns.length},settings:entry.settings};
+  return{lastTurn,rows:{window:rows,totalCount:layout.total,firstRowId:layout.total?1:null},sourceEpoch:layout.sourceEpoch,revision,...(notModified?{notModified:true}:{}),hasMore:start>0,diagnostics:{scannedBytes,bodyReadBytes,indexedTurns:entry.turns.length},settings:entry.settings};
  }
  clear(){this.files.clear();}
 }

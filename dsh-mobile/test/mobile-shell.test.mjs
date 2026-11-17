@@ -19,6 +19,19 @@ test('emits one shell script and one style block', () => {
   assert.ok(style.length > 500);
 });
 
+test('unaccepted picker experiment is absent while verified loading and native Goal layout remain', () => {
+  assert.doesNotMatch(script, /createNativeFilePicker|installDshFilePickers|data-native-picker/);
+  assert.match(script, /installDshLoadingGate/);
+  assert.match(style, /data-goal-bar/);
+});
+
+test('startup is plain loading text and never hides native boot failure details', () => {
+  assert.match(style, /\[data-dsh-boot\] :is\(\[class\*="_wordmark_"\], \[data-dsh-boot-spinner\]\) \{ display: none !important; \}/u);
+  assert.match(style, /\[data-dsh-boot\] \[class\*="_hint_"\]::after[\s\S]*?content: '正在加载…'/u);
+  assert.doesNotMatch(style, /\[data-dsh-boot\]\s*\{[^}]*display: none/u);
+  assert.match(style, /@media \(prefers-reduced-motion: reduce\)/u);
+});
+
 test('brand row has its final geometry before shell tagging or becoming visible', () => {
   assert.match(html, /<html data-dshm-mobile>/);
   assert.match(style, /\[class~="kB3qhq_logoRow"\],[\s\S]*?height: 44px !important/);
@@ -102,6 +115,18 @@ test('the model menu keeps its own two levels', () => {
   assert.doesNotMatch(script, /querySelectorAll\('\[role="menuitem"\]'\)/u);
 });
 
+test('goal and task bars share the composer card mobile gutters', () => {
+  assert.match(style, /:is\(\[data-goal-bar\], \[data-testid="todo-panel"\]\)\s*\{[^}]*width: calc\(100% - 32px\) !important;[^}]*margin-left: 16px !important;[^}]*margin-right: 16px !important;/u);
+  assert.doesNotMatch(style, /\[data-goal-bar\] \{ width: 100%/u);
+});
+
+test('refresh preparation persists the current view without delayed navigation', () => {
+  const hook = script.slice(script.indexOf('window.__dshMobilePrepareRefresh ='), script.indexOf('function applyListState()'));
+  assert.match(hook, /listOpen \? 'list' : 'chat'/u);
+  assert.match(hook, /pageState.setPage\(page\)/u);
+  assert.doesNotMatch(hook, /setTimeout|\.click\(/u);
+});
+
 test('goal clearing relies on the goal bar, not on typing /goal clear', () => {
   // 输入框是 Lexical，execCommand 写不进命令；旧的自造按钮点了没反应。
   assert.doesNotMatch(script, /data-dshm-goal-clear/u);
@@ -121,6 +146,19 @@ test('the icon buttons centre their glyph instead of trusting UA padding', () =>
   assert.match(rule, /padding: 0 !important/u);
   assert.match(rule, /place-items: center !important/u);
   assert.match(rule, /appearance: none !important/u);
+});
+
+test('interrupt send keeps the same mobile geometry and seeds toolbar tagging', () => {
+  // 运行中的会话一有草稿，「停止生成」就切换成「插话发送」。漏掉这个状态时，
+  // 按钮会退回桌面 34px + translateY(-2px)，输入时抖动；带草稿刷新还会找不到工具条。
+  const rule = style.slice(style.indexOf('button[aria-label="添加文件或调用指令"]'), style.indexOf('data-goal-bar'));
+  assert.equal((rule.match(/\[data-composer-card\] button\[aria-label="插话发送"\]/gu) ?? []).length, 2);
+  assert.doesNotMatch(rule, /\[data-dshm-toolbar\] button\[aria-label="插话发送"\]/u);
+  assert.match(rule, /height: 32px !important/u);
+  assert.match(rule, /width: 32px !important/u);
+  assert.match(rule, /transform: none !important/u);
+  const tagging = script.slice(script.indexOf('if (!taggedToolbar'), script.indexOf('if (!taggedCrumbs'));
+  assert.match(tagging, /button\[aria-label="插话发送"\]/u);
 });
 
 test('repeated injection stays single-shot', () => {

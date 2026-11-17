@@ -51,6 +51,15 @@
   function fileUrl(path,session,base){return '/claude/api/file?session='+encodeURIComponent(session||'')+'&path='+encodeURIComponent(path)+(base?'&base='+encodeURIComponent(base):'');}
   // Keep relative bases relative to the session cwd; the server resolves and authorizes them.
   function documentPath(path,base){return base&&!/^(\/|~\/)/.test(path)?base.slice(0,base.lastIndexOf('/')+1)+path:path;}
+  // Keep in sync with media-preview.js: inline images are accepted within a
+  // bounded length; oversized ones show a placeholder instead of disappearing.
+  const DATA_IMAGE_LIMIT=2*1024*1024;
+  function dataImage(value){
+    if(typeof value!=='string')return null;
+    const match=/^data:(image\/[a-z0-9.+-]+)((?:;[^,]*)?),/i.exec(value);
+    if(!match)return null;
+    return {type:match[1].toLowerCase(),url:value.length>DATA_IMAGE_LIMIT?null:value,tooLarge:value.length>DATA_IMAGE_LIMIT};
+  }
   function status(message,retry){
     const box=document.createElement('div');box.className='preview-status';box.setAttribute('role','status');
     const text=document.createElement('p');text.textContent=message;box.append(text);
@@ -130,7 +139,9 @@
         }
       }
       if(node.tagName==='IMG'&&src){
-        const path=localPath(src),url=/^https?:\/\//i.test(src)?src:path!==null?fileUrl(path,session,base):null;
+        const data=dataImage(src);
+        if(data?.tooLarge){const box=status('图片过大，无法显示');box.className+=' inline-image-too-large';node.replaceWith(box);continue;}
+        const path=localPath(src),url=data?.url||(/^https?:\/\//i.test(src)?src:path!==null?fileUrl(path,session,base):null);
         if(url){
           node.alt=alt||'图片';node.loading='lazy';let error=null;
           node.onerror=()=>{if(!node.isConnected||error)return;node.hidden=true;error=status('图片加载失败：'+node.alt,()=>{node.hidden=false;error.remove();error=null;node.removeAttribute('src');node.src=url;});error.classList.add('inline-image-error');node.after(error);};

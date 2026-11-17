@@ -104,7 +104,9 @@ test('canonical original UI has only reproducible reviewed compatibility patches
  assert(compat.includes('requestedVersion===e&&this.startCurrent(e)'));
  assert(compat.includes('openSettingsTab:()=>{return;'));
  const originalLocale=await readFile(new URL('../../vendor/zcode-web/remote/v4/3.16.3/assets/IntlProvider-itolvRb2.js',import.meta.url),'utf8'),locale=await readFile(new URL('./assets/IntlProvider-itolvRb2.js',import.meta.url),'utf8');
- assert.equal(originalLocale.replace(manifest.localePatch.needle,manifest.localePatch.replacement),locale);
+ let expectedLocale=originalLocale.replace(manifest.localePatch.needle,manifest.localePatch.replacement);
+ for(const textPatch of manifest.localePatch.textReplacements??[])expectedLocale=expectedLocale.split(textPatch.needle).join(textPatch.replacement);
+ assert.equal(expectedLocale,locale);
  assert(!compat.includes('Atr();export{'));
  for(const name of ['HNn','U5n','W5n','DEt','SQt','W3t'])assert(baseline.includes('function '+name+'(')&&compat.includes('function '+name+'('));
 });

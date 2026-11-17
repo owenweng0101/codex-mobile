@@ -1,0 +1,11 @@
+{
+  "name": "mobile-chats-local",
+  "owner": { "name": "Mobile Chats" },
+  "plugins": [
+    {
+      "name": "mobile-native-bridge",
+      "source": "./",
+      "description": "同一桌面会话的手机用户输入与真实任务状态桥接"
+    }
+  ]
+}

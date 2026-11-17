@@ -34,3 +34,9 @@ test('stat is scoped and original image bytes are preserved for download',async(
  assert.deepEqual(Buffer.from((await service.readMediaPreview({path:root+'/assets/photo.png'})).dataBase64,'base64'),original);
  await assert.rejects(service.stat({path:'/etc/hosts'}));assert.equal(calls.length,1);
 });
+test('the phone text window opens multi-megabyte documents and rejects wider requests',async t=>{
+ const f=await fixture(t),body='x'.repeat(3*1024*1024);await writeFile(join(f.root,'report.html'),body);
+ const preview=await f.service.readTextFile({path:'report.html',workspacePath:f.root,length:10*1024*1024});
+ assert.equal(preview.truncated,false);assert.equal(preview.content.length,body.length);
+ await assert.rejects(f.service.readTextFile({path:'report.html',workspacePath:f.root,length:17*1024*1024}),/文本预览范围无效/);
+});

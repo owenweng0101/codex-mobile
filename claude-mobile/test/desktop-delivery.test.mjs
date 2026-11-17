@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,readFile,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {randomUUID} from 'node:crypto';
 import {setImmediate as yieldTurn} from 'node:timers/promises';
+import {runInNewContext} from 'node:vm';
 import {CommandLedger} from '../backend/lib/command-ledger.mjs';
 import {DesktopDelivery} from '../backend/lib/desktop-delivery.mjs';
 
@@ -16,7 +17,7 @@ async function fixture(t,options={}){
   const dir=await mkdtemp(join(tmpdir(),'claude-desktop-delivery-'));
   t.after(()=>rm(dir,{recursive:true,force:true}));
   const ledger=new CommandLedger({dir});
-  const ctx={creates:[],attaches:[],sent:[],reads:[],lives:[],files:[],stats:[],checkpoints:[],messages:new Map(),sleeps:[],clock:1000,cursor:42};
+  const ctx={creates:[],attaches:[],sent:[],reads:[],lives:[],files:[],stats:[],checkpoints:[],settingsReads:0,messages:new Map(),sleeps:[],clock:1000,cursor:42};
   const deps={
     ledger,
     intent:{
@@ -32,6 +33,9 @@ async function fixture(t,options={}){
     async readTranscript(id){ctx.reads.push(id);return ctx.readHook?ctx.readHook(id):{messages:ctx.messages.get(id)||[],cursor:ctx.cursor};},
     async sessionFile(id){ctx.files.push(id);return ctx.fileHook?ctx.fileHook(id):{path:'/fake/transcript.jsonl'};},
     async statFile(path){ctx.stats.push(path);return ctx.statHook?ctx.statHook(path):{size:128};},
+    // Tests never touch the real ~/.claude/settings.json. Default: the inbound
+    // switch is accepted so only dedicated preflight cases opt out.
+    async readUserSettings(){ctx.settingsReads++;return ctx.settingsHook?ctx.settingsHook():{crossSessionInbound:'accept'};},
     now:()=>ctx.clock,
     async sleep(ms){ctx.sleeps.push(ms);ctx.clock+=ms;await ctx.sleepHook?.(ms);},
     ...options,
@@ -444,4 +448,348 @@ test('sends the first message after desktop attachment without a separate deskto
  assert.equal(result.state,'accepted');
  assert.equal(f.ctx.creates.length,1);
  assert.equal(f.ctx.sent.length,1);
+});
+
+// --- 追加修复：bypass 会话的跨会话接收预检 -------------------------
+
+test('a bypass target without crossSessionInbound accept is rejected before dispatch instead of hanging',async t=>{
+  for(const settings of [null,{},{crossSessionInbound:'hold'},{crossSessionInbound:'refuse'}]){
+    const f=await fixture(t),body=input({sessionId:randomUUID()});
+    f.ctx.attachHook=id=>({sessionId:id,desktopSessionId:'desktop-'+id,permissionMode:'bypassPermissions'});
+    f.ctx.settingsHook=()=>settings;
+    const result=await f.delivery.submit(body);
+    assert.equal(result.state,'rejected');assert.equal(result.delivery,'rejected');assert.equal(result.uncertain,false);
+    assert.equal(result.errorCode,'CROSS_SESSION_INBOUND_NOT_ACCEPTED');
+    assert.match(result.error,/~\/\.claude\/settings\.json/);
+    assert.match(result.error,/"crossSessionInbound": "accept"/);
+    assert.match(result.error,/未发送/);
+    assert.equal(result.sessionId,body.sessionId);assert.equal(result.desktopSessionId,'desktop-'+body.sessionId);
+    assert.equal(f.ctx.sent.length,0);assert.equal(f.ctx.lives.length,0);
+    assert.equal(f.ctx.reads.length,0);assert.equal(f.ctx.files.length,0);
+    assert.equal((await f.ledger.get(body.requestId)).dispatchedAt,undefined);
+  }
+});
+
+test('unreadable user settings cannot prove the inbound switch, so a bypass target is rejected',async t=>{
+  const f=await fixture(t),body=input({sessionId:randomUUID()});
+  f.ctx.attachHook=id=>({sessionId:id,desktopSessionId:'desktop-'+id,permissionMode:'bypassPermissions'});
+  f.ctx.settingsHook=()=>{throw new Error('EACCES: settings unreadable');};
+  const result=await f.delivery.submit(body);
+  assert.equal(result.state,'rejected');assert.equal(result.errorCode,'CROSS_SESSION_INBOUND_NOT_ACCEPTED');
+  assert.equal(JSON.stringify(result).includes('EACCES'),false);
+  assert.equal(f.ctx.sent.length,0);
+});
+
+test('accepting crossSessionInbound dispatches a bypass target with the matching permission class',async t=>{
+  const f=await fixture(t),body=input({sessionId:randomUUID()});
+  f.ctx.attachHook=id=>({sessionId:id,desktopSessionId:'desktop-'+id,permissionMode:'bypassPermissions'});
+  f.ctx.settingsHook=()=>({crossSessionInbound:'accept'});
+  f.ctx.sendHook=frame=>{f.addAck(body.sessionId,frame.msgId);return{accepted:true,msgId:frame.msgId};};
+  assert.equal((await f.delivery.submit(body)).state,'accepted');
+  assert.equal(f.ctx.sent[0].fromMode,'bypass');
+  assert.equal(f.ctx.settingsReads,1);
+});
+
+test('a new bypass session also needs the inbound switch; other modes never read user settings',async t=>{
+  const created=await fixture(t),body=input({permissionMode:'bypassPermissions'});
+  created.ctx.settingsHook=()=>null;
+  assert.equal((await created.delivery.submit(body)).state,'rejected');
+  assert.equal(created.ctx.sent.length,0);
+
+  const plain=await fixture(t),plainBody=input();
+  plain.ctx.sendHook=frame=>{plain.addAck(plainBody.requestId,frame.msgId);return{accepted:true,msgId:frame.msgId};};
+  assert.equal((await plain.delivery.submit(plainBody)).state,'accepted');
+
+  const existing=await fixture(t),existingBody=input({sessionId:randomUUID()});
+  existing.ctx.sendHook=frame=>{existing.addAck(existingBody.sessionId,frame.msgId);return{accepted:true,msgId:frame.msgId};};
+  assert.equal((await existing.delivery.submit(existingBody)).state,'accepted');
+  assert.equal(existing.ctx.settingsReads,0);
+});
+
+// Point the documented default settings reader at an isolated config directory
+// and drop the injected fake, so the real settings.json parsing runs.
+async function useRealUserSettings(t,text){
+  const configDir=await mkdtemp(join(tmpdir(),'claude-user-settings-'));
+  t.after(()=>rm(configDir,{recursive:true,force:true}));
+  await writeFile(join(configDir,'settings.json'),text,'utf8');
+  const previous=process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR=configDir;
+  t.after(()=>{
+    if(previous===undefined)delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR=previous;
+  });
+}
+function realSettingsDelivery(f){
+  const deps={...f.deps};delete deps.readUserSettings;
+  return new DesktopDelivery(deps);
+}
+
+test('a user settings file that is not valid JSON does not reject a legitimate bypass send',async t=>{
+  await useRealUserSettings(t,'{"crossSessionInbound":"accept",}');
+  const f=await fixture(t),body=input({sessionId:randomUUID()});
+  f.ctx.attachHook=id=>({sessionId:id,desktopSessionId:'desktop-'+id,permissionMode:'bypassPermissions'});
+  f.ctx.sendHook=frame=>{f.addAck(body.sessionId,frame.msgId);return{accepted:true,msgId:frame.msgId};};
+  const result=await realSettingsDelivery(f).submit(body);
+  assert.equal(result.state,'accepted','an unparsable switch cannot prove the inbox is off');
+  assert.equal(f.ctx.sent.length,1);
+  assert.equal(f.ctx.sent[0].fromMode,'bypass');
+  assert.equal(f.ctx.settingsReads,0,'the real reader replaced the injected fake');
+});
+
+test('a parsed user settings file without accept still rejects a bypass send',async t=>{
+  await useRealUserSettings(t,JSON.stringify({crossSessionInbound:'hold'}));
+  const f=await fixture(t),body=input({sessionId:randomUUID()});
+  f.ctx.attachHook=id=>({sessionId:id,desktopSessionId:'desktop-'+id,permissionMode:'bypassPermissions'});
+  const result=await realSettingsDelivery(f).submit(body);
+  assert.equal(result.state,'rejected');assert.equal(result.errorCode,'CROSS_SESSION_INBOUND_NOT_ACCEPTED');
+  assert.equal(f.ctx.sent.length,0);
+});
+
+// --- 追加修复：dispatch 之前/之后的错误语义 -----------------------
+
+test('pre-dispatch failures are tagged notDispatched so the phone never treats them as unknown',async t=>{
+  const f=await fixture(t),body=input({sessionId:randomUUID()});
+  f.ctx.sendHook=frame=>{f.addAck(body.sessionId,frame.msgId);return{accepted:true,msgId:frame.msgId};};
+  await f.delivery.submit(body);
+  await assert.rejects(f.delivery.submit({...body,text:'changed payload'}),error=>{
+    assert.equal(error.code,'COMMAND_ID_COLLISION');assert.equal(error.status,409);
+    assert.equal(error.notDispatched,true);
+    return true;
+  });
+  assert.equal(f.ctx.sent.length,1);
+});
+
+test('a failure after the dispatched checkpoint stays unknown without a notDispatched claim',async t=>{
+  const f=await fixture(t),body=input({sessionId:randomUUID()}),mark=f.ledger.mark.bind(f.ledger);
+  f.ctx.sendHook=frame=>{f.addAck(body.sessionId,frame.msgId);return{accepted:true,msgId:frame.msgId};};
+  f.ledger.mark=async(id,patch)=>{
+    if(patch.state==='accepted')throw Object.assign(Error('ledger write failed after dispatch'),{code:'LEDGER_WRITE_FAILED',statusCode:500});
+    return mark(id,patch);
+  };
+  await assert.rejects(f.delivery.submit(body),error=>{
+    assert.equal(error.code,'LEDGER_WRITE_FAILED');
+    assert.equal(error.notDispatched,undefined);
+    return true;
+  });
+  assert.equal(f.ctx.sent.length,1);
+  assert.equal((await f.ledger.get(body.requestId)).state,'dispatched');
+});
+
+test('a reconcile failure on a replayed dispatched request never becomes a resendable rejection',async t=>{
+  for(const prior of ['dispatched','unknown']){
+    const f=await fixture(t),body=input({sessionId:randomUUID()});
+    if(prior==='unknown')f.ctx.sendHook=()=>{throw new Error('socket wrote then disconnected');};
+    assert.equal((await f.delivery.submit(body)).state,prior);
+    assert.equal(f.ctx.sent.length,1);
+    // The native message is already in the transcript; only persisting the ACK
+    // fails, which is exactly the reconcile error a replay must absorb.
+    f.addAck(body.sessionId,body.requestId);
+    const mark=f.ledger.mark.bind(f.ledger);
+    f.ledger.mark=async(id,patch)=>{
+      if(patch.state==='accepted')throw Object.assign(new Error('ledger write failed'),{code:'LEDGER_WRITE_FAILED',statusCode:500});
+      return mark(id,patch);
+    };
+    const replay=await f.delivery.submit(body);
+    assert.equal(replay.state,prior,'the stored post-dispatch state is preserved, never rejected');
+    assert.equal(replay.delivery,prior==='unknown'?'unknown':'waiting');
+    assert.equal(replay.uncertain,prior==='unknown');
+    assert.equal(f.ctx.sent.length,1,'a replay never reaches native I/O again');
+    assert.equal((await f.ledger.get(body.requestId)).state,prior,'no rejected rewrite happened');
+    f.ledger.mark=mark;
+    assert.equal((await f.delivery.status(body.requestId)).state,'accepted','a later reconcile still accepts');
+    assert.equal(f.ctx.sent.length,1);
+  }
+});
+
+test('the gateway turns notDispatched errors into 409 rejections and keeps post-dispatch errors unknown',async()=>{
+  const source=await readFile(new URL('../backend/server.mjs',import.meta.url),'utf8');
+  const start=source.indexOf('function deliveryFailure(error){'),end=source.indexOf('\nasync function chat(req,res){',start);
+  assert.ok(start>=0&&end>start);
+  const deliveryFailure=runInNewContext(source.slice(start,end)+'\ndeliveryFailure;',{});
+  // VM-realm objects have a different Object.prototype, so compare fields.
+  const preDispatch=deliveryFailure(Object.assign(Error('本条消息未发送'),{code:'COMMAND_ID_COLLISION',statusCode:409,notDispatched:true}));
+  assert.equal(preDispatch.status,409);
+  assert.equal(preDispatch.body.error,'本条消息未发送');
+  assert.equal(preDispatch.body.code,'COMMAND_ID_COLLISION');
+  assert.equal(preDispatch.body.delivery,'rejected');
+  assert.equal(preDispatch.body.notDispatched,true);
+  const afterDispatch=deliveryFailure(Object.assign(Error('写入失败'),{code:'LEDGER_WRITE_FAILED',statusCode:500}));
+  assert.equal(afterDispatch.status,500);assert.equal(afterDispatch.body.delivery,'unknown');assert.equal(afterDispatch.body.notDispatched,false);
+  const plain=deliveryFailure(Error('boom'));
+  assert.equal(plain.status,500);assert.equal(plain.body.code,'DELIVERY_ERROR');
+});
+
+// --- 追加修复：启动时先 reconcile 再服务请求 ----------------------
+
+test('startup reconcile accepts a dispatched command the native JSONL already contains',async t=>{
+  const f=await fixture(t),body=input({sessionId:randomUUID()});
+  assert.equal((await f.delivery.submit(body)).state,'dispatched');
+  f.addAck(body.sessionId,body.requestId);
+  const ledger=new CommandLedger({dir:f.dir});
+  const restarted=new DesktopDelivery({...f.deps,ledger});
+  const recovered=await restarted.recoverStartup();
+  assert.equal(recovered.length,1);
+  assert.equal(recovered[0].state,'accepted');assert.equal(recovered[0].errorCode,null);
+  assert.equal((await ledger.get(body.requestId)).state,'accepted');
+  assert.equal(f.ctx.sent.length,1,'recovery never replays the native write');
+});
+
+test('startup reconcile keeps a command unknown when the native transcript cannot be read',async t=>{
+  const f=await fixture(t),body=input({sessionId:randomUUID()});
+  assert.equal((await f.delivery.submit(body)).state,'dispatched');
+  const ledger=new CommandLedger({dir:f.dir});
+  const restarted=new DesktopDelivery({...f.deps,ledger});
+  f.ctx.readHook=()=>{throw new Error('transcript temporarily unavailable');};
+  f.ctx.liveHook=id=>({socketPath:'/fake/socket',status:'idle',entrypoint:'claude-desktop-3p',hostSessionId:'desktop-'+id});
+  const recovered=await restarted.recoverStartup();
+  assert.equal(recovered.length,1);
+  assert.equal(recovered[0].state,'unknown');assert.equal(recovered[0].uncertain,true);
+  assert.equal((await ledger.get(body.requestId)).state,'unknown');
+  assert.equal(f.ctx.sent.length,1);
+});
+
+test('startup reconcile rejects a prepared command without reading any session transcript',async t=>{
+  const f=await fixture(t),body=input(),mark=f.ledger.mark.bind(f.ledger);
+  f.ledger.mark=async(id,patch)=>{if(patch.state==='dispatched')throw Error('interrupted before dispatch');return mark(id,patch);};
+  await assert.rejects(f.delivery.submit(body),/interrupted before dispatch/);
+  f.ledger.mark=mark;
+  const reads=f.ctx.reads.length;
+  const ledger=new CommandLedger({dir:f.dir});
+  const restarted=new DesktopDelivery({...f.deps,ledger});
+  const recovered=await restarted.recoverStartup();
+  assert.equal(recovered.length,1);
+  assert.equal(recovered[0].state,'rejected');assert.equal(recovered[0].errorCode,'GATEWAY_RESTART_BEFORE_DISPATCH');
+  assert.equal(f.ctx.reads.length,reads,'a never-dispatched command needs no transcript');
+  assert.equal(f.ctx.sent.length,0);
+});
+
+test('gateway reserves its listener before recovery but serves requests only after recovery',async()=>{
+  const source=await readFile(new URL('../backend/server.mjs',import.meta.url),'utf8');
+  const reconcile=source.indexOf('await desktopDelivery.recoverStartup()');
+  const listen=source.indexOf('server.listen('),ready=source.indexOf('initialized=true');
+  assert.ok(listen>0&&reconcile>listen,'a conflicting process cannot recover another live gateway ledger');
+  assert.ok(ready>reconcile,'recovery finishes before the listener serves application requests');
+  assert.match(source,/if\(!initialized\)return json\(res,503/);
+  assert.equal(source.includes('await commandLedger.recover()'),false,'the old blind recovery is gone');
+});
+
+// --- 追加修复：上传超限与文件预览缓存 -----------------------------
+
+test('oversized bodies drain and reject with an overflow marker instead of destroying the socket',async()=>{
+  const source=await readFile(new URL('../backend/server.mjs',import.meta.url),'utf8');
+  const start=source.indexOf('function readBody(req,limit=200*1024){'),end=source.indexOf('\nconst UPLOADS=',start);
+  assert.ok(start>=0&&end>start);
+  const readBody=runInNewContext(source.slice(start,end)+'\nreadBody;',{Buffer});
+  const {EventEmitter}=await import('node:events');
+  const drive=async(limit,chunks)=>{
+    const req=new EventEmitter();let resumed=0,destroyed=0;
+    req.resume=()=>{resumed++;};req.destroy=()=>{destroyed++;};
+    const result=readBody(req,limit).then(value=>({value}),error=>({error}));
+    for(const chunk of chunks)req.emit('data',Buffer.from(chunk));
+    req.emit('end');
+    return {...await result,resumed,destroyed};
+  };
+  const over=await drive(8,['x'.repeat(8),'y'.repeat(8)]);
+  assert.equal(over.error.overflow,true);
+  assert.equal(over.resumed,1,'the remaining upload body is drained, not buffered');
+  assert.equal(over.destroyed,0,'the response must stay writable so the phone receives 413');
+  const ok=await drive(64,['{"text":"hi"}']);
+  assert.equal(ok.value.text,'hi');
+  const invalid=await drive(64,['not json']);
+  assert.equal(invalid.error.message,'请求格式无效');
+});
+
+async function referencedHelpers(){
+  const source=await readFile(new URL('../backend/server.mjs',import.meta.url),'utf8');
+  const start=source.indexOf('const REFERENCED_CACHE_LIMIT=32;'),end=source.indexOf('\nasync function upload(req,res){',start);
+  assert.ok(start>=0&&end>start);
+  return runInNewContext(source.slice(start,end)+'\n({sessionCwdCached,allowedPathsFor,resolveReferencedFileCached});',{
+    readFile:async()=>{throw Error('readFile must be injected');},
+    stat:async()=>({isFile:()=>true}),
+    dirname:path=>path.slice(0,path.lastIndexOf('/'))||'/',
+    localPath:(value,cwd)=>value.startsWith('/')?value:(cwd.replace(/\/+$/,'')+'/'+value),
+    referencedPaths:(raw,cwd)=>new Set(raw.split('\n').filter(Boolean)),
+    isReferencedDependency:async()=>false,
+    sessionCwd:async()=>null,
+  });
+}
+
+test('file previews reuse the cached transcript authorization set until the file changes',async()=>{
+  const helpers=await referencedHelpers();
+  const entry={path:'/sessions/s.jsonl',mtimeMs:10,size:20};
+  let reads=0;
+  const readText=async()=>{reads++;return '/proj/a.png\n/proj/b.png';};
+  assert.equal((await helpers.resolveReferencedFileCached({entry,cwd:'/proj',requested:'a.png',readText})).file,'/proj/a.png');
+  assert.equal(reads,1);
+  assert.equal((await helpers.resolveReferencedFileCached({entry,cwd:'/proj',requested:'b.png',readText})).file,'/proj/b.png');
+  assert.equal(reads,1,'a cache hit does not read the whole transcript again');
+  assert.equal(await helpers.resolveReferencedFileCached({entry,cwd:'/proj',requested:'secret.png',readText}),null);
+  assert.equal(reads,1);
+  await helpers.resolveReferencedFileCached({entry:{...entry,size:21,mtimeMs:11},cwd:'/proj',requested:'a.png',readText});
+  assert.equal(reads,2,'path+mtime+size change rebuilds the set');
+});
+
+test('concurrent file previews share one transcript rebuild',async()=>{
+  const helpers=await referencedHelpers();
+  let reads=0,release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const readText=async()=>{reads++;await gate;return '/proj/a.png';};
+  const entry={path:'/sessions/c.jsonl',mtimeMs:1,size:5};
+  const pending=[
+    helpers.resolveReferencedFileCached({entry,cwd:'/proj',requested:'a.png',readText}),
+    helpers.resolveReferencedFileCached({entry,cwd:'/proj',requested:'a.png',readText}),
+  ];
+  release();
+  const [one,two]=await Promise.all(pending);
+  assert.equal(reads,1,'both requests await the same rebuild');
+  assert.equal(one.file,'/proj/a.png');assert.equal(two.file,'/proj/a.png');
+});
+
+// --- 追加修复：/claude/api/session/:id 上滑加载更早消息 ------------
+
+test('session transcript route pages backwards with before and normalizes invalid cursors',async()=>{
+  const source=await readFile(new URL('../backend/server.mjs',import.meta.url),'utf8');
+  const helperStart=source.indexOf('function transcriptQuery(searchParams){');
+  const helperEnd=source.indexOf('\nconst UPLOADS=',helperStart);
+  const routeStart=source.indexOf("if(path.startsWith('/claude/api/session/')){");
+  const routeEnd=source.indexOf("\n  if(path.startsWith('/claude/api/command/')",routeStart);
+  assert.ok(helperStart>=0&&helperEnd>helperStart);
+  assert.ok(routeStart>=0&&routeEnd>routeStart);
+  const transcriptQuery=runInNewContext(source.slice(helperStart,helperEnd)+'\ntranscriptQuery;',{});
+  const id='11111111-1111-4111-8111-111111111111';
+  const invoke=async search=>{
+    const calls=[],result={};
+    const context={
+      path:'/claude/api/session/'+id,
+      url:{searchParams:new URLSearchParams(search)},
+      req:{headers:{}},
+      res:{},
+      accessToken:'token',COOKIE_CLAUDE:'cookie',
+      readCookie:()=>'token',
+      json:(res,status,value)=>{result.status=status;result.value=value;},
+      readTranscript:async(...args)=>{calls.push(args);return {messages:[{id:'message-1',role:'user',seq:1}],cursor:9,before:7,hasMore:true};},
+      hydratePhoneAttachments:async()=>{},
+      desktopDelivery:{annotateTranscript:value=>structuredClone(value)},
+      sessionControl:async()=>({attached:true,permissionMode:'acceptEdits'}),
+      sessionReadMarker:async()=>null,
+      transcriptQuery,
+    };
+    await runInNewContext('(async()=>{\n'+source.slice(routeStart,routeEnd)+'\n})',context)();
+    return {calls,result};
+  };
+  const paged=await invoke('?before=7&since=3');
+  assert.deepEqual(paged.calls,[[id,0,7,null]],'before wins over since and an absent prefix anchor is forwarded as null');
+  assert.equal(paged.result.status,200);
+  assert.deepEqual(paged.result.value.messages,[{id:'message-1',role:'user',seq:1}]);
+  assert.equal(paged.result.value.before,7);assert.equal(paged.result.value.hasMore,true);assert.equal(paged.result.value.cursor,9);
+  assert.equal(paged.result.value.control.attached,true);
+  assert.deepEqual((await invoke('?since=4')).calls,[[id,4,0,null]]);
+  assert.deepEqual((await invoke('?before=0&since=4')).calls,[[id,4,0,null]],'before=0 means no page request');
+  assert.deepEqual((await invoke('?before=abc&since=-5')).calls,[[id,0,0,null]],'non-finite and negative are absent');
+  assert.deepEqual((await invoke('?since=4&before=abc')).calls,[[id,4,0,null]],'invalid before keeps the incremental cursor');
+  assert.deepEqual((await invoke('?before=12.7')).calls,[[id,0,12,null]],'fractional seq is floored');
+  assert.deepEqual((await invoke('?before=Infinity')).calls,[[id,0,0,null]]);
+  assert.deepEqual((await invoke('')).calls,[[id,0,0,null]]);
+  const anchor='a'.repeat(64);
+  assert.deepEqual((await invoke('?since=4&anchor='+anchor)).calls,[[id,4,0,anchor]],'the native prefix digest reaches rewrite detection unchanged');
 });

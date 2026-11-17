@@ -1,11 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HistoryMedia, projectHistoryMedia, assistantImageReferences, MEDIA_REASONS } from '../history-media.mjs';
+import {marked} from 'marked';
 
 const PNG=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]);
 const dataUrl=(bytes=PNG,mime='image/png')=>'data:'+mime+';base64,'+bytes.toString('base64');
 const ref={threadId:'thread-one',turnId:'turn-one',itemId:'item-one',index:0};
 const user=content=>({id:'item-one',type:'userMessage',content});
+
+test('image-free history never invokes the Markdown lexer, while reference images still do',t=>{
+ let lexes=0;const lexer=marked.lexer;
+ t.mock.method(marked,'lexer',function(...args){lexes++;return lexer.apply(this,args);});
+ for(const text of ['Plain answer 字'.repeat(10000),'[ordinary link](/allowed/root/image.png)','<img src="/allowed/root/image.png">','&#33;[not Markdown image](/allowed/root/image.png)'])assert.deepEqual(assistantImageReferences({type:'agentMessage',text}),[]);
+ assert.equal(lexes,0);
+ for(const text of ['![inline](/allowed/root/image.png)','![reference][photo]\n\n[photo]: /allowed/root/image.png','![photo][]\n\n[photo]: /allowed/root/image.png','![photo]\n\n[photo]: /allowed/root/image.png'])assert.equal(assistantImageReferences({type:'agentMessage',text})[0]?.path,'/allowed/root/image.png');
+ assert.equal(lexes,4);
+});
 
 test('assistant Markdown images are exact item references, not arbitrary paths or code examples',async()=>{
  const item={id:'item-one',type:'agentMessage',text:'文本 /allowed/root/other.png\n\n`![代码](/allowed/root/code.png)`\n\n![实际图片](/allowed/root/image.png)\n\n```\n![代码](/allowed/root/code.png)\n```\n\n![远程](https://example.com/a.png)'};

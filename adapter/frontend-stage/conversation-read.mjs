@@ -50,10 +50,11 @@ export function projectConversationV4(page,{logEpoch='codex-'+hash(page),seq=0,w
   rows:{window:rows,totalCount:totalCount??rows.length,firstRowId:firstRowId===undefined?(rows[0]?.rowId??null):firstRowId}};
  return snapshotSchema.parse(snapshot);
 }
-export function createConversationReadServices({api,baseServices,maxHistoryPages=30,eventAdapter,writable=false,modelSelections,resolveAttachment,deferInitialFrame=false,historyTimeoutMs=30000,mediaTimeoutMs=25000,indexedHistory=false}={}){
+export function createConversationReadServices({api,baseServices,maxHistoryPages=30,eventAdapter,writable=false,modelSelections,resolveAttachment,deferInitialFrame=false,historyTimeoutMs=30000,mediaTimeoutMs=25000,indexedHistory=false,initialHistoryRows=60}={}){
  if(!api?.get||!baseServices?.project?.readTree)throw Error('Conversation read adapter needs scoped read services');
  const subscriptions=new Map(),emitters=new Map(),historyPending=new Map(),mediaPending=new Map(),readControllers=new Set();let disposed=false;
  for(const value of [historyTimeoutMs,mediaTimeoutMs])if(!Number.isSafeInteger(value)||value<1)throw Error('Read timeout must be a positive integer');
+  if(!Number.isSafeInteger(initialHistoryRows)||initialHistoryRows<1||initialHistoryRows>200)throw Error('Initial history rows must be between 1 and 200');
  function boundedRead(work,ms,code){
   if(disposed)return Promise.reject(Object.assign(new Error('连接已关闭'),{code:'CODEX_CONNECTION_CLOSED'}));
   const controller=new AbortController();readControllers.add(controller);
@@ -150,20 +151,51 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
  function windowPage(p,query={}){
   return boundedRead(async signal=>{
    await scope(p,true);signal.throwIfAborted();
-   const params=new URLSearchParams({threadId:p.sessionId,limit:'60'});
+   const params=new URLSearchParams({threadId:p.sessionId,limit:String(initialHistoryRows)});
    for(const[key,value]of Object.entries(query))if(value!==undefined)params.set(key,String(value));
    const page=await api.get('/api/history-window?'+params,{signal,shareRead:false});signal.throwIfAborted();
    if(page.thread?.id!==p.sessionId||page.thread.cwd!==p.workspacePath||typeof page.sourceEpoch!=='string'||typeof page.revision!=='string'||!page.rows||!Array.isArray(page.rows.window)||!Number.isSafeInteger(page.rows.totalCount)||page.rows.totalCount<0)throw unavailable('invalid indexed history window');
    return page;
   },historyTimeoutMs,'CODEX_HISTORY_TIMEOUT');
  }
+ // The local window index identity contains a per-scan generation, so evicting
+ // its cache entry or touching the rollout file changes sourceEpoch even though
+ // every row keeps the same identity and body. Rotating the client epoch in that
+ // case throws away the reader's loaded history and makes an in-flight
+ // older-page read disappear, so the epoch only changes when the overlapping
+ // rows actually differ (a rewritten history).
+ const canonical=value=>JSON.stringify(value,(key,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.keys(item).sort().reduce((out,name)=>{out[name]=item[name];return out;},{}):item);
+ const rowsEqual=(left,right)=>canonical(left)===canonical(right);
+ function unchangedOverlap(record,page){
+  const previous=record.snapshot?.rows?.window;if(!previous?.length)return false;
+  const before=new Map(previous.map(row=>[row.rowId,row]));let compared=0;
+  for(const row of page.rows.window){const old=before.get(row.rowId);if(!old)continue;compared+=1;if(!rowsEqual(old,row))return false;}
+  return compared>0;
+ }
+ async function retainedWindow(record){
+  const retained=record.firstRetainedRowId;
+  try{return await windowPage(record.params,{fromRowId:retained??undefined,sourceEpoch:record.sourceEpoch,ifRevision:record.snapshot?record.fingerprint:undefined});}
+  catch(error){
+   if(error?.code!=='HISTORY_WINDOW_CHANGED')throw error;
+   // The epoch moved. Read the retained range under the new epoch so the loaded
+   // history survives a plain index re-scan.
+   try{return await windowPage(record.params,{fromRowId:retained??undefined});}
+   catch(retry){
+    if(retry?.code!=='HISTORY_WINDOW_CHANGED')throw retry;
+    // The retained range itself no longer exists: restart from the tail window.
+    record.firstRetainedRowId=null;record.logEpoch='codex-'+randomUUID();record.seq=0;
+    return await windowPage(record.params);
+   }
+  }
+ }
  async function indexedSnapshot(record){
-  let page;
-  try{page=await windowPage(record.params,{fromRowId:record.firstRetainedRowId??undefined,sourceEpoch:record.sourceEpoch});}
-  catch(error){if(error?.code!=='HISTORY_WINDOW_CHANGED')throw error;page=await windowPage(record.params);record.firstRetainedRowId=null;}
-  if(record.sourceEpoch!==undefined&&record.sourceEpoch!==page.sourceEpoch){record.logEpoch='codex-'+randomUUID();record.seq=0;record.firstRetainedRowId=null;}
+  const page=await retainedWindow(record);
+  if(record.sourceEpoch!==undefined&&record.sourceEpoch!==page.sourceEpoch&&!unchangedOverlap(record,page)){record.logEpoch='codex-'+randomUUID();record.seq=0;record.firstRetainedRowId=null;}
+  // Conditional replies contain current control metadata but no row bodies.
+  if(page.notModified&&(!record.snapshot||record.sourceEpoch!==page.sourceEpoch||record.fingerprint!==page.revision||record.snapshot.rows.totalCount!==page.rows.totalCount))throw unavailable('invalid unchanged history window');
+  const rows=page.notModified?record.snapshot.rows.window:page.rows.window;
   record.sourceEpoch=page.sourceEpoch;record.indexed=true;record.fingerprint=page.revision;
-  return projectConversationV4(page,{logEpoch:record.logEpoch,seq:record.seq+1,writable,selection:await modelSelections?.get(record.params.workspacePath,record.params.sessionId),rowWindow:page.rows.window,totalCount:page.rows.totalCount,firstRowId:page.rows.firstRowId});
+  return projectConversationV4(page,{logEpoch:record.logEpoch,seq:record.seq+1,writable,selection:await modelSelections?.get(record.params.workspacePath,record.params.sessionId),rowWindow:rows,totalCount:page.rows.totalCount,firstRowId:page.rows.firstRowId});
  }
  async function build(record){
   if(record.kind==='conversation'){
@@ -176,8 +208,8 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
  async function publishNow(record,forceSnapshot=false){
   let snapshot;try{snapshot=await build(record);}finally{record.lastRefreshAt=Date.now();}
   if(disposed||!subscriptions.has(record.id))return;
-  if(record.kind==='conversation'&&record.firstRetainedRowId==null)record.firstRetainedRowId=snapshot.rows.window.slice(-60)[0]?.rowId??null;
-  const visible=record.kind==='conversation'?{...snapshot,rows:{...snapshot.rows,window:record.firstRetainedRowId==null?snapshot.rows.window.slice(-60):snapshot.rows.window.filter(row=>row.rowId>=record.firstRetainedRowId)}}:snapshot;
+  if(record.kind==='conversation'&&record.firstRetainedRowId==null)record.firstRetainedRowId=snapshot.rows.window.slice(-initialHistoryRows)[0]?.rowId??null;
+  const visible=record.kind==='conversation'?{...snapshot,rows:{...snapshot.rows,window:record.firstRetainedRowId==null?snapshot.rows.window.slice(-initialHistoryRows):snapshot.rows.window.filter(row=>row.rowId>=record.firstRetainedRowId)}}:snapshot;
   const deltas=!forceSnapshot&&record.sent&&record.kind==='conversation'?conversationDeltas(record.sent,visible):null;
   if(deltas?.length===0)return;
   if(record.kind==='index'&&!forceSnapshot&&same(record.sent,visible))return;
@@ -255,16 +287,36 @@ export function createConversationReadServices({api,baseServices,maxHistoryPages
   await Promise.all([...subscriptions.values()].filter(r=>r.params.workspacePath===p.workspacePath).map(r=>refresh(r)));
  }
  async function rowsRange(p){
-   await scope(p,true);const r=[...subscriptions.values()].find(x=>x.kind==='conversation'&&x.params.workspacePath===p.workspacePath&&x.params.sessionId===p.sessionId);if(!r?.snapshot)throw unavailable('unsubscribed rows range');
+   await scope(p,true);
+   const candidates=[...subscriptions.values()].filter(x=>x.kind==='conversation'&&x.params.workspacePath===p.workspacePath&&x.params.sessionId===p.sessionId);
+   const scoped=p.baseLogEpoch===undefined?candidates:candidates.filter(x=>typeof p.baseLogEpoch==='string'&&x.logEpoch===p.baseLogEpoch);
+   // Old clients are safe only when there is one possible read owner. Never
+   // hand the second store a first store's epoch (it would silently drop rows).
+   if(scoped.length>1)throw Object.assign(new Error('存在多个历史窗口，请重新加载后再读取更多消息'),{code:'CODEX_HISTORY_SCOPE_REQUIRED'});
+   if(p.baseLogEpoch!==undefined&&!scoped.length)throw Object.assign(new Error('历史窗口已切换，请重试'),{code:'HISTORY_WINDOW_CHANGED'});
+   const r=scoped[0];if(!r?.snapshot)throw unavailable('unsubscribed rows range');
+   const requestedEpoch=p.baseLogEpoch??r.logEpoch;
 
    const work=async()=>{
     if(disposed||!subscriptions.has(r.id))throw Object.assign(new Error('连接已关闭'),{code:'CODEX_CONNECTION_CLOSED'});
+   if(r.logEpoch!==requestedEpoch)throw Object.assign(new Error('历史窗口已切换，请重试'),{code:'HISTORY_WINDOW_CHANGED'});
    const limit=Number.isInteger(p.limit)&&p.limit>0?Math.min(200,p.limit):60;
    if(r.indexed){
-    const epoch=r.logEpoch,source=r.sourceEpoch;let page;
-    try{page=await windowPage(r.params,{beforeRowId:p.beforeRowId,limit,sourceEpoch:source});}
-    catch(error){if(error?.code==='HISTORY_WINDOW_CHANGED'&&!disposed&&subscriptions.has(r.id))await publishNow(r,true);throw error;}
-    if(disposed||!subscriptions.has(r.id)||r.logEpoch!==epoch||r.sourceEpoch!==source||page.sourceEpoch!==source)throw Object.assign(new Error('历史窗口已切换，请重试'),{code:'HISTORY_WINDOW_CHANGED'});
+    const epoch=r.logEpoch;let page;
+    const read=beforeRowId=>windowPage(r.params,{beforeRowId,limit,sourceEpoch:r.sourceEpoch});
+    try{page=await read(p.beforeRowId);}
+    catch(error){
+     if(error?.code!=='HISTORY_WINDOW_CHANGED'||disposed||!subscriptions.has(r.id))throw error;
+     // A cache eviction or a rollout touch re-scans the local window index and
+     // changes its epoch while every row keeps its identity. Refresh the retained
+     // snapshot instead of dropping the reader's gesture, then retry the same
+     // page against the refreshed epoch once.
+     await publishNow(r,true);
+     if(disposed||!subscriptions.has(r.id))throw Object.assign(new Error('连接已关闭'),{code:'CODEX_CONNECTION_CLOSED'});
+     const totalCount=r.snapshot?.rows?.totalCount,before=Number.isSafeInteger(p.beforeRowId)?p.beforeRowId:(r.firstRetainedRowId??r.snapshot?.rows?.window?.[0]?.rowId);
+     page=await read(Number.isSafeInteger(totalCount)&&Number.isSafeInteger(before)?Math.min(before,totalCount+1):before);
+    }
+    if(disposed||!subscriptions.has(r.id)||r.logEpoch!==epoch||page.sourceEpoch!==r.sourceEpoch)throw Object.assign(new Error('历史窗口已切换，请重试'),{code:'HISTORY_WINDOW_CHANGED'});
     const rows=page.rows.window;
     if(rows.length){r.firstRetainedRowId=Math.min(r.firstRetainedRowId??rows[0].rowId,rows[0].rowId);const merged=new Map(r.snapshot.rows.window.map(row=>[row.rowId,row]));for(const row of rows)merged.set(row.rowId,row);r.snapshot={...r.snapshot,rows:{...r.snapshot.rows,window:[...merged.values()].sort((a,b)=>a.rowId-b.rowId)}};}
     return{rows,atSeq:r.snapshot.seq,atRevision:r.snapshot.revision,atLogEpoch:epoch,hasMore:page.hasMore};

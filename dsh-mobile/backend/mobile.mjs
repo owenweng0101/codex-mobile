@@ -3,6 +3,10 @@ import { PREVIEW_ZOOM_SCRIPT } from './preview-zoom.mjs';
 import { bindSidebarTouchGuard } from './sidebar-touch.mjs';
 import { bindPreviewNavigation } from './preview-navigation.mjs';
 import { installFileReadRecovery } from './file-read-recovery.mjs';
+import { installMobileHubReadiness } from '../../claude-mobile/backend/lib/hub-readiness.mjs';
+import { installDshLoadingGate } from './loading-gate.mjs';
+import { isDshMobileReloadSafe } from './reload-safety.mjs';
+import { installDshDraftNavigationGuard } from './draft-navigation.mjs';
 /**
  * 手机端注入：让桌面版 Harness 界面在手机上可用。
  *
@@ -16,6 +20,33 @@ const MOBILE_CSS = `
 html[data-dshm-mobile] { -webkit-text-size-adjust: 100%; }
 html[data-dshm-mobile] body { overscroll-behavior-y: none; }
 html[data-dshm-mobile] * { -webkit-tap-highlight-color: transparent; }
+#dshm-loading { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: var(--hub-canvas, var(--dsw-alias-bg-base, #f9fafb)); color: var(--hub-muted, #61666b); font: 14px/1.6 -apple-system, system-ui, "PingFang SC", sans-serif; }
+#dshm-loading p { max-width: calc(100% - 48px); margin: 0; text-align: center; overflow-wrap: anywhere; }
+#dshm-loading .dshm-recovery-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 8px; }
+#dshm-loading button { min-height: 44px; padding: 10px 18px; font: inherit; color: var(--hub-canvas, #f9fafb); background: var(--hub-ink, #303236); border: 1px solid transparent; border-radius: 12px; cursor: pointer; }
+#dshm-loading button[data-home] { background: transparent; color: inherit; border-color: var(--hub-line, #d9dce0); }
+#dshm-loading button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+@media (prefers-color-scheme: dark) { #dshm-loading { background: var(--hub-canvas, var(--dsw-alias-bg-base, #151517)); color: var(--hub-muted, #aaafb7); } }
+
+/* 触摸点按会让按钮（例如可折叠的“已完成，用时 …”状态行）在脚本里获得焦点。
+   桌面靠 outline-color: transparent 抑制 pointer 焦点环，但 WebKit 绘制
+   outline-style: auto 的原生焦点环时忽略颜色，手机上因此残留蓝色方框。
+   触摸场景把焦点环换成可着色的实线样式，透明抑制和键盘焦点环都照常生效。 */
+html[data-dshm-mobile][data-input-modality="pointer"] :focus-visible:not(:read-write) {
+  outline-style: solid;
+}
+
+/* Neutral startup text, injected before the pinned boot module's first paint.
+   Only the loading hint changes; native failure details and retry stay visible. */
+html[data-dshm-mobile] [data-dsh-boot] :is([class*="_wordmark_"], [data-dsh-boot-spinner]) { display: none !important; }
+html[data-dshm-mobile] [data-dsh-boot] [class*="_hint_"] { font-size: 0 !important; }
+html[data-dshm-mobile] [data-dsh-boot] [class*="_hint_"]::after {
+  content: '正在加载…';
+  font: 14px/1.6 -apple-system, system-ui, "PingFang SC", sans-serif;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-dshm-mobile] [data-dshm-backdrop] { transition: none !important; }
+}
 
 /* Keep the brand and per-workspace creation controls; remove the redundant banner. */
 html[data-dshm-mobile] button[aria-label="新建会话"][class*="_newSession"] {
@@ -69,8 +100,56 @@ html[data-dshm-mobile] button[aria-label="新建会话"][class*="_newSession"] {
   /* 统计行在提问/审批卡片占用输入位时会收成 0 宽；标记绝不能落在输入区上，
      否则会把提问卡片一起藏掉（手机上就没法回答了）。 */
   html[data-dshm-mobile] [data-dshm-stats]:not([data-composer-seat]),
-  html[data-dshm-mobile] [aria-label="回到底部"],
   html[data-dshm-mobile] [aria-label="更多操作"] { display: none !important; }
+
+  /* Restore the native tail action on the centre axis. Its existing slot owns
+     composer-relative height, safe-area clearance and below-composer stacking;
+     native followingTail still mounts/unmounts the only button. */
+  html[data-dshm-mobile] [class~="tnXGgG_toBottomSlot"] {
+    justify-content: center !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  /* Match Codex's visible size-7 circle and size-4 arrow. The transparent
+     hit extension keeps a 44px touch target without painting a 44px circle. */
+  html[data-dshm-mobile] button[class~="tnXGgG_toBottom"] {
+    position: relative;
+    overflow: visible;
+    box-sizing: border-box !important;
+    display: grid;
+    place-items: center;
+    width: 28px !important;
+    height: 28px !important;
+    margin-top: -28px !important;
+    padding: 0 !important;
+    border: 1px solid var(--hub-line, #e5e7ea) !important;
+    border-radius: 9999px;
+    background: var(--hub-panel, var(--dsw-alias-bg-base, #f9fafb)) !important;
+    color: var(--hub-ink, #0f1115) !important;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / .1), 0 1px 2px -1px rgb(0 0 0 / .1) !important;
+    -webkit-appearance: none;
+    appearance: none;
+    touch-action: manipulation;
+  }
+  html[data-dshm-mobile] button[class~="tnXGgG_toBottom"] > svg { display: none !important; }
+  html[data-dshm-mobile] button[class~="tnXGgG_toBottom"]::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    background: currentColor;
+    pointer-events: none;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='1.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M12%205v14'/%3E%3Cpath%20d='m19%2012-7%207-7-7'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='1.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M12%205v14'/%3E%3Cpath%20d='m19%2012-7%207-7-7'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  html[data-dshm-mobile] button[class~="tnXGgG_toBottom"]::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: inherit;
+  }
+  @media (hover: hover) {
+    html[data-dshm-mobile] button[class~="tnXGgG_toBottom"]:hover { background: var(--hub-hover, #eceef0) !important; }
+  }
 
   /* 固定版在 hover:none 隐藏更新时间；手机保留时间，菜单和选中态也不替换它。 */
   html[data-dshm-mobile] [data-dshm-sidebar] [data-row-key^="session:"] [class*="rowResting"] {
@@ -178,21 +257,26 @@ html[data-dshm-mobile] button[aria-label="新建会话"][class*="_newSession"] {
   /* 弹出菜单保持应用自己的尺寸，只避免超出屏幕。 */
   html[data-dshm-mobile] [role="menu"] { max-width: calc(100vw - 16px) !important; max-height: 60vh !important; overflow-y: auto !important; }
 
-  /* 输入工具条：上下留白对称，所有子项都按行居中。 */
-  html[data-dshm-mobile] [data-dshm-toolbar] { padding-top: 4px !important; padding-bottom: 4px !important; align-items: center !important; flex-wrap: nowrap !important; }
-  html[data-dshm-mobile] [data-dshm-toolbar] > * { align-self: center !important; }
-  html[data-dshm-mobile] [data-dshm-toolbar] button { margin-top: 0 !important; margin-bottom: 0 !important; align-self: center !important; }
-  /* 只统一“加号 / 发送 / 停止”这三个纯图标按钮，绝不能碰模型名等带文字的按钮。
+  /* 输入工具条首帧即使用固定包的行标识，不等 observer 打标才改变高度/对齐。 */
+  html[data-dshm-mobile] :is([data-dshm-toolbar], [data-composer-card] > [class~="JZLxKW_row"]) { padding-top: 4px !important; padding-bottom: 4px !important; align-items: center !important; flex-wrap: nowrap !important; }
+  html[data-dshm-mobile] :is([data-dshm-toolbar], [data-composer-card] > [class~="JZLxKW_row"]) > * { align-self: center !important; }
+  html[data-dshm-mobile] :is([data-dshm-toolbar], [data-composer-card] > [class~="JZLxKW_row"]) button { margin-top: 0 !important; margin-bottom: 0 !important; align-self: center !important; }
+  /* 只统一加号和主操作纯图标按钮，绝不能碰模型名等带文字的按钮。
+     主按钮使用固定包的身份覆盖发送中/排队/插话/停止，不随 aria-label 切回桌面尺寸。
+     直接以输入卡片为作用域，不等 JS 标记工具条，草稿恢复的首帧也不会先跳成桌面尺寸。
      固定 32×32 的容器，图标用 grid 单格居中：iOS 的 button 自带 1px/6px 内边距
      和 -webkit-appearance，只写 margin:auto 会让 14px 的 svg 在圆底里偏 2~3px。 */
-  html[data-dshm-mobile] [data-dshm-toolbar] button[aria-label="添加文件或调用指令"],
-  html[data-dshm-mobile] [data-dshm-toolbar] button[aria-label="发送消息"],
-  html[data-dshm-mobile] [data-dshm-toolbar] button[aria-label="停止生成"] {
+  html[data-dshm-mobile] [data-composer-card] button[class~="JZLxKW_primary"],
+  html[data-dshm-mobile] [data-composer-card] button[aria-label="添加文件或调用指令"],
+  html[data-dshm-mobile] [data-composer-card] button[aria-label="发送消息"],
+  html[data-dshm-mobile] [data-composer-card] button[aria-label="插话发送"],
+  html[data-dshm-mobile] [data-composer-card] button[aria-label="停止生成"] {
     box-sizing: border-box !important;
     height: 32px !important;
     width: 32px !important;
     min-width: 32px !important;
     flex: 0 0 32px !important;
+    align-self: center !important;
     padding: 0 !important;
     margin: 0 !important;
     display: grid !important;
@@ -204,9 +288,11 @@ html[data-dshm-mobile] button[aria-label="新建会话"][class*="_newSession"] {
     /* 应用给发送按钮加了 translateY(-2px) 做视觉微调，手机上看就是没对齐。 */
     transform: none !important;
   }
-  html[data-dshm-mobile] [data-dshm-toolbar] button[aria-label="添加文件或调用指令"] svg,
-  html[data-dshm-mobile] [data-dshm-toolbar] button[aria-label="发送消息"] svg,
-  html[data-dshm-mobile] [data-dshm-toolbar] button[aria-label="停止生成"] svg {
+  html[data-dshm-mobile] [data-composer-card] button[class~="JZLxKW_primary"] svg,
+  html[data-dshm-mobile] [data-composer-card] button[aria-label="添加文件或调用指令"] svg,
+  html[data-dshm-mobile] [data-composer-card] button[aria-label="发送消息"] svg,
+  html[data-dshm-mobile] [data-composer-card] button[aria-label="插话发送"] svg,
+  html[data-dshm-mobile] [data-composer-card] button[aria-label="停止生成"] svg {
     display: block !important;
     margin: 0 !important;
     grid-area: 1 / 1 !important;
@@ -214,7 +300,17 @@ html[data-dshm-mobile] button[aria-label="新建会话"][class*="_newSession"] {
 
   /* 目标栏：条高 36px、按钮只有 28px，手指很难点准；放大按钮到 32px，
      目标文字先省略，右侧的暂停/编辑/清除永远留在屏幕里。 */
-  html[data-dshm-mobile] [data-goal-bar] { width: 100% !important; }
+  /* The pinned composer card has 16px side gutters. Goal's old 100% width
+     and Todo's desktop 32px margins made three different edges on a phone. */
+  html[data-dshm-mobile] :is([data-goal-bar], [data-testid="todo-panel"]) {
+    box-sizing: border-box !important;
+    width: calc(100% - 32px) !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin-left: 16px !important;
+    margin-right: 16px !important;
+    align-self: center !important;
+  }
   html[data-dshm-mobile] [data-goal-bar] > div {
     height: auto !important;
     min-height: 40px !important;
@@ -487,6 +583,15 @@ html[data-dshm-mobile] button[aria-label="新建会话"][class*="_newSession"] {
   /* 桌面的「开始」引导页在手机上只是噪音。 */
   html[data-dshm-mobile] [data-rightbar-col] [data-dshm-tab-hide] { display: none !important; }
 
+  /* Non-modal navigation warning: never covers the composer with a click shield. */
+  html[data-dshm-mobile] [data-dshm-draft-warning] {
+    position: fixed; z-index: 80; left: 50%; top: calc(60px + env(safe-area-inset-top, 0px));
+    transform: translateX(-50%); box-sizing: border-box; width: max-content; max-width: calc(100vw - 32px);
+    padding: 10px 14px; border-radius: 10px; background: var(--dsw-alias-label-primary, #303236);
+    color: var(--dsw-alias-bg-base, #f9fafb); font: 14px/1.5 -apple-system, system-ui, sans-serif;
+    pointer-events: none; text-align: center; overflow-wrap: anywhere;
+  }
+
   /* Keep both the editor and its scrollport at the empty draft's height.
      Long drafts scroll inside the editor; attachment rows remain separate. */
   html[data-dshm-mobile] [data-composer-card] > [data-input-scroll] {
@@ -511,23 +616,23 @@ html[data-dshm-mobile] button[aria-label="新建会话"][class*="_newSession"] {
   }
 
   /* 输入框工具条：模型与发送固定在右侧，不随左侧按钮宽度漂移。 */
-  html[data-dshm-mobile] [data-dshm-toolbar] > *:last-child { margin-left: auto !important; }
+  html[data-dshm-mobile] :is([data-dshm-toolbar], [data-composer-card] > [class~="JZLxKW_row"]) > *:last-child { margin-left: auto !important; }
   /* 新版紧凑模式会把长模型名和推理等级全藏成图标。手机保留文字，超长省略。 */
-  html[data-dshm-mobile] [data-dshm-toolbar] [aria-label^="选择模型，当前"] {
+  html[data-dshm-mobile] :is([data-dshm-toolbar], [data-composer-card] > [class~="JZLxKW_row"]) [aria-label^="选择模型，当前"] {
     max-width: min(220px, calc(100vw - 190px)) !important;
     min-width: 0 !important;
   }
-  html[data-dshm-mobile] [data-dshm-toolbar] [aria-label^="选择模型，当前"] [class*="triggerIcon"] {
+  html[data-dshm-mobile] :is([data-dshm-toolbar], [data-composer-card] > [class~="JZLxKW_row"]) [aria-label^="选择模型，当前"] [class*="triggerIcon"] {
     display: none !important;
   }
-  html[data-dshm-mobile] [data-dshm-toolbar] [aria-label^="选择模型，当前"] [class*="triggerLabel"] {
+  html[data-dshm-mobile] :is([data-dshm-toolbar], [data-composer-card] > [class~="JZLxKW_row"]) [aria-label^="选择模型，当前"] [class*="triggerLabel"] {
     display: block !important;
     min-width: 0 !important;
     overflow: hidden !important;
     white-space: nowrap !important;
     text-overflow: ellipsis !important;
   }
-  html[data-dshm-mobile] [data-dshm-toolbar] [aria-label^="选择模型，当前"] [class*="triggerEffort"] {
+  html[data-dshm-mobile] :is([data-dshm-toolbar], [data-composer-card] > [class~="JZLxKW_row"]) [aria-label^="选择模型，当前"] [class*="triggerEffort"] {
     display: block !important;
     flex: 0 0 auto !important;
   }
@@ -586,6 +691,10 @@ const MOBILE_SCRIPT = `
   const BP = ${MOBILE_BREAKPOINT};
   const root = document.documentElement;
   const mobile = window.matchMedia('(max-width: ' + BP + 'px)');
+  window.__dshMobileReloadSafe = () => (${isDshMobileReloadSafe.toString()})(document, window);
+  const localReadiness = (${installMobileHubReadiness.toString()})(window);
+  (${installDshDraftNavigationGuard.toString()})({ document, view: window, isMobile: () => mobile.matches, isSafe: () => window.__dshMobileReloadSafe() });
+  (${installDshLoadingGate.toString()})({ document, view: window, inspect: () => localReadiness.inspect({dataset:{frame:'dsh'},contentDocument:document,contentWindow:window}), returnHome: () => window.__mobileHubHome() });
   // Tabs switch on click and scroll horizontally; a touch must never begin dock dragging.
   for (const type of ['pointerdown', 'dragstart']) window.addEventListener(type, event => {
     if (mobile.matches && event.target instanceof Element
@@ -696,6 +805,18 @@ const MOBILE_SCRIPT = `
   const pageState = (${createMobilePageState.toString()})();
   let listOpen = pageState.page === 'list';
   let reexpandAt = 0;
+  window.__mobileHubHome = () => {
+    pageState.setPage('list');
+    window.location.reload();
+    return true;
+  };
+  // The hub can persist the exact view before reload instead of flashing the
+  // list and closing it again on a delayed load callback.
+  window.__dshMobilePrepareRefresh = () => {
+    const page = listOpen ? 'list' : 'chat';
+    pageState.setPage(page);
+    return { page };
+  };
 
   function applyListState() {
     const value = listOpen ? 'open' : 'closed';
@@ -842,7 +963,7 @@ const MOBILE_SCRIPT = `
   // 标记桌面页签、统计行与保留的品牌行。
   function tagChrome() {
     if (!taggedToolbar || !taggedToolbar.isConnected) {
-      const send = document.querySelector('button[aria-label="发送消息"], button[aria-label="停止生成"]');
+      const send = document.querySelector('button[aria-label="发送消息"], button[aria-label="插话发送"], button[aria-label="停止生成"]');
       const row = send ? send.parentElement?.parentElement : null;
       if (row) { row.setAttribute('data-dshm-toolbar', ''); taggedToolbar = row; }
     }
@@ -960,6 +1081,8 @@ const MOBILE_SCRIPT = `
   // 一次判断：chip 已被选中、或输入框里只剩这条指令时，补发退格直接删掉，让一次退格
   // 就能把指令清掉，和删普通文字一致。
   const sendBackspace = (editor) => {
+    // Composition may have begun during either delayed chip-deletion callback.
+    if (!editor.isConnected || editor.hasAttribute('data-composer-composing')) return;
     editor.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Backspace',
       code: 'Backspace',
@@ -970,7 +1093,7 @@ const MOBILE_SCRIPT = `
     }));
   };
   document.addEventListener('keydown', (event) => {
-    if (!mobile.matches || event.isTrusted === false) return;
+    if (!mobile.matches || event.isTrusted === false || event.isComposing || event.keyCode === 229) return;
     if (event.key !== 'Backspace' && event.key !== 'Delete') return;
     const target = event.target instanceof Element ? event.target : null;
     const editor = target ? target.closest('[contenteditable="true"]') : null;
@@ -1040,6 +1163,10 @@ export function injectMobileShell(html) {
     output = output.replace(/<meta[^>]+name="viewport"[^>]*>/i, viewport);
   } else if (/<head[^>]*>/i.test(output)) {
     output = output.replace(/<head[^>]*>/i, (match) => `${match}${viewport}`);
+  }
+
+  if (!output.includes('id="dshm-loading"')) {
+    output = output.replace(/<body[^>]*>/i, (tag) => `${tag}<div id="dshm-loading" role="status" aria-live="polite">正在加载…</div>`);
   }
 
   const head = `<style id="dshm-mobile">${MOBILE_CSS}</style>`;

@@ -32,7 +32,9 @@ export function createFileReadService({api,baseServices}){
   },
   async readTextFile(params){
    const offset=params?.offset??0,length=params?.length??512*1024;
-   if(offset!==0||!Number.isSafeInteger(length)||length<0||length>2*1024*1024)throw Error('文本预览范围无效');
+   // The phone's code viewer asks for a 10 MB text window; the older 2 MB
+   // ceiling rejected it and every larger document looked unopenable.
+   if(offset!==0||!Number.isSafeInteger(length)||length<0||length>16*1024*1024)throw Error('文本预览范围无效');
    const {absolute,query}=await location(params),value=await api.get('/api/file?'+query);
    if(typeof value.content!=='string')throw Error('文本预览响应无效');
    const bytes=Buffer.from(value.content),content=new TextDecoder().decode(bytes.subarray(0,length),{stream:bytes.length>length});

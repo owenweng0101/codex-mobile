@@ -1,48 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {runInNewContext,Script} from 'node:vm';
-import {chatHtml} from '../backend/lib/ui.mjs';
+import {runInContext,Script} from 'node:vm';
+import {fixture as nativeFixture,scripts,client} from './native-ui-fixture.mjs';
 const unread=readFileSync(new URL('../backend/lib/unread-indicator.js',import.meta.url),'utf8');
-const scripts=[...chatHtml().matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
-const client=scripts.find(s=>s.includes('const deliveryCommands=new Map()'));
-function actualFunction(name){
-  const match=new RegExp('^  (?:async )?function '+name+'\\(','m').exec(client);assert.ok(match,name);
-  const end=client.indexOf('\n  }',match.index);return client.slice(match.index,end+4);
-}
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 const deferred=()=>{let resolve;const promise=new Promise(done=>{resolve=done;});return {promise,resolve};};
 const marker={id:'cli',desktopSessionId:'desktop',replyId:'reply',known:true,unread:true,unreadVersion:'native-rev-1:reply'};
 const transcript=(m=marker,messages=[{id:'reply',role:'assistant',text:'loaded reply'}])=>({id:m.id,messages,readMarker:m,cursor:8});
 const response=value=>({ok:true,json:async()=>value});
-function element(hidden=false){
-  const classes=new Set(hidden?['hidden']:[]);
-  return {inert:false,dataset:{},textContent:'',scrollTop:0,
-    classList:{contains:key=>classes.has(key),add:key=>classes.add(key),remove:key=>classes.delete(key)},
-    getClientRects:()=>[{}],setAttribute(){},append(){},prepend(){},remove(){},
-  };
-}
 function fixture(){
-  const nodes=new Map([['chat',element()],['optionsMenu',element(true)]]),$=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);};
-  const errors=new Map(),calls=[],timers=new Map();let seq=0;
-  const state={sessionId:'cli',viewVersion:1,since:0,sending:false,loading:false,sessions:[{...marker}]};
-  state.readStatus=(key,text,retry,visible)=>text?errors.set(key,{text,retry,visible}):errors.delete(key);state.readStatus.render=()=>{};
-  const window={};window.parent=window;
-  const h={calls,errors,state,window,$,readResponse:()=>response({ok:true,verified:true,unread:false}),historyResponse:()=>response(transcript()),refreshes:0,renderFails:false};
-  const sandbox={state,$,window,document:{hidden:false,createElement:()=>element()},crypto:{randomUUID:()=>`00000000-0000-4000-8000-${String(++seq).padStart(12,'0')}`},
-    chatView:$('chat'),composer:$('composer'),messages:$('messages'),listView:$('list'),title:$('title'),hubActive:true,
-    seenMessages:new Set(),assistantOwners:new Set(),pendingNativeUsers:new Set(),renderingMessageId:null,
-    AbortController,encodeURIComponent,setTimeout:fn=>{timers.set(++seq,fn);return seq;},clearTimeout:id=>timers.delete(id),
-    fetch:(url,options={})=>{calls.push({url,options});return url==='/claude/api/read'?h.readResponse():h.historyResponse();},
-    refreshSessions:async()=>{h.refreshes++;},
-    newAssistant:()=>({wrap:{dataset:{}},appendText(){if(h.renderFails)throw Error('render failed');},thinkDone(){},removeIfEmpty(){},finish(){}}),
-    addUserMessage:()=>element(),rememberView(){},closeMenu(){},saveDraft(){},restoreDraft(){},stopPoll(){},startPoll(){},restorePendingMessages(){},
-    applyControl(){},renderPlan(){},scrollDown(){},updateChips(){},updateSendState(){},errorLine:text=>h.loadError=text,
-  };
-  runInNewContext(unread,sandbox);state.unread=window.claudeUnread;
-  h.sandbox=sandbox;h.timers=timers;
-  h.api=runInNewContext('let pollController=null,historyAssistant=null;'+['appendMessage','nativeReadVisible','acknowledgeRead','poll','openSession'].map(actualFunction).join('\n')+'\n({appendMessage,nativeReadVisible,acknowledgeRead,poll,openSession})',sandbox);
-  h.posts=()=>calls.filter(c=>c.url==='/claude/api/read');
+  const f=nativeFixture(),state=f.api.state,window=f.context.window;
+  Object.assign(state,{sessionId:'cli',viewVersion:1,since:0,sending:false,loading:false,sessions:[{...marker}]});
+  f.node('list').classList.add('hidden');f.node('chat').classList.remove('hidden');f.node('composer').classList.remove('hidden');
+  const h={calls:f.ctx.calls,errors:f.ctx.errors,state,window,$:f.node,api:f.api,timers:f.timers,readResponse:()=>response({ok:true,verified:true,unread:false}),historyResponse:()=>response(transcript()),renderFails:false};
+  const render=window.claudeRender;window.claudeRender=(...args)=>{if(h.renderFails)throw Error('render failed');return render(...args);};
+  f.ctx.fetchHook=url=>url==='/claude/api/read'?h.readResponse():url.startsWith('/claude/api/session/')?h.historyResponse():undefined;
+  runInContext(unread,f.context);state.unread=window.claudeUnread;
+  h.sandbox={document:f.document,seenMessages:f.api.seenMessages,get hubActive(){return f.api.getHubActive();},set hubActive(value){f.api.setHubActive(value);}};
+  Object.defineProperties(h,{refreshes:{get:()=>f.ctx.refreshes},loadError:{get:()=>f.node('messages').querySelector('.err')?.textContent}});
+  h.posts=()=>f.ctx.calls.filter(call=>call.url==='/claude/api/read');
   return h;
 }
 test('every generated production script compiles and legacy unread storage/mask is absent',()=>{
@@ -58,7 +35,7 @@ test('opening the visible session renders its actual reply, posts native read, t
 });
 test('failed rendering never qualifies a reply UUID as successfully loaded',async()=>{
   const h=fixture();h.renderFails=true;await h.api.openSession({...marker,title:'test'});await turn();
-  assert.equal(h.posts().length,0);assert.equal(h.sandbox.seenMessages.has('reply'),false);assert.match(h.loadError,/render failed/);
+  assert.equal(h.posts().length,0);assert.equal(h.sandbox.seenMessages.has('reply'),false);assert.match(h.loadError,/消息显示失败.*重试/);assert.doesNotMatch(h.loadError,/render failed|电脑端连接/);
 });
 for(const boundary of ['hub','document','parent','chat-preview','composer-preview','menu','hidden-chat'])test(boundary+' suppresses native reads through the actual poll path',async()=>{
   const h=fixture();

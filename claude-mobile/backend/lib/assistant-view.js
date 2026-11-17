@@ -1,15 +1,17 @@
 /* Ordered assistant output: one compact process summary between adjacent text blocks. */
 (() => {
-  // Parse the complete Markdown on every update (references and unclosed syntax
-  // may change earlier blocks), but commit only the changed DOM. Never morph a
-  // changed interactive element: its renderer-owned handlers close over that node.
+  // Streaming appends re-render only the final, still-open Markdown block: a
+  // blank line closes a block, so everything before it is stable and keeps its
+  // DOM. Fenced code, reference definitions and raw HTML can change earlier
+  // output, so those fall back to a full pass. Never morph a changed interactive
+  // element: its renderer-owned handlers close over that node.
   const stableViews=new WeakMap();
   const interactive=new Set(['A','IMG','INPUT','BUTTON','IFRAME','VIDEO','AUDIO']);
   const nodeText=node=>node.textContent||'';
   const signature=node=>node.nodeType===3?'text:'+node.data:node.outerHTML;
   const compatible=(a,b)=>a.nodeType===b.nodeType&&(a.nodeType===3||a.nodeType===1&&a.tagName===b.tagName&&!interactive.has(a.tagName)&&a.attributes.length===b.attributes.length&&[...a.attributes].every(attr=>b.getAttribute(attr.name)===attr.value));
-  function reconcile(parent,fresh){
-    const old=[...parent.childNodes],next=[...fresh.childNodes],used=new Set(),matches=new Map(),buckets=new Map();
+  function reconcile(parent,fresh,from=0){
+    const old=[...parent.childNodes].slice(from),next=[...fresh.childNodes],used=new Set(),matches=new Map(),buckets=new Map();
     for(const node of old){const key=signature(node);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(node);}
     // Reserve all equal nodes before matching changed nodes, so an insertion
     // cannot consume a later unchanged paragraph or table as a positional match.
@@ -24,9 +26,9 @@
       if(live!==node&&!live.isEqualNode(node)){
         if(live.nodeType===3)live.data=node.data;else reconcile(live,node);
       }
-      if(parent.childNodes[index]!==live)parent.insertBefore(live,parent.childNodes[index]||null);
+      if(parent.childNodes[from+index]!==live)parent.insertBefore(live,parent.childNodes[from+index]||null);
     }
-    while(parent.childNodes.length>next.length)parent.lastChild.remove();
+    while(parent.childNodes.length>from+next.length)parent.lastChild.remove();
   }
   function textOffset(root,node,offset){
     let total=0,found=false;
@@ -76,20 +78,111 @@
     if(selection.setBaseAndExtent)selection.setBaseAndExtent(...a,...f);
     else{const range=root.ownerDocument.createRange();range.setStart(...a);range.collapse(true);selection.removeAllRanges();selection.addRange(range);selection.extend?.(...f);}
   }
+  const blankLine=/^[ \t]*$/;
+  const fenceOpen=/^ {0,3}(`{3,}|~{3,})/;
+  const fenceClose=/^ {0,3}(`+|~+)[ \t]*$/;
+  const definitionLine=/^ {0,3}\[[^\]\n]+\]:/;
+  const htmlBlock=/^ {0,3}<[A-Za-z/!?]/;
+  const listLine=/^[ \t]*([-*+]|\d{1,9}[.)])([ \t]|$)/;
+  const indentedLine=/^( {4}|\t)/;
+  const quotedLine=/^ {0,3}>/;
+  const indentedAny=/^[ \t]/;
+  // A line is an open block boundary only outside fences. "scanned" is the start
+  // of the last, still incomplete line, so an append only scans its new lines.
+  function scanNewLines(scan,text){
+    let index=scan.scanned;
+    for(;;){
+      const end=text.indexOf('\n',index);if(end<0)break;
+      const line=text.slice(index,end);
+      if(scan.fence){
+        const close=fenceClose.exec(line);
+        if(close&&close[1][0]===scan.fence.char&&close[1].length>=scan.fence.len)scan.fence=null;
+      }else{
+        const fence=fenceOpen.exec(line);
+        if(fence)scan.fence={char:fence[1][0],len:fence[1].length,start:index,indent:fence[0].length-fence[1].length};
+        else{
+          if(definitionLine.test(line))scan.definitions=true;
+          else if(htmlBlock.test(line))scan.unsafe=true;
+          if(blankLine.test(line))scan.blank=end+1;
+        }
+      }
+      index=end+1;
+    }
+    // The unterminated last line can already contain a reference definition or
+    // raw HTML; both make earlier blocks re-render, so detect them early. Fence
+    // state and blank-line positions wait until the line is complete.
+    if(index<text.length){
+      const rest=text.slice(index);
+      if(definitionLine.test(rest))scan.definitions=true;
+      else if(htmlBlock.test(rest))scan.unsafe=true;
+    }
+    scan.scanned=index;
+  }
+  // Start of the last block that is not closed yet (0 when nothing is stable).
+  // Blocks that merge across a blank line with what follows stay in the tail.
+  function openBlockStart(scan,text){
+    if(scan.definitions||scan.unsafe)return 0;
+    let start=scan.fence?(scan.fence.indent===0?scan.fence.start:0):scan.blank;
+    const lineStart=position=>{
+      if(position<=0)return 0;
+      const index=text.lastIndexOf('\n',position-1);
+      return index<0?0:index+1;
+    };
+    const lineEnd=position=>{const index=text.indexOf('\n',position);return index<0?text.length:index;};
+    const lineText=position=>text.slice(position,lineEnd(position));
+    while(start>0){
+      let previous=lineStart(start-1);
+      while(previous>0&&blankLine.test(lineText(previous)))previous=lineStart(previous-1);
+      if(blankLine.test(lineText(previous)))break;
+      let block=previous;
+      while(block>0&&!blankLine.test(lineText(lineStart(block-1))))block=lineStart(block-1);
+      const first=lineText(block);
+      if(htmlBlock.test(first))return 0;
+      if(listLine.test(first)||indentedLine.test(first)||quotedLine.test(first)||indentedAny.test(first)){start=block;continue;}
+      break;
+    }
+    return start;
+  }
   function renderStable(root,text,renderText){
     // The lightweight non-DOM consumers used by transcript tests still receive
     // the exact same rendering callback. Browser elements always use reconciliation.
     if(!root.ownerDocument?.createElement||!root.insertBefore){renderText(root,text);return;}
-    const previous=stableViews.get(root);if(previous===text)return;
-    const fresh=root.ownerDocument.createElement('div');
-    renderText(fresh,text); // A render failure leaves the visible DOM untouched.
+    const previous=stableViews.get(root);if(previous&&previous.text===text)return;
+    const scan=previous&&text.startsWith(previous.text)
+      ? {scanned:previous.scan.scanned,fence:previous.scan.fence,blank:previous.scan.blank,definitions:previous.scan.definitions,unsafe:previous.scan.unsafe}
+      : {scanned:0,fence:null,blank:0,definitions:false,unsafe:false};
+    scanNewLines(scan,text);
+    const start=openBlockStart(scan,text),prefix=text.slice(0,start),tail=text.slice(start);
+    const document=root.ownerDocument;
+    const renderInto=value=>{const fresh=document.createElement('div');renderText(fresh,value);return fresh;};
     const selection=captureSelection(root);
     const scrollers=[root,...root.querySelectorAll('.table-scroll,pre')];
     const positions=scrollers.map((node,index)=>({node,index,left:node.scrollLeft,top:node.scrollTop,text:nodeText(node),tag:node.tagName})).filter(point=>point.left||point.top);
-    reconcile(root,fresh);
+    let state;
+    if(previous&&previous.count!==null&&text.startsWith(previous.text)&&start>=previous.committed.length){
+      // Reuse the committed prefix and the previous tail DOM: render only what
+      // became stable since the last append plus the tail that is still open.
+      const promoted=text.slice(previous.committed.length,start);
+      const freshPromoted=promoted?renderInto(promoted):null;
+      const freshTail=tail?renderInto(tail):null;
+      let count=Math.min(previous.count,root.childNodes.length);
+      if(freshPromoted){const promotedCount=freshPromoted.childNodes.length;reconcile(root,freshPromoted,count);count+=promotedCount;}
+      if(freshTail)reconcile(root,freshTail,count);
+      else while(root.childNodes.length>count)root.lastChild.remove();
+      state={text,committed:prefix,count,scan};
+    }else{
+      // Full pass: prefix and tail are rendered separately but reconciled as one
+      // document, so unchanged blocks keep their nodes, handlers and selection.
+      const fresh=prefix?renderInto(prefix):document.createElement('div');
+      const freshTail=tail?renderInto(tail):document.createElement('div');
+      const prefixCount=fresh.childNodes.length;
+      for(const node of [...freshTail.childNodes])fresh.append(node);
+      reconcile(root,fresh,0);
+      state={text,committed:prefix,count:prefixCount,scan};
+    }
     const current=[root,...root.querySelectorAll('.table-scroll,pre')];
     for(const point of positions){const node=root.contains(point.node)?point.node:current.find(item=>item.tagName===point.tag&&nodeText(item)===point.text)||current[point.index];if(node?.tagName===point.tag){node.scrollLeft=point.left;node.scrollTop=point.top;}}
-    restoreSelection(root,selection);stableViews.set(root,text);
+    restoreSelection(root,selection);stableViews.set(root,state);
   }
   window.createClaudeAssistant=({container,renderText})=>{
     const wrap=document.createElement('div');wrap.className='msg assistant';container.append(wrap);
@@ -126,8 +219,19 @@
         const item=this.toolMap.get(id);if(!item)return;item.details.classList.remove('pending','unconfirmed');item.details.classList.toggle('failed',isError);let pre=item.details.querySelector('pre');if(!pre){pre=document.createElement('pre');item.details.append(pre);}pre.textContent=text||'（无输出）';item.done=true;item.failed=isError;item.unknown=false;this.updateActivity();
       },
       updateActivity(){
-        for(const group of this.processes){const items=[...group.items.values()],pending=items.some(item=>!item.done&&!item.unknown),unknown=items.some(item=>item.unknown),failed=items.some(item=>item.failed);let label;
-          if(group.thinking)label='正在思考';else if(unknown)label='状态待同步';else if(pending)label='执行中';else if(failed)label='部分失败';else if(group.terminal==='failed'||group.terminal==='interrupted')label='本轮已中断';else label=items.length?'已完成':'已思考';group.summary.textContent=label+(items.length?' · '+items.length+' 项操作':'');}
+        for(const group of this.processes){
+          const items=[...group.items.values()],pending=items.some(item=>!item.done&&!item.unknown),unknown=items.some(item=>item.unknown),failed=items.some(item=>item.failed),interrupted=group.terminal==='failed'||group.terminal==='interrupted';let label;
+          // The round outcome leads: a missing tool result after the round ended
+          // is a detail ("状态待同步"), never a replacement for "本轮已中断".
+          if(group.thinking)label='正在思考';
+          else if(interrupted&&unknown)label='本轮已中断 · 状态待同步';
+          else if(unknown)label='状态待同步';
+          else if(pending)label='执行中';
+          else if(failed)label='部分失败';
+          else if(interrupted)label='本轮已中断';
+          else label=items.length?'已完成':'已思考';
+          group.summary.textContent=label+(items.length?' · '+items.length+' 项操作':'');
+        }
       },
       thinkDone(){for(const thought of this.thoughts){thought.spark.remove();thought.label.textContent='已思考';thought.group.thinking=false;}this.updateActivity();},
       finish(status='complete'){this.thinkDone();for(const group of this.processes){group.terminal=status;for(const item of group.items.values()){if(item.done)continue;item.unknown=true;item.details.classList.remove('pending');item.details.classList.add('unconfirmed');}}this.updateActivity();},

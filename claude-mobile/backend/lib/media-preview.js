@@ -9,6 +9,89 @@
   'use strict';
   const installations = new WeakMap();
 
+  // Inline images are capped: base64 inflates payloads by ~33% and iOS WebKit
+  // aborts very large decodes. message-renderer.js applies the same cap.
+  const DATA_IMAGE_LIMIT = 2 * 1024 * 1024;
+  // Long PDFs must not keep every page as a live canvas; see planPageReclaim.
+  const PDF_LIVE_PAGES = 6;
+
+  // Classify a data: URL used as an image source. Pure so the cap and the
+  // "too large" state stay testable without a DOM.
+  function dataImage(value, limit = DATA_IMAGE_LIMIT) {
+    if (typeof value !== 'string') return null;
+    const match = /^data:(image\/[a-z0-9.+-]+)((?:;[^,]*)?),/i.exec(value);
+    if (!match) return null;
+    const tooLarge = value.length > limit;
+    return {type: match[1].toLowerCase(), url: tooLarge ? null : value, tooLarge, size: value.length, limit};
+  }
+
+  // Pure LRU planner for PDF canvases: pages on screen are kept first, then the
+  // most recently painted pages up to budget. Everything else can be released.
+  function planPageReclaim(rendered, visible, budget = PDF_LIVE_PAGES) {
+    const order = [...rendered];
+    const keep = new Set();
+    for (const page of visible) if (order.includes(page)) keep.add(page);
+    for (let i = order.length - 1; i >= 0 && keep.size < budget; i--) keep.add(order[i]);
+    return order.filter(page => !keep.has(page));
+  }
+
+  // One sentinel history entry while the preview is open: the system back
+  // button/swipe then closes the preview instead of leaving the page.
+  function createHistoryGuard(win, onBack, key = 'claudeMediaPreview') {
+    const history = win && win.history;
+    if (!history || typeof history.pushState !== 'function') return {open() {}, close() {}, dispose() {}, active: () => false};
+    let token = null, expectedPop = false;
+    const ours = state => !!token && !!state && typeof state === 'object' && state[key] === token;
+    const pop = event => {
+      if (expectedPop) { expectedPop = false; return; }
+      if (!token || ours(event && event.state)) return;
+      token = null;
+      onBack();
+    };
+    win.addEventListener('popstate', pop);
+    const push = () => {
+      if (token) return;
+      token = 'preview-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+      try { history.pushState(Object.assign({}, history.state || {}, {[key]: token}), ''); }
+      catch { token = null; }
+    };
+    const back = () => {
+      token = null; expectedPop = true;
+      try { history.back(); } catch { expectedPop = false; }
+    };
+    return {
+      open: push,
+      // The UI already closed the preview: drop our entry so the next back
+      // press leaves the page normally.
+      close() { if (!token) return; if (!ours(history.state)) { token = null; return; } back(); },
+      dispose() {
+        win.removeEventListener('popstate', pop);
+        if (token) back();
+        else expectedPop = false;
+      },
+      active: () => !!token
+    };
+  }
+
+  // Accept only same-origin blob:, bounded data:image/* or http(s) file URLs.
+  // Pure apart from win.location so callers can unit-test every branch.
+  function validatePreviewUrl(url, image, win) {
+    const data = dataImage(url);
+    if (image && data) {
+      if (data.tooLarge) {
+        const error = Error('图片过大，无法预览（上限 2MB）');
+        error.code = 'CLAUDE_PREVIEW_TOO_LARGE';
+        throw error;
+      }
+      return data.url;
+    }
+    const u = new URL(url, win.location.href);
+    if (image && u.protocol === 'blob:' && u.origin === win.location.origin) return u.href;
+    if (!['https:', 'http:'].includes(u.protocol)) throw Error('不支持的文件地址');
+    if (!image && (u.origin !== win.location.origin || u.pathname !== '/claude/api/file')) throw Error('只能预览当前会话引用的文件');
+    return u.href;
+  }
+
   // Adapted from Codex bindDocumentTouch / DSH installPreviewZoom. This function
   // is also serialized into the opaque HTML iframe, so has no outer references.
   function bindDocumentZoom(viewport, layer, settings = {}) {
@@ -44,9 +127,18 @@
       viewport.scrollLeft = Math.max(0,anchor.x*scale-q.x);
       viewport.scrollTop = Math.max(0,anchor.y*scale-q.y);
     };
+    const viewportHeight=()=>rootMode?(doc.scrollingElement?.clientHeight||doc.documentElement.clientHeight||win.innerHeight):viewport.clientHeight;
     const reset = () => {
       scale=1;pinch=gesture=lastTap=tap=null;layer.style.width=oldWidth;layer.style.zoom=oldZoom;
       layer.dataset.claudeZoom='1';viewport.scrollLeft=viewport.scrollTop=0;
+    };
+    // Fit keeps the content point at the viewport centre while the scale drops
+    // back to 1, so rotation and the "适应" button no longer jump to the top.
+    const fit = () => {
+      const left=Math.max(0,(viewport.scrollLeft+viewportWidth()/2)/scale-viewportWidth()/2);
+      const top=Math.max(0,(viewport.scrollTop+viewportHeight()/2)/scale-viewportHeight()/2);
+      scale=1;pinch=gesture=lastTap=tap=null;layer.style.width=oldWidth;layer.style.zoom=oldZoom;
+      layer.dataset.claudeZoom='1';viewport.scrollLeft=left;viewport.scrollTop=top;
     };
     const options={passive:false,capture:true};
     listen(eventHost,'touchstart',e=>{
@@ -76,11 +168,11 @@
     listen(eventHost,'dblclick',e=>{if(!interactive(e.target)){e.preventDefault();reset();}},options);
     // Restore responsive fit on rotation; cancel incomplete gestures as well.
     let width=viewportWidth();
-    const resize=()=>{const next=viewportWidth();if(Math.abs(next-width)>1){width=next;reset();}};
-    listen(win,'resize',resize);listen(win,'orientationchange',reset);
+    const resize=()=>{const next=viewportWidth();if(Math.abs(next-width)>1){width=next;fit();}};
+    listen(win,'resize',resize);listen(win,'orientationchange',fit);
     const observer=win.ResizeObserver?new win.ResizeObserver(resize):null;observer?.observe(viewport);
     layer.dataset.claudeZoom='1';
-    return {reset,zoom:ratio=>{const p=rootMode?{x:win.innerWidth/2,y:win.innerHeight/2}:{x:viewport.getBoundingClientRect().left+viewport.clientWidth/2,y:viewport.getBoundingClientRect().top+viewport.clientHeight/2};apply(scale*ratio,begin(p),p);},dispose:()=>{observer?.disconnect();for(const remove of removers)remove();reset();if(rootMode){layer.style.touchAction=oldAction;layer.style.overflow=oldOverflow;}}};
+    return {reset,fit,zoom:ratio=>{const p=rootMode?{x:win.innerWidth/2,y:win.innerHeight/2}:{x:viewport.getBoundingClientRect().left+viewport.clientWidth/2,y:viewport.getBoundingClientRect().top+viewport.clientHeight/2};apply(scale*ratio,begin(p),p);},dispose:()=>{observer?.disconnect();for(const remove of removers)remove();reset();if(rootMode){layer.style.touchAction=oldAction;layer.style.overflow=oldOverflow;}}};
   }
 
   function bindImageZoom(stage,image) {
@@ -125,7 +217,7 @@
   }
 
   // Server helper reuses this exact function in the authorized file response.
-  window.claudeHtmlPreviewBootstrap = token => '(()=>{const zoom=('+bindDocumentZoom.toString()+')(document.scrollingElement,document.documentElement,{documentMode:true});const token='+JSON.stringify(token)+';window.addEventListener("message",e=>{if(e.source!==parent||e.data?.token!==token)return;if(e.data.type==="claude-preview-reset")zoom.reset();if(e.data.type==="claude-preview-zoom")zoom.zoom(e.data.ratio);});parent.postMessage({type:"claude-preview-ready",token},"*");})();';
+  window.claudeHtmlPreviewBootstrap = token => '(()=>{const zoom=('+bindDocumentZoom.toString()+')(document.scrollingElement,document.documentElement,{documentMode:true});const token='+JSON.stringify(token)+';window.addEventListener("message",e=>{if(e.source!==parent||e.data?.token!==token)return;if(e.data.type==="claude-preview-reset")zoom.reset();if(e.data.type==="claude-preview-fit")zoom.fit();if(e.data.type==="claude-preview-zoom")zoom.zoom(e.data.ratio);});parent.postMessage({type:"claude-preview-ready",token},"*");})();';
 
   window.installClaudeMediaPreview = function installClaudeMediaPreview(options = {}) {
     const doc=options.doc||document,win=doc.defaultView||window;
@@ -167,9 +259,11 @@
     `;(doc.head||doc.body).append(style);
     const controls=make('div','preview-controls');controls.setAttribute('aria-label','预览缩放');
     let zoom=null;
-    for(const [text,label,action] of [['−','缩小预览',()=>zoom?.zoom(1/1.5)],['适应','适应屏幕',()=>zoom?.reset()],['+','放大预览',()=>zoom?.zoom(1.5)]]){const b=make('button','',text);b.type='button';b.setAttribute('aria-label',label);b.onclick=action;controls.append(b);}
+    // "适应" and rotation reset only the zoom level; the scroll anchor stays.
+    const fitZoom=()=>{if(typeof zoom?.fit==='function')zoom.fit();else zoom?.reset?.();};
+    for(const [text,label,action] of [['−','缩小预览',()=>zoom?.zoom(1/1.5)],['适应','适应屏幕',fitZoom],['+','放大预览',()=>zoom?.zoom(1.5)]]){const b=make('button','',text);b.type='button';b.setAttribute('aria-label',label);b.onclick=action;controls.append(b);}
     bar.insertBefore(controls,closeButton);
-    let current=null,disposed=false,fallbackFocus=null,inertBefore=[];
+    let current=null,disposed=false,fallbackFocus=null,inertBefore=[],historyGuard=null;
     const modal=options.modal||win.claudeModal;
     const status=(text,retry)=>{const box=make('div','preview-status');box.setAttribute('role','status');box.append(make('p','',text));if(retry){const b=make('button','preview-retry','重试');b.type='button';b.onclick=()=>retry();box.append(b);}return box;};
     const live=s=>current===s&&!s.controller.signal.aborted&&!disposed;
@@ -180,17 +274,19 @@
     };
     const close=()=>{
       cleanup();viewer.classList.add('hidden');viewer.removeAttribute('aria-modal');
+      historyGuard?.close();
       if(modal)modal.close(viewer);else{for(const [child,inert] of inertBefore)child.inert=inert;inertBefore=[];if(fallbackFocus?.isConnected)fallbackFocus.focus();}
     };
     const openModal=()=>{
       const wasHidden=viewer.classList.contains('hidden');viewer.classList.remove('hidden');viewer.setAttribute('aria-modal','true');
+      if(wasHidden)historyGuard?.open();
       if(modal)modal.open(viewer,close,closeButton);
       else if(wasHidden){fallbackFocus=doc.activeElement;for(const child of doc.body.children)if(child!==viewer&&child.tagName!=='SCRIPT'&&child.tagName!=='STYLE'){inertBefore.push([child,child.inert]);child.inert=true;}closeButton.focus();}
     };
     const finish=s=>{if(!live(s))return;clearTimeout(s.timer);content.removeAttribute('aria-busy');s.loading?.remove();};
-    const fail=(s,error)=>{
+    const fail=(s,error,retry=s.retry)=>{
       if(!live(s))return;clearTimeout(s.timer);s.controller.abort();for(const stop of s.cleanups.splice(0))try{stop();}catch{}
-      zoom=null;controls.hidden=true;content.removeAttribute('aria-busy');content.replaceChildren(status(error,s.retry));
+      zoom=null;controls.hidden=true;content.removeAttribute('aria-busy');content.replaceChildren(status(error,retry));
     };
     const timed=(s,operation)=>{
       const signal=s.controller.signal;
@@ -204,13 +300,7 @@
     const loading=(s,text)=>{const box=status(text);box.classList.add('preview-loading');content.append(box);s.loading=box;};
     const attachZoom=(s,controller)=>{zoom=controller;controls.hidden=false;s.cleanups.push(()=>controller.dispose());};
     const request=options.request||((...args)=>win.fetch(...args));
-    const validateUrl=(url,image)=>{
-      const u=new URL(url,win.location.href);
-      if(image&&u.protocol==='blob:'&&u.origin===win.location.origin)return u.href;
-      if(!['https:','http:'].includes(u.protocol))throw Error('不支持的文件地址');
-      if(!image&&(u.origin!==win.location.origin||u.pathname!=='/claude/api/file'))throw Error('只能预览当前会话引用的文件');
-      return u.href;
-    };
+    const validateUrl=(url,image)=>validatePreviewUrl(url,image,win);
     function imagePreview(s,url,label) {
       content.dataset.kind='image';const stage=make('div','image-stage'),image=make('img');image.alt=label||'图片';stage.append(image);content.append(stage);loading(s,'图片加载中…');
       attachZoom(s,bindImageZoom(stage,image));
@@ -225,7 +315,7 @@
       const receive=e=>{if(live(s)&&e.source===frame.contentWindow&&e.data?.token===token&&e.data?.type==='claude-preview-ready')finish(s);};
       win.addEventListener('message',receive);s.cleanups.push(()=>{win.removeEventListener('message',receive);frame.onerror=null;frame.removeAttribute('src');frame.remove();});
       const post=(type,ratio)=>{if(live(s))frame.contentWindow?.postMessage({type,token,ratio},'*');};
-      attachZoom(s,{reset:()=>post('claude-preview-reset'),zoom:ratio=>post('claude-preview-zoom',ratio),dispose:()=>{}});
+      attachZoom(s,{reset:()=>post('claude-preview-reset'),fit:()=>post('claude-preview-fit'),zoom:ratio=>post('claude-preview-zoom',ratio),dispose:()=>{}});
       frame.onerror=()=>fail(s,'网页预览加载失败，请重试');
       // Keep the file response's own CSP (srcdoc would inherit the stricter
       // Claude page policy). The server injects claudeHtmlPreviewBootstrap.
@@ -243,9 +333,19 @@
       content.replaceChildren();content.dataset.kind='pdf';
       const layer=make('div','preview-pdf');layer.setAttribute('aria-label','PDF，共 '+pdf.numPages+' 页');content.append(layer);
       const firstViewport=first.getViewport({scale:1});
-      let width=Math.max(100,content.clientWidth-24),rendering=new Set();
-      const slots=[];
-      const render=async(slot,index)=>{
+      let width=Math.max(100,content.clientWidth-24);
+      // Only pages near the viewport keep a canvas. iOS reclaims WebKit canvases
+      // badly, so long PDFs must release off-screen raster data (planPageReclaim)
+      // and paint at most two pages at a time.
+      const slots=[],renderedOrder=[],visiblePages=new Set(),rendering=new Set(),queued=[],queuedSet=new Set();
+      const release=index=>{
+        const slot=slots[index-1],at=renderedOrder.indexOf(index);
+        if(at>=0)renderedOrder.splice(at,1);
+        if(!slot||!slot.dataset.rendered)return;
+        delete slot.dataset.rendered;slot.replaceChildren();
+      };
+      const reclaim=()=>{for(const index of planPageReclaim(renderedOrder,[...visiblePages]))release(index);};
+      const paint=async(slot,index)=>{
         if(!live(s)||slot.dataset.rendered||rendering.has(slot))return;
         rendering.add(slot);slot.replaceChildren(status('第 '+index+' 页加载中…'));
         try{
@@ -259,18 +359,32 @@
           const cancel=()=>renderTask.cancel?.();s.cleanups.push(cancel);
           try{await timed(s,renderTask.promise);}finally{const i=s.cleanups.indexOf(cancel);if(i>=0)s.cleanups.splice(i,1);}
           if(!live(s))return;slot.replaceChildren(canvas);slot.dataset.rendered='true';
-        }catch(error){if(live(s))slot.replaceChildren(status('第 '+index+' 页加载失败',()=>{delete slot.dataset.rendered;void render(slot,index);}));}
+          const at=renderedOrder.indexOf(index);if(at>=0)renderedOrder.splice(at,1);renderedOrder.push(index);reclaim();
+        }catch(error){if(live(s))slot.replaceChildren(status('第 '+index+' 页加载失败',()=>{delete slot.dataset.rendered;void paint(slot,index);}));}
         finally{rendering.delete(slot);}
+      };
+      const render=(slot,index)=>{
+        if(!live(s)||slot.dataset.rendered||rendering.has(slot))return;
+        if(rendering.size>=2){if(!queuedSet.has(slot)){queuedSet.add(slot);queued.push([slot,index]);}return;}
+        void paint(slot,index).finally(()=>{const next=queued.shift();if(next){queuedSet.delete(next[0]);render(next[0],next[1]);}});
       };
       for(let i=1;i<=pdf.numPages;i++){const slot=make('div','preview-pdf-page');slot.style.width='100%';slot.style.height=(width*firstViewport.height/firstViewport.width)+'px';slot.setAttribute('aria-label','第 '+i+' 页');slots.push(slot);layer.append(slot);}
       attachZoom(s,bindDocumentZoom(content,layer));
-      const observer=win.IntersectionObserver?new win.IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting)void render(e.target,slots.indexOf(e.target)+1);},{root:content,rootMargin:'600px'}):null;
+      const renderVisible=()=>{const r=content.getBoundingClientRect(),visible=new Set();slots.forEach((slot,i)=>{const p=slot.getBoundingClientRect();if(p.bottom>=r.top-600&&p.top<=r.bottom+600){visible.add(i+1);render(slot,i+1);}});visiblePages.clear();for(const page of visible)visiblePages.add(page);};
+      const observer=win.IntersectionObserver?new win.IntersectionObserver(entries=>{for(const e of entries){const index=slots.indexOf(e.target)+1;if(index<1)continue;if(e.isIntersecting){visiblePages.add(index);render(e.target,index);}else{visiblePages.delete(index);release(index);}}},{root:content,rootMargin:'600px'}):null;
       if(observer){s.cleanups.push(()=>observer.disconnect());for(const slot of slots)observer.observe(slot);}
-      else {const scroll=()=>{const r=content.getBoundingClientRect();slots.forEach((slot,i)=>{const p=slot.getBoundingClientRect();if(p.bottom>=r.top-600&&p.top<=r.bottom+600)void render(slot,i+1);});};content.addEventListener('scroll',scroll,{passive:true});s.cleanups.push(()=>content.removeEventListener('scroll',scroll));scroll();}
-      await render(slots[0],1);if(!live(s))return;finish(s);
-      // Width stays responsive after rotation; existing canvases retain their
-      // aspect ratio while visible pages are repainted to the new fit width.
-      const resize=()=>{const next=Math.max(100,content.clientWidth-24);if(next===width)return;width=next;zoom?.reset();for(const slot of slots){if(rendering.has(slot))continue;delete slot.dataset.rendered;slot.style.height=(width*firstViewport.height/firstViewport.width)+'px';}void render(slots[0],1);if(observer){observer.disconnect();for(const slot of slots)observer.observe(slot);}};
+      else {content.addEventListener('scroll',renderVisible,{passive:true});s.cleanups.push(()=>content.removeEventListener('scroll',renderVisible));renderVisible();}
+      await paint(slots[0],1);if(!live(s))return;finish(s);
+      // Rotation changes every page's fit width: keep the reading position
+      // (bindDocumentZoom.fit), drop the old rasters and repaint lazily.
+      const resize=()=>{
+        const next=Math.max(100,content.clientWidth-24);if(next===width)return;
+        width=next;if(typeof zoom?.fit==='function')zoom.fit();else zoom?.reset?.();
+        visiblePages.clear();renderedOrder.length=0;
+        for(const slot of slots){delete slot.dataset.rendered;slot.replaceChildren();slot.style.height=(width*firstViewport.height/firstViewport.width)+'px';}
+        if(observer){observer.disconnect();for(const slot of slots)observer.observe(slot);}
+        renderVisible();
+      };
       const ro=win.ResizeObserver?new win.ResizeObserver(resize):null;ro?.observe(content);win.addEventListener('resize',resize);s.cleanups.push(()=>{ro?.disconnect();win.removeEventListener('resize',resize);});
     }
     async function preview(url,label,image=false,file=null) {
@@ -292,12 +406,19 @@
         content.dataset.kind=markdown?'markdown':'text';const layer=make(markdown?'article':'pre',markdown?'markdown-preview bubble':'');content.append(layer);
         if(markdown&&(options.renderMarkdown||win.claudeRender))(options.renderMarkdown||win.claudeRender)(layer,text,file?.session,file?.path);else layer.textContent=text;
         attachZoom(s,bindDocumentZoom(content,layer));finish(s);
-      }catch(error){if(live(s)&&error.name!=='AbortError')fail(s,error.message||'预览加载失败，请重试');}
+      }catch(error){
+        if(!live(s)||error.name==='AbortError')return;
+        if(error.code==='CLAUDE_PREVIEW_TOO_LARGE')fail(s,error.message,null);
+        else fail(s,error.message||'预览加载失败，请重试');
+      }
     }
     const previousClose=closeButton.onclick;closeButton.onclick=close;
     const keydown=e=>{if(viewer.classList.contains('hidden')||modal)return;if(e.key==='Escape'){e.preventDefault();close();}else if(e.key==='Tab'){const targets=[...viewer.querySelectorAll('button:not(:disabled),a[href],iframe,[tabindex="0"]')].filter(e=>e.getClientRects().length);const first=targets[0]||viewer,last=targets.at(-1)||first;if(e.shiftKey&&doc.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&doc.activeElement===last){e.preventDefault();first.focus();}}};
     doc.addEventListener('keydown',keydown,true);
-    const api={preview,previewImage:(url,label)=>preview(url,label||'图片预览',true),close,element:viewer,dispose:()=>{if(disposed)return;close();disposed=true;doc.removeEventListener('keydown',keydown,true);closeButton.onclick=previousClose;controls.remove();style.remove();delete viewer.dataset.claudeMediaPreview;if(ownsViewer)viewer.remove();installations.delete(key);}};
+    historyGuard=createHistoryGuard(win,()=>close());
+    const api={preview,previewImage:(url,label)=>preview(url,label||'图片预览',true),close,element:viewer,dispose:()=>{if(disposed)return;close();historyGuard?.dispose();disposed=true;doc.removeEventListener('keydown',keydown,true);closeButton.onclick=previousClose;controls.remove();style.remove();delete viewer.dataset.claudeMediaPreview;if(ownsViewer)viewer.remove();installations.delete(key);}};
     installations.set(key,api);return api;
   };
+  // Test-only surface for the pure helpers and the history guard; no DOM access.
+  window.claudeMediaPreviewInternals={DATA_IMAGE_LIMIT,PDF_LIVE_PAGES,dataImage,planPageReclaim,createHistoryGuard,validatePreviewUrl,bindDocumentZoom};
 })();

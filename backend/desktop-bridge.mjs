@@ -2,7 +2,7 @@ import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import { lstat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { messageBusy } from './message-delivery.mjs';
 
@@ -16,12 +16,41 @@ const VERSIONS = {
   'thread-follower-command-approval-decision': 1, 'thread-follower-file-approval-decision': 1,
   'thread-follower-permissions-request-approval-response': 1,
   'thread-follower-submit-user-input': 1, 'thread-follower-submit-mcp-server-elicitation-response': 1,
-  'thread-stream-following-changed': 1, 'thread-stream-state-changed': 11,
+  'thread-stream-following-changed': 1,
 };
+// Reviewed Desktop releases use the same identity/canonical-history projection in
+// v11 and v13. v13 adds settings/voice/workspace fields; do not accept arbitrary
+// future versions or silently discard their snapshots as a connectivity timeout.
+const STATE_VERSIONS = new Set([11, 13]);
 const MAX_FRAME_BYTES = 256 * 1024 * 1024;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const clone = value => structuredClone(value);
 const bridgeError = (message, code, outcomeUnknown = false) => Object.assign(new Error(message), { code, outcomeUnknown });
+const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const revision = value => Number.isSafeInteger(value) && value >= 0;
+function validDesktopState(state, threadId) {
+  if (!object(state) || state.id !== threadId || typeof state.cwd !== 'string' || !isAbsolute(state.cwd)) return false;
+  if (state.requests !== undefined && (!Array.isArray(state.requests) || !state.requests.every(object))) return false;
+  if (state.currentPermissions !== undefined && !object(state.currentPermissions)) return false;
+  if (state.turns !== undefined && !Array.isArray(state.turns)) return false;
+  let turns = state.turns;
+  if (state.turnHistory !== undefined) {
+    const history = state.turnHistory?.history;
+    if (state.turnHistory?.kind !== 'canonical' || !object(history) || !object(history.entitiesByKey) || !Array.isArray(history.islands)) return false;
+    for (const island of history.islands) {
+      if (!object(island) || !Array.isArray(island.entries)) return false;
+      for (const entry of island.entries) {
+        const key = typeof entry === 'string' ? entry : object(entry) ? entry.value ?? entry.key : null;
+        if (typeof key !== 'string' || FORBIDDEN_KEYS.has(key) || !Object.hasOwn(history.entitiesByKey, key)) return false;
+      }
+    }
+    turns = Object.values(history.entitiesByKey);
+  }
+  return Array.isArray(turns) && turns.every(turn => object(turn) &&
+    (turn.turnId == null || typeof turn.turnId === 'string') &&
+    (turn.params === undefined || object(turn.params) && (turn.params.input === undefined || Array.isArray(turn.params.input))) &&
+    (turn.items === undefined || Array.isArray(turn.items) && turn.items.every(object)));
+}
 
 export function encodeDesktopFrame(message) {
   const data = Buffer.from(JSON.stringify(message));
@@ -155,6 +184,46 @@ export async function forkThreadAtTurn(core, threadId, {turnId, before = false} 
   return core.call('thread/fork', {threadId, [before ? 'beforeTurnId' : 'lastTurnId']:turnId, ephemeral:false, excludeTurns:false, deferGoalContinuation:true, threadSource:'user'});
 }
 
+// Display-only soft deadline. Native ownership/write checks never use this reader.
+// The native read keeps its original timeout; a late result updates only the
+// existing cache/listeners. Records contain promises/flags, never message bodies.
+export function createHistoryOverlayReader({read,cached=()=>null,accept=()=>{},failed=()=>{},changed=()=>{},now=Date.now,waitMs=80,cooldownMs=2000,maxEntries=64}={}) {
+  if(typeof read!=='function'||!Number.isSafeInteger(maxEntries)||maxEntries<1||!Number.isFinite(waitMs)||waitMs<0||!Number.isFinite(cooldownMs)||cooldownMs<0)throw Error('Invalid history overlay reader');
+  const records=new Map();let disposed=false;
+  const snapshot=(history,confirmed=false)=>({history,confirmed});
+  const fallback=id=>{if(disposed)return snapshot(null);try{failed(id);}catch{}return snapshot(cached(id));};
+  function start(id,record){
+    record.pending=true;record.late=false;
+    record.promise=Promise.resolve().then(()=>read(id)).then(value=>{
+      if(disposed)return false;
+      if(!value){record.failureAt=now();return false;}
+      accept(id,value);record.failureAt=null;
+      if(record.late)changed(id);
+      return true;
+    }).catch(()=>{record.failureAt=now();if(!disposed)try{failed(id);}catch{}return false;}).finally(()=>{record.pending=false;record.promise=null;});
+  }
+  return {
+    async get(id){
+      if(disposed)return snapshot(null);
+      let record=records.get(id);
+      if(!record){
+        if(records.size>=maxEntries){const idle=[...records].find(([,entry])=>!entry.pending);if(idle)records.delete(idle[0]);}
+        if(records.size>=maxEntries)return fallback(id);
+        record={pending:false,promise:null,failureAt:null,late:false};records.set(id,record);
+      }else{records.delete(id);records.set(id,record);}
+      if(!record.pending&&record.failureAt!==null&&now()-record.failureAt<cooldownMs)return fallback(id);
+      if(!record.pending)start(id,record);
+      let timer;
+      try{
+        const ready=await Promise.race([record.promise,new Promise(resolve=>{timer=setTimeout(()=>{record.late=true;resolve(false);},waitMs);})]);
+        return disposed?snapshot(null):ready?snapshot(cached(id),true):fallback(id);
+      }finally{clearTimeout(timer);}
+    },
+    get size(){return records.size;},
+    dispose(){disposed=true;records.clear();},
+  };
+}
+
 export class DesktopBridge extends EventEmitter {
   constructor({ socketPath, requestTimeoutMs = 5000, snapshotTimeoutMs = 1500, reconnectDelayMs = 1000, snapshotThrottleMs = 100 } = {}) {
     super(); this.socketPath = socketPath; this.requestTimeoutMs = requestTimeoutMs; this.snapshotTimeoutMs = snapshotTimeoutMs; this.reconnectDelayMs = reconnectDelayMs; this.snapshotThrottleMs = snapshotThrottleMs;
@@ -245,22 +314,43 @@ export class DesktopBridge extends EventEmitter {
       for (const id of this.followed) if (!this.owners.has(id)) { this.noOwners.delete(id); this.owner(id).then(owner => { if (owner && this.followed.has(id)) this.follow(id, owner); }).catch(() => {}); }
       return;
     }
-    if (message.method !== 'thread-stream-state-changed' || message.version !== 11) return;
+    if (message.method !== 'thread-stream-state-changed') return;
     const { conversationId:threadId, hostId, change } = message.params || {};
     if (hostId !== 'local' || !this.followed.has(threadId) || !change) return;
     const owner = this.owners.get(threadId); if (!owner || owner.clientId !== message.sourceClientId) return;
+    if (!STATE_VERSIONS.has(message.version)) {
+      this.rejectSnapshot(threadId, bridgeError('当前 Codex 桌面协议版本尚未适配，请更新手机服务后重试', 'DESKTOP_PROTOCOL_UNSUPPORTED')); return;
+    }
+    if (!revision(change.revision) || !['snapshot', 'patches'].includes(change.type)) {
+      this.rejectSnapshot(threadId, bridgeError('Codex 桌面会话状态格式不兼容，请更新手机服务后重试', 'DESKTOP_STATE_INVALID')); return;
+    }
     if (change.type === 'snapshot') {
-      if (!change.conversationState || change.conversationState.id !== threadId) return;
-      this.states.set(threadId, { state:change.conversationState, revision:change.revision });
-    } else if (change.type === 'patches') {
+      if (!validDesktopState(change.conversationState, threadId)) {
+        this.rejectSnapshot(threadId, bridgeError('Codex 桌面会话状态格式不兼容，请更新手机服务后重试', 'DESKTOP_STATE_INVALID')); return;
+      }
+      this.states.set(threadId, { state:change.conversationState, revision:change.revision, version:message.version });
+    } else {
       const current = this.states.get(threadId);
-      if (!current || current.revision !== change.baseRevision) { this.refreshSnapshot(threadId, owner.clientId); return; }
-      try { current.state = applyDesktopPatches(current.state, change.patches); current.revision = change.revision; }
-      catch { this.states.delete(threadId); this.refreshSnapshot(threadId, owner.clientId); return; }
-    } else return;
+      if (!current || current.revision !== change.baseRevision || current.version !== message.version) { this.states.delete(threadId); this.refreshSnapshot(threadId, owner.clientId); return; }
+      try {
+        current.state = applyDesktopPatches(current.state, change.patches);
+        if (!validDesktopState(current.state, threadId)) throw bridgeError('Codex 桌面会话状态格式不兼容，请更新手机服务后重试', 'DESKTOP_STATE_INVALID');
+        current.revision = change.revision;
+      } catch (error) {
+        if (error.code === 'DESKTOP_STATE_INVALID') this.rejectSnapshot(threadId, error);
+        else { this.states.delete(threadId); this.refreshSnapshot(threadId, owner.clientId); }
+        return;
+      }
+    }
     const entry = this.states.get(threadId);
     for (const waiter of this.snapshotWaiters.get(threadId) || []) waiter.resolve(entry.state);
     this.snapshotWaiters.delete(threadId); this.scheduleSnapshot(threadId);
+  }
+  rejectSnapshot(threadId, error) {
+    this.states.delete(threadId);
+    for (const waiter of this.snapshotWaiters.get(threadId) || []) waiter.reject(error);
+    this.snapshotWaiters.delete(threadId);
+    this.emit('diagnostic', error.code + ': ' + error.message);
   }
   async owner(threadId, { timeout = this.snapshotTimeoutMs } = {}) {
     if (typeof threadId !== 'string' || !threadId) throw new Error('会话标识无效');

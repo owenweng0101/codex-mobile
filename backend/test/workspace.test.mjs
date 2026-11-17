@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { workspacePath, listWorkspaceFiles, readWorkspaceFile, workspaceGit, readRolloutPage } from '../core.mjs';
+import { WORKSPACE_TEXT_PREVIEW_BYTES, workspacePath, listWorkspaceFiles, readWorkspaceFile, workspaceGit, readRolloutPage } from '../core.mjs';
 
 test('workspace reader rejects traversal and escaping symlinks, preserves Unicode', async () => {
   const root = await mkdtemp(join(tmpdir(), 'codex-mobile-files-'));
@@ -23,10 +23,10 @@ test('workspace reader rejects traversal and escaping symlinks, preserves Unicod
 test('large UTF-8 previews omit only the incomplete boundary character', async () => {
   const root = await mkdtemp(join(tmpdir(), 'codex-mobile-utf8-'));
   try {
-    const path = join(root, 'preview.txt'), prefix = 'x'.repeat(512 * 1024 - 1);
+    const path = join(root, 'preview.txt'), prefix = 'x'.repeat(WORKSPACE_TEXT_PREVIEW_BYTES - 1);
     await writeFile(path, prefix + '中文🐱'); const preview = await readWorkspaceFile(root, 'preview.txt');
     assert.equal(preview.truncated, true); assert.equal(preview.content, prefix); assert.equal(preview.content.includes('\ufffd'), false);
-    await writeFile(path, 'x'.repeat(512 * 1024 - 3) + '中'); const complete = await readWorkspaceFile(root, 'preview.txt');
+    await writeFile(path, 'x'.repeat(WORKSPACE_TEXT_PREVIEW_BYTES - 3) + '中'); const complete = await readWorkspaceFile(root, 'preview.txt');
     assert.equal(complete.truncated, false); assert.equal(complete.content.endsWith('中'), true);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

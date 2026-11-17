@@ -28,23 +28,25 @@ export async function lastPermissionMode(file){
   }catch{return null;}
 }
 
-export async function liveSession(sessionId,{directory=SESSIONS,isPidAlive=pid=>{if(!Number.isSafeInteger(pid)||pid<=0)return false;try{process.kill(pid,0);return true;}catch(error){return error.code==='EPERM';}}}={}){
+export async function liveSession(sessionId,{directory=SESSIONS,includePeerToken=true,isPidAlive=pid=>{if(!Number.isSafeInteger(pid)||pid<=0)return false;try{process.kill(pid,0);return true;}catch(error){return error.code==='EPERM';}}}={}){
   let files=[];
   try{files=await readdir(directory);}catch{return null;}
+  const owners=[];
   for(const name of files){
     if(!/^\d+\.json$/.test(name))continue;
     try{
       const value=JSON.parse(await readFile(join(directory,name),'utf8'));
-      if(value.sessionId!==sessionId||typeof value.messagingSocketPath!=='string'||!isPidAlive(value.pid))continue;
-      const keyFile=files.find(file=>file.startsWith(`${value.pid}.`)&&file.endsWith('.key'));
-      let token=null;
-      if(keyFile){
-        try{token=JSON.parse(await readFile(join(directory,keyFile),'utf8')).peerToken??null;}catch{}
-      }
-      return {pid:value.pid,sessionId:value.sessionId,hostSessionId:value.hostSessionId,entrypoint:value.entrypoint,status:value.status,cwd:value.cwd,name:value.name??null,socketPath:value.messagingSocketPath,token};
+      if(name===`${value.pid}.json`&&value.sessionId===sessionId&&isPidAlive(value.pid))owners.push(value);
     }catch{}
   }
-  return null;
+  if(owners.length>1)throw Object.assign(new Error('同一会话出现多个活动写入者，已停止自动选择'),{code:'DESKTOP_OWNER_AMBIGUOUS'});
+  const value=owners[0];if(!value)return null;
+  let token=null;
+  if(includePeerToken){
+    const keyFile=files.find(file=>file.startsWith(`${value.pid}.`)&&file.endsWith('.key'));
+    if(keyFile){try{token=JSON.parse(await readFile(join(directory,keyFile),'utf8')).peerToken??null;}catch{}}
+  }
+  return {pid:value.pid,sessionId:value.sessionId,hostSessionId:value.hostSessionId,entrypoint:value.entrypoint,status:value.status,waitingFor:value.waitingFor??null,cwd:value.cwd,name:value.name??null,socketPath:value.messagingSocketPath??null,token};
 }
 
 function connect(path){

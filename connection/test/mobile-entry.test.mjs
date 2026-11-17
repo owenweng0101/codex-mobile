@@ -4,7 +4,7 @@ import {mkdtemp, writeFile, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import vm from 'node:vm';
-import {HUB_FRAME_PARAM, withHubFrame, isHubFrameRequest, hubEntryGuard, unifiedEntryTarget} from '../mobile-entry.mjs';
+import {HUB_FALLBACK, HUB_FRAME_PARAM, withHubFrame, isHubFrameRequest, hubEntryGuard, unifiedEntryTarget} from '../mobile-entry.mjs';
 
 test('frame marker preserves absolute/relative query bytes and hash, and is idempotent', () => {
   assert.equal(HUB_FRAME_PARAM, 'hub_frame');
@@ -115,20 +115,40 @@ test('unsafe or credential-bearing state origins cannot turn into redirect targe
     ' https://relay.example.test/', 'https://relay.example.test/\n',
   ]) {
     await f.save({origin});
-    assert.equal(await unifiedEntryTarget({statePath:f.statePath}), 'http://127.0.0.1:18903/m/#', String(origin));
+    assert.equal(await unifiedEntryTarget({statePath:f.statePath}), HUB_FALLBACK, String(origin));
   }
 });
 
 test('missing or corrupt state falls back without trusting Host, Origin, URL or forwarded headers', async t => {
   const f = await fixture(t);
   const request = {headers:{host:'attacker.example.test',origin:'https://attacker.example.test','x-forwarded-host':'attacker.example.test','x-forwarded-proto':'https'},url:'/?t=old#old'};
-  assert.equal(await unifiedEntryTarget({request,statePath:f.statePath}), 'http://127.0.0.1:18903/m/#');
+  assert.equal(await unifiedEntryTarget({request,statePath:f.statePath}), HUB_FALLBACK);
   for (const raw of ['not JSON', 'null', '{}', 'x'.repeat(100001)]) {
     await writeFile(f.statePath,raw);
-    assert.equal(await unifiedEntryTarget({request,statePath:f.statePath}), 'http://127.0.0.1:18903/m/#');
+    assert.equal(await unifiedEntryTarget({request,statePath:f.statePath}), HUB_FALLBACK);
   }
   await f.save({origin:'https://relay.example.test'});
   const before = await readFile(f.statePath,'utf8');
   assert.equal(await unifiedEntryTarget({request,statePath:f.statePath}), 'https://relay.example.test/m/#');
   assert.equal(await readFile(f.statePath,'utf8'), before, 'helper does not modify state');
+});
+
+test('entry fallback is same-origin so a phone never lands on its own localhost', async t => {
+  const f = await fixture(t);
+  // A bare path cannot name a host: the phone resolves it on the origin that
+  // actually served the request, whether that is the HTTPS tunnel or LAN http.
+  assert.equal(HUB_FALLBACK, '/m/#');
+  assert.doesNotMatch(HUB_FALLBACK, /^[a-z][a-z0-9+.-]*:|127\.0\.0\.1|localhost|\/\//i);
+  assert.equal(await unifiedEntryTarget({statePath:f.statePath}), HUB_FALLBACK);
+  for (const [base, expected] of [
+    ['https://relay.example.test/', 'https://relay.example.test/m/#'],
+    ['https://relay.example.test/dsh/index.html?hub_frame=1', 'https://relay.example.test/m/#'],
+    ['http://192.168.1.20:18903/m/?t=fixture', 'http://192.168.1.20:18903/m/#'],
+    ['http://192.168.1.20:18903/claude/', 'http://192.168.1.20:18903/m/#'],
+  ]) assert.equal(new URL(HUB_FALLBACK, base).href, expected, base);
+  // The standalone-page guard must carry the exact same relative target.
+  assert.deepEqual(executeGuard(hubEntryGuard('<head></head>', HUB_FALLBACK)).at(-1), ['replace', HUB_FALLBACK]);
+  // A validated tunnel origin still wins, so a reconnected tunnel keeps working.
+  await f.save({origin:'https://relay.example.test'});
+  assert.equal(await unifiedEntryTarget({statePath:f.statePath}), 'https://relay.example.test/m/#');
 });

@@ -2,7 +2,7 @@ import {pinnedTest as test,hasPinnedFrontend} from './pinned-fixture.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { patchWorkspaceRestoration, patchConversationRestoration } from '../backend/session-restore.mjs';
+import { patchWorkspaceRestoration, patchConversationRestoration, patchChatReadiness } from '../backend/session-restore.mjs';
 import { buildMobileProfile } from '../backend/mobile-profile.mjs';
 import { fileURLToPath } from 'node:url';
 
@@ -84,6 +84,24 @@ test('saved existing session is restored without creating a blank; manual naviga
   assert.equal(service.mobileRestoration.getSnapshot(), 'ready');
 });
 
+test('restoration completion is not history completion and successful restoration has no extra label', () => {
+  const pending = render({ status: 'pending' });
+  assert.equal(pending.props.children[1].props.children, null);
+  assert.equal(pending.props['data-dshm-conversation-state'], 'pending');
+  assert.equal(render({ status: 'ready', sessionId: 'saved', session: {openState:'loading'} }).props['data-dshm-conversation-state'], 'loading');
+  assert.equal(render({ status: 'ready', sessionId: 'saved', session: {openState:'open'} }).props['data-dshm-conversation-state'], 'ready');
+  assert.equal(render({ status: 'ready', sessionId: 'saved', session: {openState:'error'} }).props['data-dshm-conversation-state'], 'error');
+});
+
+test('history readiness markers come from native open state and first layout, not text or older paging', async () => {
+  const original = await sourceFor('chat');
+  const patched = patchChatReadiness(original);
+  new Function(patched);
+  assert.match(patched, /"data-dshm-history-state": openState/);
+  assert.match(patched, /"data-dshm-history-positioned": scroll.initialized \? "" : void 0/);
+  assert.throws(() => patchChatReadiness('unknown'), /review history readiness/);
+});
+
 test('restoration errors are visible, and a subsequent list update can recover', async () => {
   const { service, sessions, workspaces } = navigation();
   service.restoreSelection = async () => { throw new Error('offline'); };
@@ -116,6 +134,11 @@ test('served module profile carries the restoration hook and patched revisions w
     assert.ok(body.includes('mobileRestoration'));
     assert.notEqual(body, await sourceFor(name));
   }
+  const chatEntry = boot.entries.find(entry => entry.id === '@deepseek-ai/dsh-client-ui-chat');
+  const chatBody = profile.bodies.get('/' + chatEntry.url).toString();
+  assert.match(chatBody, /data-dshm-history-positioned/);
+  new Function(chatBody);
+  assert.match(workspace, /data-dshm-workspace-state/);
   const start = conversation.indexOf('const registerConversationRoot =');
   const end = conversation.indexOf('const registerConversationContent =', start);
   const snapshot = store('pending');

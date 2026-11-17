@@ -248,7 +248,10 @@ test('first prepare write failure exposes no prepared result or native side effe
     try{return await save(record);}finally{await rm(dir);}
   };
   let dispatches=0;
-  await assert.rejects((async()=>{await ledger.prepare(id,body);dispatches++;})(),rejectsCode('LEDGER_WRITE_FAILED',500));
+  await assert.rejects((async()=>{await ledger.prepare(id,body);dispatches++;})(),error=>{
+    assert.equal(error.notDispatched,true,'a fresh prepare failure must not become an ambiguous send');
+    return rejectsCode('LEDGER_WRITE_FAILED',500)(error);
+  });
   assert.equal(dispatches,0);
   assert.equal(await ledger.get(id),null);
   assert.deepEqual(await readdir(root),[]);
@@ -267,4 +270,23 @@ test('corrupt records fail closed, and startup ignores abandoned temporary files
   await assert.rejects(ledger.prepare(id,payload()),rejectsCode('LEDGER_CORRUPT',500));
   await assert.rejects(ledger.recover(),rejectsCode('LEDGER_CORRUPT',500));
   assert.equal(await readFile(join(dir,id+'.json'),'utf8'),'not JSON');
+});
+
+test('dispatched recovery preserves the identity and baseline the startup reconcile reads',async t=>{
+  const {dir,ledger}=await fixture(t),id=randomUUID();
+  const prepared=await ledger.prepare(id,payload());
+  await ledger.mark(id,{state:'dispatched',sessionId:id,desktopSessionId:'desktop-native-id',baseline:{cursor:7,startSize:99},dispatchedAt:12345,attachmentIds:['attachment-id']});
+  const restarted=new CommandLedger({dir});
+  const recovered=await restarted.recover();
+  assert.equal(recovered.length,1);
+  const [record]=recovered;
+  assert.equal(record.state,'unknown');
+  assert.equal(record.errorCode,'NATIVE_OUTCOME_UNKNOWN');
+  assert.equal(record.sessionId,id,'reconcile needs the target session');
+  assert.equal(record.desktopSessionId,'desktop-native-id');
+  assert.deepEqual(record.baseline,{cursor:7,startSize:99});
+  assert.equal(record.dispatchedAt,12345);
+  assert.deepEqual(record.attachmentIds,['attachment-id']);
+  assert.equal(record.fingerprint,prepared.record.fingerprint);
+  assert.equal((await restarted.get(id)).state,'unknown');
 });

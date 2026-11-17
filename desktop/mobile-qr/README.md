@@ -34,7 +34,7 @@ node desktop/mobile-qr/install.mjs --apply
 MOBILE_CHATS_ROOT="/absolute/path/to/mobile-chats" node desktop/mobile-qr/install.mjs --apply
 ```
 
-仅安装/替换 `com.wengqiang.mobile-qr`，沿用每 15 秒运行及登录后运行一次的安排。生成的 LaunchAgent 直接执行选定仓库的 `desktop/mobile-qr/update.mjs`，保留当前 Node 可执行路径，并设置 `MOBILE_CHATS_ROOT`；仓库应位于用户稳定可读的位置，移动后重新安装。
+仅安装/替换 `com.wengqiang.mobile-qr`，每 60 秒检查一次，并在登录或加载任务时立即检查；减少无必要的后台唤醒，不影响聊天连接。生成的 LaunchAgent 直接执行选定仓库的 `desktop/mobile-qr/update.mjs`，保留当前 Node 可执行路径，并设置 `MOBILE_CHATS_ROOT`；仓库应位于用户稳定可读的位置，移动后重新安装。
 
 安装器只处理自己的标签、plist 及 QR 错误日志目录；不会安装、停止、重启 Codex、DSH、Claude 或隧道，不读取/复制任何凭证。`RunAtLoad` 会在真正安装后触发一次二维码更新，因此未授权部署时不要执行 `--apply`。
 

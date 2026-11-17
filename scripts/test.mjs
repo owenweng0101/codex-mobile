@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {dirname,resolve} from 'node:path';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export async function discoverTests(base=root){
- const groups=['scripts/test','connection/test','adapter/test','adapter/read-services/test','adapter/write-services','adapter/frontend-stage','backend/test','dsh-mobile/test','claude-mobile/test','desktop/mobile-qr'];
+ const groups=['scripts/test','connection/test','adapter/test','adapter/read-services/test','adapter/write-services','adapter/frontend-stage','backend/test','dsh-mobile/test','claude-mobile/test','claude-mobile/desktop-plugin/tests','desktop/mobile-qr'];
  const files=[];for(const group of groups)for(const file of (await readdir(resolve(base,group))).sort())
   if(file.endsWith('.test.mjs')&&!file.includes('-real.'))files.push(group+'/'+file);
  return files;

@@ -22,7 +22,49 @@ test('ordinary sends inspect metadata and model concurrently, but never post bef
  releaseMetadata();await new Promise(resolve=>setTimeout(resolve,5));assert.equal(f.posts.length,0);
  releaseModels();assert.equal((await sending).status,'accepted');assert.equal(f.posts.length,1);
 });
+test('desktop protocol incompatibility keeps its actionable reason and a durable rejected ACK instead of an unknown write',async t=>{
+  const message='当前 Codex 桌面协议版本尚未适配，请更新手机服务后重试';
+  const f=await fixture(t,{post:async()=>{throw Object.assign(Error(message),{code:'DESKTOP_PROTOCOL_UNSUPPORTED',statusCode:503,sent:false,outcomeUnknown:false})}});
+  const p=command('sendText',{text:'preserve this draft'},id,'protocol-failure');
+  const result=await f.agent.sendConversationCommandV4(p);assert.equal(result.status,'rejected');assert.equal(result.reasonCode,'DESKTOP_PROTOCOL_UNSUPPORTED');assert.equal(result.message,message);
+  assert.deepEqual(await f.agent.sendConversationCommandV4(p),result);assert.equal(f.posts.length,1);
+  const queried=await f.agent.queryConversationCommandsV4({workspacePath:'/workspace',commands:[{commandId:p.envelope.commandId,sessionId:id}]});assert.deepEqual(queried.results[0].result,result);
+});
 test('a freshly archived thread cannot send even when still present in the project list',async t=>{
  const f=await fixture(t);f.api.get=async path=>{assert.match(path,/^\/api\/thread-metadata\?/);return{thread:{id,cwd:'/workspace',archived:true}};};
  await assert.rejects(f.agent.sendConversationCommandV4(command('sendText',{text:'hello'})),/归档/);assert.equal(f.posts.length,0);
+});
+// A phone-created thread is not attached to the desktop until its first turn
+// starts, so these flags are false for every fresh creation. Reading the exact
+// native ID in the recorded workspace is the proof that the thread exists.
+const detachedHistory=target=>({thread:{id:target,cwd:'/workspace'},turns:[],attached:false,desktopConnected:false});
+test('draft prewarm creation is accepted while the new thread is not attached yet; replay never posts twice',async t=>{
+ const f=await fixture(t,{history:detachedHistory});const p=command('createSession',{workspaceId:'/workspace'},null,'prewarm-1');
+ const ack=await f.agent.sendConversationCommandV4(p);
+ assert.equal(originalCommandAck.safeParse(ack).success,true);assert.equal(ack.status,'accepted');assert.equal(ack.result.sessionId,fresh);
+ assert.deepEqual(f.posts.map(x=>x.path),['/api/thread']);assert.equal(JSON.stringify(f.posts[0].body).includes('initialText'),false);
+ const again=await f.agent.sendConversationCommandV4(p);assert.deepEqual(again,ack);assert.equal(f.posts.length,1);
+ const record=JSON.parse(await readFile(join(f.dir,(await readdir(f.dir)).find(x=>x.endsWith('.json'))),'utf8'));
+ assert.equal(record.state,'complete');assert.equal(record.reconciledBy,undefined);assert.equal(record.nativeId,fresh);
+});
+test('an allocated draft creation reconciles from the recoverable response and stays accepted',async t=>{
+ const f=await fixture(t,{history:detachedHistory,post:async()=>{throw Object.assign(Error('任务已保存，Codex 桌面接管尚待确认'),{threadId:fresh,persisted:true,writerReleased:true,needsAttach:true,outcomeUnknown:true});}});
+ const ack=await f.agent.sendConversationCommandV4(command('createSession',{workspaceId:'/workspace'},null,'prewarm-2'));
+ assert.equal(ack.status,'accepted');assert.equal(ack.result.sessionId,fresh);assert.equal(f.posts.length,1);
+});
+test('a fresh creation with its first message no longer waits for the desktop attach, but still needs the native turn receipt',async t=>{
+ const f=await fixture(t,{history:detachedHistory});
+ const ack=await f.agent.sendConversationCommandV4(command('createSession',{workspaceId:'/workspace',firstInput:{text:'first'}},null,'create-send'));
+ assert.equal(ack.result.sessionId,fresh);assert.equal(ack.result.input.delivery,'startNow');assert.deepEqual(f.posts.map(x=>x.path),['/api/thread','/api/message']);
+ const queued=await fixture(t,{history:detachedHistory,post:async(path,body)=>path==='/api/thread'?{thread:{id:fresh}}:{queued:true}});
+ await assert.rejects(queued.agent.sendConversationCommandV4(command('createSession',{workspaceId:'/workspace',firstInput:{text:'first'}},null,'create-queued')),e=>e.code==='NATIVE_OUTCOME_UNKNOWN');
+});
+test('an unreadable or archived draft thread never becomes an accepted creation',async t=>{
+ const missing=await fixture(t,{history:target=>({thread:{id:target,cwd:'/elsewhere'},turns:[]})});
+ await assert.rejects(missing.agent.sendConversationCommandV4(command('createSession',{workspaceId:'/workspace'},null,'prewarm-3')),e=>e.code==='NATIVE_OUTCOME_UNKNOWN');
+ const archived=await fixture(t,{history:target=>({thread:{id:target,cwd:'/workspace',archived:true},turns:[]})});
+ const p=command('createSession',{workspaceId:'/workspace'},null,'prewarm-4');
+ await assert.rejects(archived.agent.sendConversationCommandV4(p),e=>e.code==='NATIVE_OUTCOME_UNKNOWN');
+ const query=await archived.agent.queryConversationCommandsV4({workspacePath:'/workspace',commands:[{sessionId:null,commandId:p.envelope.commandId}]});
+ assert.notEqual(query.results[0]?.result?.status,'accepted');
 });

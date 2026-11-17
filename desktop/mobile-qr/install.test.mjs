@@ -18,7 +18,8 @@ test('LaunchAgent points directly to this checkout, escapes paths and contains n
   const plan=launchAgentPlan({root:'/example/mobile & chats',home:'/example/home',node:'/example/Node "stable"/node'});
   assert.ok(plan.contents.includes('/example/mobile &amp; chats/desktop/mobile-qr/update.mjs'));
   assert.ok(plan.contents.includes('Node &quot;stable&quot;'));
-  assert.match(plan.contents,/<key>MOBILE_CHATS_ROOT<\/key>/);assert.match(plan.contents,/<key>StartInterval<\/key><integer>15<\/integer>/);
+  assert.match(plan.contents,/<key>MOBILE_CHATS_ROOT<\/key>/);assert.match(plan.contents,/<key>StartInterval<\/key><integer>60<\/integer>/);
+  assert.match(plan.contents,/<key>RunAtLoad<\/key><true\/>/);
   assert.doesNotMatch(plan.contents,/access-token|AUTH_TOKEN|phoneUrl|KeepAlive/);
   assert.throws(()=>launchAgentPlan({root:'relative'}),/absolute/);
 });

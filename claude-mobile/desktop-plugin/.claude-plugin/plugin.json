@@ -1,0 +1,6 @@
+{
+  "name": "mobile-native-bridge",
+  "version": "0.1.4",
+  "description": "Authenticated local mobile text input through the native session prompt API.",
+  "types": "./types/index.d.ts"
+}

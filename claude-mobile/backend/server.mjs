@@ -1,10 +1,11 @@
 import {withHubFrame,isHubFrameRequest,hubEntryGuard,unifiedEntryTarget} from '../../connection/mobile-entry.mjs';
 import {NativeRead} from './lib/native-read.mjs';
 import {injectHtmlPreview} from './lib/html-preview.mjs';
-import {embedHtmlAssets,resolveReferencedFile} from './lib/file-references.mjs';
+import {embedHtmlAssets,referencedPaths,localPath,isReferencedDependency} from './lib/file-references.mjs';
 import http from 'node:http';
 import {gzipSync} from 'node:zlib';
-import {randomBytes, randomUUID} from 'node:crypto';
+import {randomBytes, randomUUID, createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import {mkdir,readFile,writeFile,chmod,stat,unlink,realpath} from 'node:fs/promises';
 import {homedir,networkInterfaces} from 'node:os';
 import {join,resolve,extname,dirname,sep} from 'node:path';
@@ -17,9 +18,13 @@ import {resolveCli,readMagpieLaunch,PERMISSION_MODES} from './lib/claude-cli.mjs
 import {resolveChatCwd} from './lib/chat-cwd.mjs';
 import {DesktopIntent} from './lib/desktop-intent.mjs';
 import {DesktopDelivery} from './lib/desktop-delivery.mjs';
+import {NativeUserBridge} from './lib/native-user-bridge.mjs';
+import {NativeUserDelivery} from './lib/native-user-delivery.mjs';
+import {runtimeStatus} from './lib/runtime-status.mjs';
 import {DesktopModels} from './lib/desktop-models.mjs';
 import {CommandLedger} from './lib/command-ledger.mjs';
 import {stagePeerAttachments} from './lib/desktop-attachments.mjs';
+import {PHONE_IMAGE_ID,MAX_PHONE_IMAGE_BYTES,MAX_PHONE_IMAGES,readPhoneImage,storePhoneImage} from './lib/phone-images.mjs';
 
 /**
  * Claude 手机入口：复用 dsh-mobile 的口令/cookie/二维码/状态结构。
@@ -40,22 +45,27 @@ const COOKIE_DESK='desk-auth';
 const COOKIE_MAX_AGE_DAYS=30;
 const DEFAULT_CWD=process.env.CLM_DEFAULT_CWD??join(homedir(),'codex');
 const STARTED_AT=Date.now();
+// Any phone-UI change changes BUILD; open pages poll it and reload themselves.
+const BUILD=(()=>{try{const hash=createHash('sha256');for(const file of ['./lib/ui.mjs','./lib/hub-chrome.js','./lib/hub-readiness.mjs','./lib/hub-reload-safety.mjs','./lib/assistant-view.js','./lib/message-renderer.js','./lib/media-preview.js','./lib/unread-indicator.js'])hash.update(readFileSync(new URL(file,import.meta.url)));return hash.digest('hex').slice(0,12);}catch{return String(Date.now());}})();
 const pdfAssets=new Map();
-// Native peer file_attachments are gated inside the desktop CLI
-// (tengu_send_file). When the gate is off the CLI ignores them, so the gateway
-// also sends a Read fallback in the text and reports which path the desktop
-// actually took. No second writer and no settings rewrite.
-const DESKTOP_CAPABILITIES=Object.freeze({desktopOwned:true,interrupt:false,changeModel:false,changePermissionMode:false,attachments:true,attachmentDelivery:'native-or-read',steer:true,queue:true});
+// New phone input uses the desktop owner's official plugin user-submit API.
+// The current engine queues text for its next turn, not structured images.
+// Uploaded images are explicitly disclosed file references in that same input;
+// acceptance proves the native text append, never that an image has been read.
+const DESKTOP_CAPABILITIES=Object.freeze({desktopOwned:true,input:'native-user',inputProvenance:'plugin-as-user',interrupt:false,changeModel:false,changePermissionMode:false,attachments:true,attachmentDelivery:'file-reference',steer:false,queue:true});
 const PEER_SPOOL=join(process.env.CLAUDE_CONFIG_DIR||join(homedir(),'.claude'),'file-transfers');
 
 let accessToken='';
-let config={defaultModel:null,permissionMode:'acceptEdits'};
+let config={defaultModel:null,permissionMode:'bypassPermissions'};
 let qrCache={value:null,data:null};
 const nativeRead=new NativeRead({stateDir:STATE_DIR});
 const commandLedger=new CommandLedger({dir:join(STATE_DIR,'commands')});
 const desktopIntent=new DesktopIntent({stateDir:STATE_DIR,readiness:claudeReadiness});
 const desktopModels=new DesktopModels();
-const desktopDelivery=new DesktopDelivery({ledger:commandLedger,intent:desktopIntent,sendPeerMessage,liveSession,readTranscript,sessionFile});
+// Historical peer operations may still be reconciled, never re-dispatched.
+const legacyDelivery=new DesktopDelivery({ledger:commandLedger,intent:desktopIntent,sendPeerMessage,liveSession,readTranscript,sessionFile});
+const nativeBridge=new NativeUserBridge({stateDir:STATE_DIR,ledger:commandLedger,ownerFor:id=>liveSession(id,{includePeerToken:false})});
+const desktopDelivery=new NativeUserDelivery({ledger:commandLedger,intent:desktopIntent,bridge:nativeBridge,readTranscript,sessionFile,legacy:legacyDelivery,uploadsDir:join(STATE_DIR,'uploads')});
 
 function log(...args){console.log(new Date().toISOString(),...args);}
 function json(res,status,value,headers={}){
@@ -93,6 +103,8 @@ function lanAddresses(){
     .filter(address=>!address.startsWith('169.254.'));
 }
 function isLocalRequest(req,port=PORT){
+  const remote=req.socket?.remoteAddress;
+  if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(remote))return false;
   const host=req.headers.host;
   if(host!==`127.0.0.1:${port}`&&host!==`localhost:${port}`)return false;
   if(Object.keys(req.headers).some(key=>key.startsWith('x-forwarded-')||['forwarded','via','cf-ray','cf-connecting-ip'].includes(key)))return false;
@@ -139,7 +151,7 @@ async function loadOrCreateToken(){
 async function loadConfig(){
   try{
     const value=JSON.parse(await readFile(CONFIG_PATH,'utf8'));
-    config={defaultModel:typeof value.defaultModel==='string'?value.defaultModel:null,permissionMode:PERMISSION_MODES.has(value.permissionMode)?value.permissionMode:'acceptEdits'};
+    config={defaultModel:typeof value.defaultModel==='string'?value.defaultModel:null,permissionMode:PERMISSION_MODES.has(value.permissionMode)?value.permissionMode:'bypassPermissions'};
   }catch{}
 }
 
@@ -205,6 +217,16 @@ async function start(req,res){
     return page(res,hubHtml());
   }
 
+  if(path==='/m/api/build'){
+    if(readCookie(req.headers.cookie,COOKIE_DESK)!==accessToken)return json(res,401,{error:'口令无效'});
+    return json(res,200,{build:BUILD});
+  }
+
+  if(path==='/claude/api/build'){
+    if(readCookie(req.headers.cookie,COOKIE_CLAUDE)!==accessToken)return json(res,401,{error:'口令无效'});
+    return json(res,200,{build:BUILD});
+  }
+
   if(path==='/m/api/entries'){
     if(readCookie(req.headers.cookie,COOKIE_DESK)!==accessToken)return json(res,401,{error:'口令无效'});
     const origin=publicOriginFrom(req);
@@ -251,11 +273,10 @@ async function start(req,res){
     const session=url.searchParams.get('session'), requested=url.searchParams.get('path');
     if(!requested||requested.includes('\0'))return json(res,400,{error:'文件路径无效'});
     const entry=await sessionFile(session);if(!entry)return json(res,404,{error:'会话不存在'});
-    const raw=await readFile(entry.path,'utf8');
-    const cwd=await sessionCwd(session)||DEFAULT_CWD;
+    const cwd=await sessionCwdCached(entry,session)||DEFAULT_CWD;
     const desktop=(await desktopCatalog()).find(value=>value.cliSessionId===session);
     const roots=Array.isArray(desktop?.shellFolders)?desktop.shellFolders:[];
-    const target=await resolveReferencedFile({raw,cwd,requested,base:url.searchParams.get('base'),folders:roots});
+    const target=await resolveReferencedFileCached({entry,cwd,requested,base:url.searchParams.get('base'),folders:roots});
     if(!target)return json(res,404,{error:'文件不存在或不在当前会话的引用中'});
     const {file,info}=target;
     try{
@@ -275,7 +296,7 @@ async function start(req,res){
 
   if(path==='/claude/api/sessions'){
     if(readCookie(req.headers.cookie,COOKIE_CLAUDE)!==accessToken)return json(res,401,{error:'口令无效'});
-    try{return json(res,200,{sessions:await listSessions()});}
+    try{const sessions=(await listSessions()).map(session=>({...session,runtime:runtimeStatus({attached:session.attached,status:session.runningState,waitingFor:session.waitingFor,observation:nativeBridge.connection(session.id,session.desktopSessionId,session.nativePid).runtime})}));return json(res,200,{sessions});}
     catch(error){return json(res,500,{error:'读取会话失败：'+error.message});}
   }
 
@@ -306,11 +327,13 @@ async function start(req,res){
   if(path.startsWith('/claude/api/session/')){
     if(readCookie(req.headers.cookie,COOKIE_CLAUDE)!==accessToken)return json(res,401,{error:'口令无效'});
     const id=decodeURIComponent(path.slice('/claude/api/session/'.length));
-    const since=Number(url.searchParams.get('since')??0);
-    const value=await readTranscript(id,Number.isFinite(since)&&since>0?since:0);
+    const {since:sinceSeq,before:beforeSeq}=transcriptQuery(url.searchParams);
+    const value=desktopDelivery.annotateTranscript(await readTranscript(id,sinceSeq,beforeSeq,url.searchParams.get('anchor')));
     if(!value)return json(res,404,{error:'会话不存在'});
     await hydratePhoneAttachments(value);
-    const control=await sessionControl(id,value);
+    // 读取桌面接管状态失败（例如 catalog 里同一会话出现两条记录）不能让
+    // 整个会话接口 500：正文照常返回，权限/模型沿用上一次已知状态。
+    const control=await sessionControl(id,value).catch(()=>null);
     return json(res,200,{...value,control,readMarker:await sessionReadMarker(id)});
   }
 
@@ -326,58 +349,151 @@ async function start(req,res){
 
 function readBody(req,limit=200*1024){
   return new Promise((resolve,reject)=>{
-    let size=0;const chunks=[];
-    req.on('data',chunk=>{size+=chunk.length;if(size>limit){reject(Error('请求过大'));req.destroy();return;}chunks.push(chunk);});
-    req.on('end',()=>{try{resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));}catch{reject(Error('请求格式无效'));}});
-    req.on('error',reject);
+    let size=0,settled=false;const chunks=[];
+    const settle=(fn,value)=>{if(settled)return;settled=true;req.off('data',onData);req.off('end',onEnd);fn(value);};
+    const onData=chunk=>{
+      if(settled)return;
+      size+=chunk.length;
+      if(size>limit){
+        // Never destroy the request here: the caller still has to write a JSON
+        // error the phone can read. Drain and discard the remaining body so the
+        // connection is not left half-open (an abrupt destroy is ECONNRESET).
+        req.resume();
+        settle(reject,Object.assign(Error('请求过大'),{overflow:true}));
+        return;
+      }
+      chunks.push(chunk);
+    };
+    const onEnd=()=>{
+      if(settled)return;
+      settled=true;req.off('data',onData);
+      try{resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));}catch{reject(Error('请求格式无效'));}
+    };
+    req.on('data',onData);
+    req.on('end',onEnd);
+    req.on('error',error=>settle(reject,error));
   });
 }
 
+// Transcript paging: `since` is an incremental cursor, `before` asks for older
+// messages. Both are optional non-negative integers. Invalid values mean
+// "absent", and a page request wins so the two modes are never mixed.
+function transcriptQuery(searchParams){
+  const seq=key=>{
+    const value=Number(searchParams.get(key));
+    return Number.isFinite(value)&&value>0?Math.floor(value):0;
+  };
+  const before=seq('before');
+  return {since:before>0?0:seq('since'),before};
+}
+
 const UPLOADS=join(STATE_DIR,'uploads');
-const UPLOAD_TYPES={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif'};
-const MAX_UPLOAD_BYTES=10*1024*1024;
+const MAX_UPLOAD_BYTES=MAX_PHONE_IMAGE_BYTES;
+
+// /claude/api/file only serves paths referenced from the session transcript.
+// Reading the whole JSONL for every preview is the expensive part; the derived
+// authorization set is immutable per (path, mtime, size, root). Concurrent
+// requests share one rebuild, and only the set (never the raw text) is kept.
+const REFERENCED_CACHE_LIMIT=32;
+const referencedGrants=new Map();
+const referencedBuilds=new Map();
+const cwdCache=new Map();
+
+async function sessionCwdCached(entry,session,{lookup=sessionCwd}={}){
+  const cached=cwdCache.get(entry.path);
+  if(cached&&cached.mtimeMs===entry.mtimeMs&&cached.size===entry.size)return cached.cwd;
+  const cwd=await lookup(session);
+  cwdCache.set(entry.path,{mtimeMs:entry.mtimeMs,size:entry.size,cwd});
+  while(cwdCache.size>REFERENCED_CACHE_LIMIT)cwdCache.delete(cwdCache.keys().next().value);
+  return cwd;
+}
+
+async function allowedPathsFor(entry,root,{readText=readFile,selectPaths=referencedPaths}={}){
+  const key=JSON.stringify([entry.path,entry.mtimeMs,entry.size,root]);
+  const granted=referencedGrants.get(key);
+  if(granted){referencedGrants.delete(key);referencedGrants.set(key,granted);return granted;}
+  let pending=referencedBuilds.get(key);
+  if(!pending){
+    pending=(async()=>selectPaths(await readText(entry.path,'utf8'),root))();
+    referencedBuilds.set(key,pending);
+  }
+  try{
+    const value=await pending;
+    if(referencedBuilds.get(key)===pending){
+      referencedBuilds.delete(key);
+      referencedGrants.set(key,value);
+      while(referencedGrants.size>REFERENCED_CACHE_LIMIT)referencedGrants.delete(referencedGrants.keys().next().value);
+    }
+    return value;
+  }catch(error){
+    if(referencedBuilds.get(key)===pending)referencedBuilds.delete(key);
+    throw error;
+  }
+}
+
+// Same authorization loop as resolveReferencedFile(), with the transcript
+// parsing replaced by the cached per-root grant sets.
+async function resolveReferencedFileCached({entry,cwd,requested,base=null,folders=[],readText=readFile,selectPaths=referencedPaths,local=localPath,dependency=isReferencedDependency,statFile=stat}={}){
+  const roots=[...new Set([cwd,...folders].filter(value=>typeof value==='string'&&value))];
+  for(const root of roots){
+    const baseFile=base?local(base,root):null;
+    const file=local(requested,baseFile?dirname(baseFile):root);
+    if(!file)continue;
+    const allowed=await allowedPathsFor(entry,root,{readText,selectPaths});
+    if(!allowed.has(file)&&!await dependency(file,baseFile,allowed,root))continue;
+    try{const info=await statFile(file);if(info.isFile())return {file,info};}catch{}
+  }
+  return null;
+}
 
 async function upload(req,res){
   if(readCookie(req.headers.cookie,COOKIE_CLAUDE)!==accessToken)return json(res,401,{error:'口令无效'});
+  if(!allowsWriteOrigin(req))return json(res,403,{error:'来源不允许'});
+  if(!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type']??''))return json(res,415,{error:'需要 JSON 图片请求'});
   let body;
-  try{body=await readBody(req,14*1024*1024);}catch{return json(res,413,{error:'图片过大（最大 10MB）'});}
+  try{body=await readBody(req,14*1024*1024);}
+  catch(error){
+    // The client preflights the raw image at 10MB; the JSON/base64 envelope is
+    // ~1.37x. Close the connection after the 413 because the body is unread.
+    try{json(res,413,{error:'图片过大（最大 10MB）'},error.overflow?{connection:'close'}:undefined);}
+    catch{req.destroy();}
+    return;
+  }
   const data=typeof body.data==='string'?body.data:'';
   const match=/^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(data);
   if(!match)return json(res,400,{error:'只支持 PNG/JPEG/WebP/GIF 图片'});
   const buffer=Buffer.from(match[2],'base64');
   if(buffer.length===0||buffer.length>MAX_UPLOAD_BYTES)return json(res,413,{error:'图片过大（最大 10MB）'});
-  const ext=match[1]==='jpeg'?'jpg':match[1];
-  const id=`${randomUUID()}.${ext}`;
-  await writeFile(join(UPLOADS,id),buffer,{mode:0o600});
-  return json(res,200,{id,path:join(UPLOADS,id),name:typeof body.name==='string'?body.name.slice(0,120):id,url:'/claude/api/upload/'+id});
+  try{
+    const {id,path}=await storePhoneImage(buffer,'image/'+match[1],{uploadsDir:UPLOADS});
+    return json(res,200,{id,path,name:typeof body.name==='string'?body.name.slice(0,120):id,url:'/claude/api/upload/'+id});
+  }catch(error){return json(res,error.statusCode||400,{error:error.message,code:error.code});}
 }
 
 async function serveUpload(req,res,path){
   if(readCookie(req.headers.cookie,COOKIE_CLAUDE)!==accessToken)return json(res,401,{error:'口令无效'});
   const id=path.slice('/claude/api/upload/'.length);
-  const match=/^([0-9a-f-]{36})\.(png|jpg|jpeg|webp|gif)$/i.exec(id);
-  if(!match)return json(res,404,{error:'图片不存在'});
+  if(!PHONE_IMAGE_ID.test(id))return json(res,404,{error:'图片不存在'});
   try{
-    const bytes=await readFile(join(UPLOADS,id));
-    res.writeHead(200,{'content-type':UPLOAD_TYPES[match[2].toLowerCase()],'content-length':bytes.length,'cache-control':'private, max-age=300','x-content-type-options':'nosniff'});
+    const {bytes,mediaType}=await readPhoneImage(id,{uploadsDir:UPLOADS});
+    res.writeHead(200,{'content-type':mediaType,'content-length':bytes.length,'cache-control':'private, max-age=300','x-content-type-options':'nosniff'});
     return res.end(bytes);
   }catch{return json(res,404,{error:'图片不存在'});}
 }
 
 function resolveAttachments(body){
-  const list=Array.isArray(body.attachments)?body.attachments:[];
+  if(body.attachments!=null&&!Array.isArray(body.attachments))return {error:'附件无效，请重新上传'};
+  const list=body.attachments??[];
+  if(list.length>MAX_PHONE_IMAGES)return {error:'一次最多发送 16 张图片'};
   const ids=[];
   for(const item of list){
     const id=typeof item==='string'?item:item?.id;
-    if(typeof id!=='string'||!/^[0-9a-f-]{36}\.(png|jpg|jpeg|webp|gif)$/i.test(id))return {error:'附件无效，请重新上传'};
+    if(typeof id!=='string'||!PHONE_IMAGE_ID.test(id))return {error:'附件无效，请重新上传'};
     if(!ids.includes(id))ids.push(id);
-    if(ids.length>16)return {error:'一次最多发送 16 张图片'};
   }
-  return {ids,paths:ids.map(id=>join(UPLOADS,id))};
-}
-
-function phoneAttachmentNote(paths){
-  return '\n\n（手机图片，请用 Read 查看：\n'+paths.map(file=>'- '+file).join('\n')+'\n）';
+  // File validation happens inside NativeUserDelivery's operation guard, after
+  // its immutable lookup. A repeated request never reads these files again.
+  return {ids};
 }
 
 async function cleanupStaged(fileAttachments){
@@ -388,12 +504,19 @@ async function cleanupStaged(fileAttachments){
 
 async function hydratePhoneAttachments(value){
   for(const message of value.messages||[]){
-    if(message.role!=='user'||message.attachments?.length)continue;
-    let record=null;try{record=await commandLedger.get(message.id);}catch{}
-    const ids=(record?.attachmentIds||[]).filter(id=>typeof id==='string');
+    if(message.role!=='user'||message.attachments?.length&&!message.attachments.some(attachment=>attachment.placeholder))continue;
+    let record=null;try{record=await commandLedger.get(message.requestId??message.id);}catch{}
+    if(record?.nativeMessageId&&(record.nativeMessageId!==message.id||record.sessionId!==(value.id??value.sessionId)))continue;
+    const ids=(record?.attachmentIds||[]).filter(id=>typeof id==='string'&&PHONE_IMAGE_ID.test(id));
     if(!ids.length)continue;
     message.attachments=ids.map(id=>({id,url:'/claude/api/upload/'+encodeURIComponent(id),name:'图片'}));
     message.attachmentDelivery=record.attachmentDelivery??null;
+    if(record.attachmentDelivery==='file-reference'&&typeof record.attachmentText==='string'){
+      // Only this response's cloned display objects change. The append-only
+      // native text (including its Read note) remains the acknowledgement proof.
+      message.text=record.attachmentText;message.rawText=record.attachmentText;
+      continue;
+    }
     message.text=message.text.replace(/\n\n（手机(?:上传的图片，请用 Read 工具查看后回答：[\s\S]*|随此消息附上了 \d+ 张图片，请用 Read 查看随附路径中的图片后回答。|图片，请用 Read 查看：[\s\S]*)）$/,'');
     let text=message.text.trim();
     for(;;){
@@ -408,19 +531,77 @@ async function hydratePhoneAttachments(value){
 async function sessionControl(id,history){
   const [control,transcript]=await Promise.all([desktopIntent.readState(id),history?Promise.resolve(history):readTranscript(id)]);
   const mapped=await desktopModels.resolve(control.actualModel||control.model).catch(()=>({mapped:false}));
-  return {...control,selectedModel:mapped.mapped?mapped.catalogId:null,modelLabel:mapped.mapped?mapped.label:null,currentUserId:transcript?.currentUserId??null,canInterrupt:control.attached&&DESKTOP_CAPABILITIES.interrupt};
+  const connection=nativeBridge.connection(id,control.desktopSessionId,control.nativePid);
+  return {...control,capabilities:DESKTOP_CAPABILITIES,nativeInputReady:connection.ready,runtime:runtimeStatus({attached:control.attached,status:control.status,waitingFor:control.waitingFor,observation:connection.runtime}),selectedModel:mapped.mapped?mapped.catalogId:null,modelLabel:mapped.mapped?mapped.label:null,currentUserId:transcript?.currentUserId??null,canInterrupt:control.attached&&DESKTOP_CAPABILITIES.interrupt};
+}
+
+// The phone treats a response without a matching requestId as "unknown" and
+// keeps polling. A pre-dispatch failure is provably unsent, so say so instead:
+// it becomes a terminal rejection the user can retry deliberately.
+function deliveryFailure(error){
+  const code=error?.code||'DELIVERY_ERROR';
+  const message=typeof error?.message==='string'&&error.message?error.message:'桌面消息未投递';
+  if(error?.notDispatched===true)return {status:409,body:{error:message,code,delivery:'rejected',notDispatched:true}};
+  return {status:error?.statusCode||error?.status||500,body:{error:message,code,delivery:'unknown',notDispatched:false}};
+}
+
+function allowsWriteOrigin(req){
+  if(req.headers['sec-fetch-site']&&!['same-origin','none'].includes(req.headers['sec-fetch-site']))return false;
+  if(req.headers.origin){try{return new URL(req.headers.origin).host===req.headers.host;}catch{return false;}}
+  return true;
+}
+
+// Serialize the entire POST decision, not just native submission. Two retries
+// must not both observe a missing operation before one fails mutable preflight.
+// GET status never enters this queue; different operation IDs remain parallel.
+const chatRequests=new Map();
+async function serializeChatRequest(requestId,operation){
+  const id=requestId.toLowerCase(),previous=chatRequests.get(id)||Promise.resolve();
+  const result=previous.then(operation),settled=result.then(()=>{},()=>{});
+  chatRequests.set(id,settled);
+  try{return await result;}
+  finally{if(chatRequests.get(id)===settled)chatRequests.delete(id);}
 }
 
 async function chat(req,res){
-  const rejectBeforeDispatch=(status,error)=>json(res,status,{error,delivery:'rejected',notDispatched:true});
+  let body;
+  const rejectBeforeDispatch=(status,error)=>json(res,status,{error,delivery:'rejected',notDispatched:true,...(body?.requestId?{requestId:body.requestId,sessionId:body.sessionId||null}:{})});
   if(readCookie(req.headers.cookie,COOKIE_CLAUDE)!==accessToken)return rejectBeforeDispatch(401,'口令无效');
-  let body;try{body=await readBody(req);}catch(error){return rejectBeforeDispatch(400,error.message);}
-  const text=typeof body.text==='string'?body.text.trim():'';
-  if(!text)return rejectBeforeDispatch(400,'消息为空');
-  if(text.length>20000)return rejectBeforeDispatch(413,'消息过长');
+  if(!allowsWriteOrigin(req))return rejectBeforeDispatch(403,'来源不允许');
+  try{body=await readBody(req);}catch(error){return rejectBeforeDispatch(400,error.message);}
+  if(!body||typeof body!=='object'||Array.isArray(body))return rejectBeforeDispatch(400,'消息请求无效');
   if(typeof body.requestId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId))return rejectBeforeDispatch(400,'请刷新页面后重新发送，缺少稳定消息编号');
-  if(body.sessionId!=null&&(typeof body.sessionId!=='string'||!/^[0-9a-f-]{36}$/i.test(body.sessionId)))return rejectBeforeDispatch(400,'会话编号无效');
-  const sessionId=body.sessionId||null;
+  return serializeChatRequest(body.requestId,()=>dispatchChat(body,res,rejectBeforeDispatch));
+}
+
+async function dispatchChat(body,res,rejectBeforeDispatch){
+  // Even malformed retry payloads must not claim that an old operation is unsent.
+  let existing;
+  try{existing=await commandLedger.get(body.requestId);}
+  catch(error){const failure=deliveryFailure(error);return json(res,failure.status,{...failure.body,requestId:body.requestId});}
+  const collision=()=>json(res,409,{requestId:body.requestId,sessionId:existing.sessionId??null,code:'COMMAND_ID_COLLISION',error:'同一请求编号的消息内容发生变化，请保留原请求记录',delivery:'unknown',notDispatched:false});
+  const rejectInput=(status,error)=>existing?collision():rejectBeforeDispatch(status,error);
+  if(existing&&!existing.clientRequestHash)return json(res,409,{requestId:body.requestId,sessionId:existing.sessionId??null,code:'LEGACY_COMMAND_STATUS_ONLY',error:'这是旧版发送请求，请按原编号查询结果；不会再次发送',delivery:'unknown',notDispatched:false});
+  if(body.sessionId!=null&&(typeof body.sessionId!=='string'||!/^[0-9a-f-]{36}$/i.test(body.sessionId)))return rejectInput(400,'会话编号无效');
+  const sessionId=body.sessionId?.toLowerCase()||null;
+  const resolvedAttachments=resolveAttachments(body);
+  if(resolvedAttachments.error)return rejectInput(400,resolvedAttachments.error);
+  const attachmentIds=resolvedAttachments.ids;
+  const originalText=typeof body.text==='string'?body.text:'';
+  const text=attachmentIds.length?originalText:originalText.trim();
+  if(!text.trim()&&!attachmentIds.length)return rejectInput(400,'消息为空');
+  if(text.length>20000)return rejectInput(413,'消息过长');
+  const clientRequestHash=createHash('sha256').update(JSON.stringify({sessionId,text,cwd:body.cwd??null,model:body.model??null,permissionMode:body.permissionMode??null,permissionExplicit:body.permissionExplicit===true,attachments:attachmentIds,priority:body.priority==='next'?'next':'now'})).digest('hex');
+  // A duplicate POST is a lookup, before touching mutable model/catalog/files.
+  // A broken upload or changed defaults cannot turn an old dispatch into unsent.
+  try{
+    if(existing?.clientRequestHash){
+      if(existing.clientRequestHash!==clientRequestHash)return collision();
+      const record=await desktopDelivery.status(body.requestId);
+      const control=record.sessionId?await sessionControl(record.sessionId).catch(()=>null):null;
+      return json(res,record.state==='accepted'?200:record.state==='rejected'?409:202,{...record,control});
+    }
+  }catch(error){const failure=deliveryFailure(error);return json(res,failure.status,{...failure.body,requestId:body.requestId,sessionId});}
   let recordedCwd=null;if(sessionId)recordedCwd=await sessionCwd(sessionId);
   const resolved=await resolveChatCwd({sessionCwd:recordedCwd,requestedCwd:body.cwd,defaultCwd:DEFAULT_CWD,resume:Boolean(sessionId)});
   if(resolved.error)return rejectBeforeDispatch(400,resolved.error);
@@ -429,36 +610,18 @@ async function chat(req,res){
   const model=ready.launch.models.some(item=>item.model===requested)?requested:defaultModelOf(ready.launch);
   if(!model)return rejectBeforeDispatch(503,'没有可用模型');
   const permissionMode=PERMISSION_MODES.has(body.permissionMode)?body.permissionMode:config.permissionMode;
-  const resolvedAttachments=resolveAttachments(body);
-  if(resolvedAttachments.error)return rejectBeforeDispatch(400,resolvedAttachments.error);
-  const {ids:attachmentIds,paths}=resolvedAttachments;
-  let effectivePaths=paths,fileAttachments=[];
-  if(paths.length){
-    try{
-      effectivePaths=await Promise.all(paths.map(file=>realpath(file)));
-      fileAttachments=await stagePeerAttachments(effectivePaths,{requestId:body.requestId,spoolDir:PEER_SPOOL});
-    }catch(error){return rejectBeforeDispatch(400,'图片未发送：'+error.message);}
-  }
-  const prompt=effectivePaths.length?text+phoneAttachmentNote(effectivePaths):text;
   try{
-    const record=await desktopDelivery.submit({requestId:body.requestId,sessionId,cwd:resolved.cwd,text,model,permissionMode,permissionExplicit:body.permissionExplicit===true,attachments:attachmentIds,priority:body.priority==='next'?'next':'now',prompt,fileAttachments});
-    if(record.state==='rejected'||record.state==='accepted'&&record.attachmentDelivery==='read-path')await cleanupStaged(fileAttachments);
+    const record=await desktopDelivery.submit({requestId:body.requestId,sessionId,cwd:resolved.cwd,text,model,permissionMode,permissionExplicit:body.permissionExplicit===true,attachments:attachmentIds,priority:body.priority==='next'?'next':'now',prompt:text,fileAttachments:[],clientRequestHash});
     const control=record.sessionId?await sessionControl(record.sessionId).catch(()=>null):null;
     return json(res,record.state==='accepted'?200:record.state==='rejected'?409:202,{...record,control});
-  }catch(error){return json(res,error.statusCode||error.status||500,{error:error.message,code:error.code||'DELIVERY_ERROR'});}
+  }catch(error){const failure=deliveryFailure(error);return json(res,failure.status,{...failure.body,requestId:body.requestId,sessionId});}
 }
 
-await loadConfig();
-accessToken=/^[A-Za-z0-9_-]{32,}$/.test(process.env.CLM_ACCESS_TOKEN??'')?process.env.CLM_ACCESS_TOKEN:await loadOrCreateToken();
-await mkdir(STATE_DIR,{recursive:true,mode:0o700});
-await mkdir(UPLOADS,{recursive:true,mode:0o700});
-await commandLedger.recover();
-log(`Claude 手机入口启动：http://127.0.0.1:${PORT}/claude/  监听 ${BIND}:${PORT}`);
-log(`三合一入口：http://127.0.0.1:${PORT}/m/`);
-
+let initialized=false;
 const server=http.createServer((req,res)=>{
   res.setHeader('x-content-type-options','nosniff');
   res.setHeader('referrer-policy','no-referrer');
+  if(!initialized)return json(res,503,{error:'连接服务正在恢复，请稍后重试'});
   start(req,res).catch(error=>{
     log('request failed:',error.message);
     if(!res.headersSent){
@@ -472,12 +635,30 @@ server.on('upgrade',(req,socket)=>{
   socket.destroy();
 });
 
+// Reserve the public listener BEFORE reading/recovering mutable state. A second
+// process with EADDRINUSE must not reject the first process's live operations.
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(PORT,BIND,resolve);});
+try{
+  await loadConfig();
+  accessToken=/^[A-Za-z0-9_-]{32,}$/.test(process.env.CLM_ACCESS_TOKEN??'')?process.env.CLM_ACCESS_TOKEN:await loadOrCreateToken();
+  await mkdir(STATE_DIR,{recursive:true,mode:0o700});
+  await mkdir(UPLOADS,{recursive:true,mode:0o700});
+  await nativeBridge.start();
+  const recovered=await desktopDelivery.recoverStartup();
+  initialized=true;
+  log(`启动恢复：${recovered.length} 条中断命令已核对`);
+  log(`Claude 手机原生入口启动：http://127.0.0.1:${PORT}/claude/  监听 ${BIND}:${PORT}`);
+  log(`三合一入口：http://127.0.0.1:${PORT}/m/`);
+}catch(error){
+  await nativeBridge.stop();
+  await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});
+  throw error;
+}
 
 for(const signal of ['SIGTERM','SIGINT']){
   process.on(signal,()=>{
-    log('shutting down');
-    server.close(()=>process.exit(0));
+    initialized=false;log('shutting down');
+    void nativeBridge.stop().finally(()=>server.close(()=>process.exit(0)));
     setTimeout(()=>process.exit(0),3000).unref();
   });
 }

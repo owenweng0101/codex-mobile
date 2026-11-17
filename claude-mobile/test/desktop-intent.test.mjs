@@ -58,7 +58,7 @@ test('creates local-only bootstrap, waits for exit, imports and confirms mapped 
   assert.equal((await stat(join(f.root,'desktop-intents',f.id+'.json'))).mode&0o777,0o600);
   assert.equal((await stat(join(f.root,'desktop-intents'))).mode&0o777,0o700);
   assert.deepEqual(await readdir(join(f.root,'desktop-intents')),[f.id+'.json']);
-  assert.deepEqual(await f.intent.readState(f.id),{desktopSessionId:f.desktopId,attached:true,running:false,status:'idle',canInterrupt:false,...unknownDesktopFields});
+  assert.deepEqual(await f.intent.readState(f.id),{desktopSessionId:f.desktopId,attached:true,nativePid:202,running:false,status:'idle',waitingFor:null,canInterrupt:false,...unknownDesktopFields});
 });
 
 test('concurrent calls and a new instance reuse the same intent without reseeding',async t=>{
@@ -197,7 +197,7 @@ test('attach existing session uses native metadata identity rather than local_ c
   f.intent.openSession=async()=>{f.openCount++;f.meta={cliSessionId:f.id,sessionId:f.desktopId};f.live=[{sessionId:f.id,hostSessionId:f.desktopId,pid:202,entrypoint:'claude-desktop',status:'busy'}];};
   assert.deepEqual(await f.intent.attach(f.id),{sessionId:f.id,desktopSessionId:f.desktopId,attached:true,canInterrupt:false,...unknownDesktopFields});
   assert.equal(f.seedCount,0);assert.deepEqual(await readdir(join(f.root,'desktop-intents')),[]);
-  assert.deepEqual(await f.intent.readState(f.id),{desktopSessionId:f.desktopId,attached:true,running:true,status:'busy',canInterrupt:false,...unknownDesktopFields});
+  assert.deepEqual(await f.intent.readState(f.id),{desktopSessionId:f.desktopId,attached:true,nativePid:202,running:true,status:'busy',waitingFor:null,canInterrupt:false,...unknownDesktopFields});
 });
 
 test('dead pid, incorrect hostSessionId and wrong entrypoint cannot prove attachment',async t=>{

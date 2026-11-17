@@ -95,12 +95,17 @@ export class CommandLedger{
       }
       const now=Date.now();
       const record={version:1,requestId:id,messageId:id,fingerprint,state:'prepared',createdAt:now,updatedAt:now};
-      await this._save(record);
+      try{await this._save(record);}catch(error){
+        // This is a new command and native preparation has not begun. Even if
+        // rename succeeded before a later fsync failed, no native action ran.
+        error.notDispatched=true;
+        throw error;
+      }
       return {record,existing:false};
     });
   }
 
-  async mark(requestId,patch){
+  async mark(requestId,patch,{ifState}={}){
     const id=validId(requestId);
     if(!patch||typeof patch!=='object'||Array.isArray(patch)||Object.keys(patch).some(key=>IMMUTABLE.has(key)))throw fault('命令更新包含无效字段','INVALID_COMMAND_PATCH');
     const snapshot=JSON.parse(canonical(patch));
@@ -108,6 +113,11 @@ export class CommandLedger{
     return this._serial(async()=>{
       const record=await this._read(id);
       if(!record)throw fault('命令记录不存在','COMMAND_NOT_FOUND',404);
+      if(ifState!==undefined&&record.state!==ifState)return record;
+      for(const field of ['nativeMessageId','dispatchToken']){
+        if(record[field]!=null&&Object.hasOwn(snapshot,field)&&snapshot[field]!==record[field])throw fault('原生投递标识绑定后不允许改变','NATIVE_IDENTITY_IMMUTABLE',409);
+      }
+      if(Object.hasOwn(snapshot,'nativeMessageId')&&(typeof snapshot.nativeMessageId!=='string'||!UUID.test(snapshot.nativeMessageId)))throw fault('原生消息编号无效','INVALID_NATIVE_MESSAGE_ID');
       const next=snapshot.state??record.state;
       if(next!==record.state&&!TRANSITIONS[record.state].has(next))throw fault('命令状态不允许重新发送或回退','INVALID_COMMAND_TRANSITION',409);
       const updated={...record,...snapshot,updatedAt:Date.now()};
@@ -136,7 +146,7 @@ export class CommandLedger{
         const notSent=record.state==='prepared';
         const updated={...record,state:notSent?'rejected':'unknown',delivery:notSent?'rejected':'unknown',
           errorCode:notSent?'GATEWAY_RESTART_BEFORE_DISPATCH':'NATIVE_OUTCOME_UNKNOWN',
-          error:notSent?'网关在投递前重启，本条消息未发送；请使用新请求编号重试，已有会话请沿用原会话':'尚未确认桌面是否收到消息，请查询原请求',
+          error:notSent?'网关在投递前重启，本条消息未发送；请使用新请求编号重试，已有会话请沿用原会话':'尚未确认电脑是否收到消息，正在核对原请求；不会自动重复发送',
           uncertain:!notSent,updatedAt:Date.now()};
         await this._save(updated);
         recovered.push(updated);

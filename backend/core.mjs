@@ -5,6 +5,10 @@ import { readdir, realpath, stat, open } from 'node:fs/promises';
 import { resolve, relative, isAbsolute, extname } from 'node:path';
 import { readWorkspaceGit } from './git-view.mjs';
 
+/** Bytes of a workspace file the phone may preview as text/code. The client asks
+ * for 10 MB, so reading a little more keeps a file of exactly that size whole
+ * instead of truncated. */
+export const WORKSPACE_TEXT_PREVIEW_BYTES = 12 * 1024 * 1024;
 export const DEFAULT_CODEX = '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex';
 export function collaborationModeFor(mode, model, effort) {
   if (!['default', 'plan'].includes(mode)) throw new Error('不支持的任务模式');
@@ -100,7 +104,7 @@ export async function readWorkspaceFile(root, path) {
   if (!info.isFile()) throw new Error('此路径不是文件');
   const file = await open(location.target, 'r');
   let buffer;
-  try { buffer = Buffer.alloc(Math.min(info.size, 512 * 1024)); await file.read(buffer, 0, buffer.length, 0); } finally { await file.close(); }
+  try { buffer = Buffer.alloc(Math.min(info.size, WORKSPACE_TEXT_PREVIEW_BYTES)); await file.read(buffer, 0, buffer.length, 0); } finally { await file.close(); }
   if (buffer.includes(0)) throw new Error('此文件是二进制文件，暂不支持文本预览');
   const truncated = info.size > buffer.length;
   return { path: location.path, content: new TextDecoder('utf8').decode(buffer, { stream: truncated }), language: extname(path).slice(1), size: info.size, truncated };

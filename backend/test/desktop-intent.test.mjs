@@ -4,7 +4,7 @@ import {EventEmitter} from 'node:events';
 import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {DesktopIntent,desktopThreadUrl,ensureDesktopOwner} from '../desktop-intent.mjs';
+import {DesktopIntent,desktopThreadUrl,ensureDesktopOwner,desktopSnapshotForOperation} from '../desktop-intent.mjs';
 const id='01a16f77-6b33-7dc0-8ef6-d9f240976815';
 async function fixture(t,{persist=true,owner=true,failName=false,failStage}={}) {
   const cwd=await mkdtemp(join(tmpdir(),'codex-desktop-intent-'));t.after(()=>rm(cwd,{recursive:true,force:true}));
@@ -72,6 +72,17 @@ test('known stale or failed known-owner discovery never opens a fallback writer 
     const calls=[];const operation=async()=>{await ensureDesktopOwner(id,{isOwned:()=>false,isStale:()=>stale,owner:async()=>{calls.push('owner');throw Error('known owner offline')},attach:async()=>calls.push('attach')});calls.push('send')};
     await assert.rejects(operation(),{statusCode:503});assert.deepEqual(calls,stale?[]:['owner']);
   }
+});
+test('operation admission preserves explicit protocol failure and definite non-delivery without retrying',async()=>{
+  for(const code of ['DESKTOP_PROTOCOL_UNSUPPORTED','DESKTOP_STATE_INVALID']){
+    let calls=0;const cause=Object.assign(Error('需要更新手机服务'),{code});
+    await assert.rejects(desktopSnapshotForOperation(async()=>{calls++;throw cause}),error=>error.code===code&&error.statusCode===503&&error.sent===false&&error.message===cause.message&&error.cause===cause);
+    assert.equal(calls,1);
+  }
+});
+test('operation admission retries transient snapshots but reports definite non-delivery when unavailable',async()=>{
+  let calls=0;const state={id};assert.equal(await desktopSnapshotForOperation(async()=>{if(++calls===1)throw Error('transient');return state}),state);assert.equal(calls,2);
+  calls=0;await assert.rejects(desktopSnapshotForOperation(async()=>{calls++;return null}),{code:'DESKTOP_STATE_UNAVAILABLE',statusCode:503,sent:false});assert.equal(calls,2);
 });
 test('legacy independent writer requires explicit recovery without disrupting any shared process',async()=>{
   const calls=[];await assert.rejects(ensureDesktopOwner(id,{isOwned:()=>true,isStale:()=>false,owner:async()=>calls.push('owner'),attach:async()=>calls.push('attach')}),{threadId:id,writerReleased:false,needsAttach:true});assert.deepEqual(calls,[]);

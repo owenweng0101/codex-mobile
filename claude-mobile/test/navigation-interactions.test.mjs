@@ -59,8 +59,11 @@ test('project and recent positions are independent; hidden mode changes cannot s
 test('generated client compiles, including the navigation and lifecycle handlers',()=>{new Script(client);});
 
 function actualFunction(name){
-  const asyncStart=client.indexOf('  async function '+name+'('),start=asyncStart>=0?asyncStart:client.indexOf('  function '+name+'('),end=client.indexOf('\n  }',start);
-  assert.ok(start>=0&&end>start);return client.slice(start,end+4);
+  const asyncStart=client.indexOf('  async function '+name+'('),start=asyncStart>=0?asyncStart:client.indexOf('  function '+name+'(');
+  assert.ok(start>=0);const lineEnd=client.indexOf('\n',start);
+  if(client.slice(start,lineEnd).trimEnd().endsWith('}'))return client.slice(start,lineEnd);
+  const end=client.indexOf('\n  }',lineEnd);
+  assert.ok(end>start);return client.slice(start,end+4);
 }
 function readHarness(){
   const timers=new Map(),errors=new Map(),calls=[],responses=[],deliveries=[];let sequence=0;
@@ -68,15 +71,15 @@ function readHarness(){
   const nodes=new Map();const $=id=>{if(!nodes.has(id))nodes.set(id,{attributes:{},textContent:'',classList:{contains:()=>false,add(){},remove(){},toggle(){}},append(){},setAttribute(k,v){this.attributes[k]=v;}});return nodes.get(id);};
   state.readStatus=(key,text,retry)=>text?errors.set(key,{text,retry}):errors.delete(key);state.readStatus.render=()=>{};
   const sandbox={state,$,hubActive:true,document:{hidden:false,createElement:()=>({setAttribute(){},remove(){}})},listView:$('list'),chatView:$('chat'),composer:$('composer'),messages:$('messages'),title:$('title'),
-    rememberView(){},closeMenu(){},saveDraft(){},restoreDraft(){},stopPoll(){},startPoll(){},restorePendingMessages(){},seenMessages:new Set(),pendingNativeUsers:new Set(),errorLine(text,retry){state.openError={text,retry};},
-    AbortController,encodeURIComponent,assistantOwners:new Set(),listRequest:0,listController:null,
+    rememberView(){},closeMenu(){},saveDraft(){},restoreDraft(){},stopPoll(){},startPoll(){},restorePendingMessages(){},seenMessages:new Set(),nativeUserRows:new Map(),queuedUserRows:new Map(),errorLine(text,retry){state.openError={text,retry};},
+    AbortController,encodeURIComponent,assistantOwners:new Set(),listRequest:0,listController:null,runtimeSnapshots:new WeakMap(),performance:{now:()=>0},
     setTimeout(fn,ms){assert.ok(ms<=20000);timers.set(++sequence,fn);return sequence;},clearTimeout:id=>timers.delete(id),
     fetch(url,options){assert.equal(options.method,undefined,'all recovery is read-only');calls.push({url,options});return responses.shift()(options);},
-    applyControl(){},renderPlan(){},appendMessage(){},scrollDown(){},updateChips(){},updateSendState(){},renderSessions(){},
+    applyControl(){},renderPlan(){},appendMessage(){},scrollDown(){},updateChips(){},updateSendState(){},renderSessions(){},updateHistoryTop(){},setWaitingStatus(){},updatePlanActivity(){},
     listStatus(text,retry){state.listError=text;state.listRetry=retry;},
-    requestInView:()=>true,receiveDelivery(request,value){deliveries.push(value);request.state=value.state;}
+    requestInView:()=>true,receiveDelivery(request,value){assert.equal(value.requestId,request.requestId);deliveries.push(value);request.state=value.state;return true;}
   };
-  const api=runInNewContext('let pollController=null,historyAssistant=null;'+['stopPoll','poll','checkDelivery','loadModels','refreshSessions','openSession'].map(actualFunction).join('\n')+'\n({stopPoll,poll,checkDelivery,loadModels,refreshSessions,openSession})',sandbox);
+  const api=runInNewContext('let pollController=null,historyAssistant=null;'+['stopPoll','poll','checkDelivery','loadModels','refreshSessions','openSession','resetHistoryPaging','updateTranscriptCursor','observeRuntime','invalidateRuntime'].map(actualFunction).join('\n')+'\n({stopPoll,poll,checkDelivery,loadModels,refreshSessions,openSession})',sandbox);
   return {state,api,timers,errors,calls,responses,deliveries,$,
     expire(){for(const fn of [...timers.values()])fn();},
     response(value){responses.push(()=>Promise.resolve({ok:true,status:200,json:async()=>value}));},
@@ -96,8 +99,10 @@ for(const phase of ['headers','body']){
     const h=readHarness(),late=h.hang(phase),request={requestId:'fixture-command',state:'unknown'},pending=h.api.checkDelivery(request);await turn();assert.equal(request.checking,true);
     h.expire();await pending;assert.equal(request.checking,false);assert.equal(request.state,'unknown');assert.equal(h.timers.size,0);
     assert.match(h.errors.get('delivery:fixture-command').text,/尚未确认/);
-    h.response({state:'accepted'});await h.errors.get('delivery:fixture-command').retry();assert.equal(request.state,'accepted');assert.equal(h.errors.size,0);
-    late(phase==='headers'?{ok:true,json:async()=>({state:'rejected'})}:{state:'rejected'});await turn();assert.equal(request.state,'accepted');assert.equal(h.deliveries.length,1);
+    h.response({requestId:request.requestId,sessionId:'fixture-session',nativeMessageId:'fixture-native-user',transport:'native-user-v1',state:'accepted'});
+    await h.errors.get('delivery:fixture-command').retry();assert.equal(request.state,'accepted');assert.equal(h.errors.size,0);
+    const rejected={requestId:request.requestId,sessionId:'fixture-session',state:'rejected',notDispatched:true};
+    late(phase==='headers'?{ok:true,json:async()=>rejected}:rejected);await turn();assert.equal(request.state,'accepted');assert.equal(h.deliveries.length,1);
   });
   test('models '+phase+' stall releases loading; visible retry restores capability without a late overwrite',async()=>{
     const h=readHarness(),late=h.hang(phase),pending=h.api.loadModels().catch(error=>error);await turn();assert.equal(h.state.modelsLoading,true);
@@ -125,7 +130,7 @@ test('an abandoned poll timeout cannot overwrite a newer successful refresh',asy
 test('an in-flight status read cannot downgrade a terminal acknowledgement arriving meanwhile',async()=>{
   const h=readHarness(),resolve=h.hang('headers'),request={requestId:'fixture-command',state:'unknown'};
   const pending=h.api.checkDelivery(request);request.state='accepted';
-  resolve({ok:true,json:async()=>({state:'unknown'})});await pending;
+  resolve({ok:true,json:async()=>({requestId:request.requestId,sessionId:'fixture-session',state:'unknown'})});await pending;
   assert.equal(request.state,'accepted');assert.equal(request.checking,false);assert.equal(h.deliveries.length,0);assert.equal(h.timers.size,0);
 });
 test('a newer capability read wins over a slow older failure',async()=>{
@@ -160,7 +165,7 @@ export async function startNavigationFixture(){
       return json({messages:url.searchParams.has('since')?[]:messages,cursor:80,control:{running:false,model:'fixture-model',permissionMode:'default'}});
     }
     if(url.pathname==='/claude/api/file'){res.writeHead(200,{'content-type':'text/markdown'});return res.end('# Navigation fixture\n\nRead only file preview.');}
-    if(url.pathname.startsWith('/claude/api/command/'))return json({requestId:url.pathname.split('/').pop(),sessionId:'fixture-22',state:'accepted'});
+    if(url.pathname.startsWith('/claude/api/command/'))return json({requestId:url.pathname.split('/').pop(),sessionId:'fixture-22',nativeMessageId:'22222222-2222-4222-8222-222222222222',transport:'native-user-v1',state:'accepted'});
     if(url.pathname==='/stats')return json({listReads,sessionReads,modelReads,writes});
     res.writeHead(200,{'content-type':'text/html'});
     const prelude='<script>(()=>{if(!sessionStorage.getItem("fixture-read-stalls"))return;sessionStorage.removeItem("fixture-read-stalls");const timer=window.setTimeout;window.setTimeout=(fn,ms,...args)=>timer(fn,ms===15000?120:ms,...args);const fetchOriginal=window.fetch,stalled=new Set();window.fetch=(url,options)=>{const key=String(url).includes("/models")?"models":String(url).includes("/command/")?"delivery":String(url).includes("?since=")?"poll":null;if(key&&!stalled.has(key)){stalled.add(key);return Promise.resolve({ok:true,json:()=>new Promise(()=>{})});}return fetchOriginal(url,options);};})();</script>';

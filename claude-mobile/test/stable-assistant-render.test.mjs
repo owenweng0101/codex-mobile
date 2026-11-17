@@ -32,7 +32,7 @@ function harness(){
     removeAttribute(k){this.attrs.delete(k);}
     get className(){return this.getAttribute('class')||'';}
     set className(v){this.setAttribute('class',v);}
-    get classList(){return {add:(...names)=>{this.className=[...new Set([...this.className.split(/\s+/).filter(Boolean),...names])].join(' ');},remove:(...names)=>{this.className=this.className.split(/\s+/).filter(n=>!names.includes(n)).join(' ');},contains:name=>this.className.split(/\s+/).includes(name)};}
+    get classList(){return {add:(...names)=>{this.className=[...new Set([...this.className.split(/\s+/).filter(Boolean),...names])].join(' ');},remove:(...names)=>{this.className=this.className.split(/\s+/).filter(n=>!names.includes(n)).join(' ');},contains:name=>this.className.split(/\s+/).includes(name),toggle:(name,force)=>{const on=force===undefined?!this.classList.contains(name):Boolean(force);if(on)this.classList.add(name);else this.classList.remove(name);return on;}};}
     append(...nodes){for(const node of nodes){node.remove();node.parentNode=this;this.children.push(node);}}
     replaceChildren(...nodes){for(const child of this.children)child.parentNode=null;this.children=[];this.append(...nodes);}
     remove(){if(this.parentNode){const siblings=this.parentNode.children;siblings.splice(siblings.indexOf(this),1);this.parentNode=null;}}
@@ -75,7 +75,10 @@ function harness(){
   vm.runInNewContext(assistantSource,{window,document});
   const container=new Node('div');document.body.append(container);
   const viewer=document.body.querySelector('.file-view'),content=viewer.querySelector('.file-content');
-  return {window,document,container,viewer,content,requests,timers,selection,create:()=>window.createClaudeAssistant({container,renderText:(node,text)=>window.claudeRender(node,text,'test-session')}),
+  // Every markdown render request is recorded so tests can prove only a tail is
+  // reparsed, not the whole accumulated reply.
+  const renders=[];
+  return {window,document,container,viewer,content,requests,timers,selection,renders,create:()=>window.createClaudeAssistant({container,renderText:(node,text)=>{renders.push(text);window.claudeRender(node,text,'test-session');}}),
     render:(text,base)=>window.claudeRender(container,text,'session-中文',base),
     response:(type,text='',ok=true,status=200)=>{respond=async()=>({ok,status,headers:{get:()=>type},text:async()=>text});},
     fetch:callback=>{respond=callback;},
@@ -161,4 +164,83 @@ test('changed file links receive handlers bound to their new label',()=>{
 test('duplicate equal blocks remain distinct and empty appends preserve nodes',()=>{
   const h=harness(),owner=h.create();owner.appendText('same\n\nsame\n');const [a,b]=owner.bubble.querySelectorAll('p');owner.appendText('');
   const paragraphs=owner.bubble.querySelectorAll('p');assert.equal(paragraphs[0],a);assert.equal(paragraphs[1],b);assert.notEqual(a,b);
+});
+
+const activitySummary=owner=>owner.wrap.querySelector('.activity').querySelector('summary').textContent;
+const serialize=node=>[...node.childNodes].map(child=>child.nodeType===3?'#'+child.data:child.outerHTML).join('');
+
+test('an interrupted round leads with the interruption, keeping the unsynced detail',()=>{
+  const h=harness(),owner=h.create();owner.addTool('missing','Read');owner.finish('interrupted');
+  const summary=activitySummary(owner);
+  assert.match(summary,/^本轮已中断/,'the round outcome must lead the summary');
+  assert.match(summary,/状态待同步/,'an unconfirmed tool result stays visible as detail');
+  assert.doesNotMatch(summary,/已完成/);
+});
+
+test('a complete round keeps the sync notice without claiming an interruption',()=>{
+  const h=harness(),owner=h.create();owner.addTool('missing','Read');owner.finish('complete');
+  const summary=activitySummary(owner);
+  assert.match(summary,/状态待同步/);assert.doesNotMatch(summary,/本轮已中断/);
+});
+
+test('a late result restores the interrupted round label',()=>{
+  const h=harness(),owner=h.create();owner.addTool('late','Read');owner.finish('interrupted');owner.toolResult('late','迟到结果',false);
+  const summary=activitySummary(owner);
+  assert.match(summary,/本轮已中断/);assert.doesNotMatch(summary,/状态待同步/);
+  assert.equal(owner.wrap.querySelectorAll('.unconfirmed').length,0);
+});
+
+test('streaming appends re-render only the still-open block',()=>{
+  const h=harness(),owner=h.create();
+  for(let index=1;index<=12;index++)owner.appendText('第'+index+'段内容。','msg-'+index);
+  const whole=owner.segmentText;
+  assert.ok(whole.split('\n\n').length===12);
+  assert.ok(Math.max(...h.renders.map(text=>text.length))<whole.length,'an append re-parsed the whole reply: '+JSON.stringify(h.renders));
+  const parsed=h.renders.reduce((sum,text)=>sum+text.length,0);
+  assert.ok(parsed<whole.length*3,'replay parse work must stay linear, got '+parsed+' chars for '+whole.length);
+  assert.deepEqual(owner.bubble.querySelectorAll('p').map(node=>node.textContent),Array.from({length:12},(_,index)=>'第'+(index+1)+'段内容。'));
+});
+
+test('a block that becomes stable keeps its DOM node while the next one grows',()=>{
+  const h=harness(),owner=h.create();owner.appendText('第一段','m1');
+  const first=owner.bubble.querySelector('p');
+  owner.appendText('第二段','m2');
+  assert.equal(owner.bubble.querySelector('p'),first,'the closed paragraph must be promoted, not recreated');
+  assert.deepEqual(owner.bubble.querySelectorAll('p').map(node=>node.textContent),['第一段','第二段']);
+  assert.ok(h.renders.slice(-1)[0].length<20,'only the new paragraph text is rendered: '+JSON.stringify(h.renders.at(-1)));
+});
+
+test('appending inside an open fence re-renders the fence, not earlier blocks',()=>{
+  const h=harness(),owner=h.create();
+  owner.appendText('前置段落。','m1');
+  owner.appendText('\n\n```js\nconst a = 1;','m2');
+  assert.ok(h.renders.at(-1).startsWith('```js'),'only the open fence is rendered again: '+JSON.stringify(h.renders.at(-1)));
+  assert.doesNotMatch(h.renders.at(-1),/前置段落/);
+  owner.appendText('\nconst b = 2;','m2');
+  assert.equal(h.renders.at(-1),'```js\nconst a = 1;\nconst b = 2;');
+  assert.equal(owner.bubble.querySelectorAll('p').length,1);
+  assert.equal(owner.bubble.querySelector('p').textContent,'前置段落。');
+  assert.equal(owner.bubble.querySelector('pre').textContent,'const a = 1;\nconst b = 2;\n');
+});
+
+test('incremental streaming reproduces a one-shot render of the same Markdown',()=>{
+  const h=harness(),owner=h.create();
+  for(const [text,boundary] of [['开头说明','m1'],['- 列表一\n- 列表二','m2'],['> 引用一行\n> 引用两行','m3'],['| A | B |\n| - | - |\n| 1 | 2 |','m4'],['```js\nconst x = 1;','m5'],['\nconst y = 2;\n```','m5'],['结尾 **加粗** 段落','m6']])owner.appendText(text,boundary);
+  const expected=h.create();expected.appendText(owner.segmentText,'one-shot');
+  assert.equal(owner.segmentText,expected.segmentText);
+  assert.equal(serialize(owner.bubble),serialize(expected.bubble));
+});
+
+test('late reference definitions fall back to a full pass',()=>{
+  const h=harness(),owner=h.create();
+  owner.appendText('[hello][ref]\n\n正文','m1');
+  owner.appendText('\n\n[ref]: https://example.com','m1');
+  assert.equal(owner.bubble.querySelector('a').href,'https://example.com');
+  assert.ok(h.renders.at(-1).includes('[hello][ref]'),'a definition can change earlier blocks, so they are rendered again');
+});
+
+test('every bubble keeps its own streaming state across text blocks',()=>{
+  const h=harness(),owner=h.create();
+  owner.appendText('第一块','a');owner.addTool('read','Read','x');owner.appendText('第二块','b');owner.appendText('续写','b');
+  assert.deepEqual(owner.wrap.querySelectorAll('.bubble').map(node=>node.textContent.trim()),['第一块','第二块续写']);
 });

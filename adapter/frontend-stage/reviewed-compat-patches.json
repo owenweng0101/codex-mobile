@@ -100,5 +100,11 @@
     "needle": "this.asyncHighlight(e).then(({result:t,options:n})=>{this.renderCache!=null&&(this.renderCache.highlighted=!1),this.onHighlightSuccess(e,t,n)}).catch(e=>this.onHighlightError(e))",
     "replacement": "this.asyncHighlight(e).then(({result:t,options:n})=>{if(!hv(this.__zRequestedFile,e))return;this.renderCache!=null&&(this.renderCache.highlighted=!1),this.onHighlightSuccess(e,t,n)}).catch(e=>this.onHighlightError(e))",
     "count": 1
+  },
+  {
+    "name": "codex-code-viewer-text-preview-10mb",
+    "needle": "var X1e=256*1024,",
+    "replacement": "var X1e=10*1024*1024,",
+    "count": 1
   }
 ]

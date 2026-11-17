@@ -5,6 +5,7 @@ import {readFile} from 'node:fs/promises';
 import {once,EventEmitter} from 'node:events';
 import {WebSocket,WebSocketServer} from 'ws';
 import {createIngress} from '../ingress.mjs';
+import {HUB_FALLBACK} from '../mobile-entry.mjs';
 import {CpolarTunnel,extractCpolarOrigins,verifyPublic} from '../cpolar.mjs';
 import {Pairing,sameOrigin} from '../../adapter/auth.mjs';
 const origin='https://test.cn.cpolar.top';
@@ -24,11 +25,36 @@ test('dedicated tunnel never exposes local pairing secrets or widens operation s
   assert.deepEqual(calls,[{path:'/api/server-info',origin:'http://127.0.0.1:'+bp,host:'127.0.0.1:'+bp,forwarded:undefined}]);
  }finally{await gateway.close();await new Promise(r=>backend.close(r));}
 });
-test('pairing retains backend authentication, marks public cookie Secure, and compresses large original assets',{timeout:3000},async()=>{
+test('pairing retains backend authentication, marks public cookie Secure over HTTPS, and compresses large original assets',{timeout:3000},async()=>{
  const backend=http.createServer((req,res)=>{res.setHeader('content-type','text/javascript');res.setHeader('set-cookie','codex_native_pair=fixture; HttpOnly; SameSite=Strict; Path=/');res.end('const originalUI=true;\n'.repeat(10000));});
  const bp=await listen(backend),gateway=createIngress({backend:'http://127.0.0.1:'+bp});gateway.setPublicOrigin(origin);gateway.setMode('codex-read');const port=await listen(gateway.server);
- try{const response=await request(port,'/codex-entry.mjs',{headers:{origin,'accept-encoding':'gzip'}});assert.equal(response.status,200);assert.equal(response.headers['content-encoding'],'gzip');assert.match(response.headers['set-cookie'][0],/; Secure$/);assert.ok(response.body.length<1000);const {gunzipSync}=await import('node:zlib');assert.equal(gunzipSync(response.body).toString(),'const originalUI=true;\n'.repeat(10000));}
+ try{const response=await request(port,'/codex-entry.mjs',{headers:{origin,'accept-encoding':'gzip','x-forwarded-proto':'https'}});assert.equal(response.status,200);assert.equal(response.headers['content-encoding'],'gzip');assert.match(response.headers['set-cookie'][0],/; Secure$/);assert.ok(response.body.length<1000);const {gunzipSync}=await import('node:zlib');assert.equal(gunzipSync(response.body).toString(),'const originalUI=true;\n'.repeat(10000));}
  finally{await gateway.close();await new Promise(r=>backend.close(r));}
+});
+test('cookie Secure follows the real transport: HTTPS tunnel or direct TLS only, loopback/LAN http keeps cookies usable',{timeout:5000},async t=>{
+ const seen=[],backend=http.createServer((req,res)=>{seen.push(req.headers);res.setHeader('content-type','application/json');res.setHeader('set-cookie',['codex_native_pair=fixture; HttpOnly; SameSite=Strict; Path=/','already_secure=1; HttpOnly; SameSite=Strict; Path=/; Secure']);res.end('{"ok":true}');});
+ const bp=await listen(backend),plain=createIngress({backend:'http://127.0.0.1:'+bp}),tls=createIngress({backend:'http://127.0.0.1:'+bp});
+ const serve=async gateway=>{gateway.setPublicOrigin(origin);gateway.setMode('codex-read');return listen(gateway.server);};
+ const plainPort=await serve(plain),tlsPort=await serve(tls);
+ // A plain http.Server cannot terminate a real TLS handshake in tests; mark the
+ // accepted socket encrypted instead, which is exactly what req.socket reports.
+ tls.server.on('connection',socket=>Object.defineProperty(socket,'encrypted',{value:true,configurable:true}));
+ t.after(async()=>{await plain.close();await tls.close();await new Promise(r=>backend.close(r));});
+ const cookies=async(port,headers={})=>{const response=await request(port,'/api/server-info',{headers:{origin,...headers}});assert.equal(response.status,200);return response.headers['set-cookie'];};
+ // The tunnel terminates TLS at its edge and forwards plain HTTP locally.
+ const tunnel=['codex_native_pair=fixture; HttpOnly; SameSite=Strict; Path=/; Secure','already_secure=1; HttpOnly; SameSite=Strict; Path=/; Secure'];
+ assert.deepEqual(await cookies(plainPort,{'x-forwarded-proto':'https'}),tunnel);
+ assert.deepEqual(await cookies(plainPort,{'x-forwarded-proto':'HTTPS, http'}),tunnel);
+ // Loopback or LAN http: adding Secure would make the browser drop the cookie,
+ // so the pairing cookie must stay deliverable and the upstream value is untouched.
+ for(const headers of [{},{'x-forwarded-proto':'http'},{'x-forwarded-proto':'https;q=0'},{'x-forwarded-proto':''}]){
+  const value=await cookies(plainPort,headers);assert.equal(value[0],'codex_native_pair=fixture; HttpOnly; SameSite=Strict; Path=/',JSON.stringify(headers));assert.equal(value[1],tunnel[1]);
+ }
+ // Direct TLS keeps the hardening, and an upstream Secure is never duplicated.
+ assert.deepEqual(await cookies(tlsPort),tunnel);
+ assert.equal((await cookies(plainPort,{'x-forwarded-proto':'https'}))[1].match(/Secure/g).length,1);
+ // The transport hint is caller input: it must never reach the local adapter.
+ assert.ok(seen.every(headers=>headers['x-forwarded-proto']===undefined&&headers.forwarded===undefined));
 });
 test('external QR navigation can load only the entry document without relaxing API or origin checks',async t=>{
  const calls=[],backend=http.createServer((req,res)=>{
@@ -38,7 +64,7 @@ test('external QR navigation can load only the entry document without relaxing A
  const bp=await listen(backend),gateway=createIngress({backend:'http://127.0.0.1:'+bp});gateway.setPublicOrigin(origin);gateway.setMode('codex-read');const port=await listen(gateway.server);
  t.after(async()=>{await gateway.close();await new Promise(r=>backend.close(r));});
  const navigation={'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
- for(const path of ['/','/legacy/','/mobile/','/mobile/index.html']){const response=await request(port,path,{headers:navigation});assert.equal(response.status,302,path);assert.equal(response.headers.location,'/m/#');}
+ for(const path of ['/','/legacy/','/mobile/','/mobile/index.html']){const response=await request(port,path,{headers:navigation});assert.equal(response.status,302,path);assert.equal(response.headers.location,HUB_FALLBACK);}
  assert.equal(calls.length,0);
  for(const path of ['/api/server-info','/api/pair','/mobile/api/history','/codex-entry.mjs','/local/info','/ws'])assert.equal((await request(port,path,{headers:navigation})).status,403,path);
  for(const headers of [{...navigation,origin:'https://evil.example'},{...navigation,host:'attacker.example'},{...navigation,'sec-fetch-mode':'cors'},{...navigation,'sec-fetch-dest':'iframe'},{'sec-fetch-site':'cross-site'}])assert.equal((await request(port,'/',{headers})).status,403);
@@ -173,9 +199,9 @@ test('retired QR document entries converge on hub while iframe documents keep th
   for(const method of ['GET','HEAD'])for(const headers of [{},{'sec-fetch-dest':'document'},{'sec-fetch-dest':'empty'}]){
    const response=await request(port,path+'?t=old-secret&hub_frame=1',{method,headers});
    assert.equal(response.status,headers['sec-fetch-dest']===undefined?200:302,path);
-   if(headers['sec-fetch-dest']!==undefined){assert.equal(response.headers.location,'/m/#');assert.equal(response.headers['set-cookie'],undefined);}
+   if(headers['sec-fetch-dest']!==undefined){assert.equal(response.headers.location,HUB_FALLBACK);assert.equal(response.headers['set-cookie'],undefined);}
   }
-  const legacy=await request(port,path+'?t=old-secret');assert.equal(legacy.status,302,path);assert.equal(legacy.headers.location,'/m/#');
+  const legacy=await request(port,path+'?t=old-secret');assert.equal(legacy.status,302,path);assert.equal(legacy.headers.location,HUB_FALLBACK);
   const frame=await request(port,path+'?hub_frame=1',{headers:{'sec-fetch-dest':'iframe'}});assert.equal(frame.status,200,path);
  }
  // Headerless old browsers may embed with a marker; the adapter injects the

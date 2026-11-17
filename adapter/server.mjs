@@ -46,7 +46,7 @@ function createConnection(){
   const controller=wrapReadControllers(supported,{api});
   const readEvents=wrapReadEvents(controller.channels,{api,pollMs:250,useLongPolling:true});
   const controllerChanges=readEvents.changes(()=>controller.refresh().catch(()=>{}));
-  const conversations=createConversationReadServices({indexedHistory:true,deferInitialFrame:true,api,baseServices:readEvents.channels,eventAdapter:readEvents,writable:true,modelSelections,resolveAttachment});
+  const conversations=createConversationReadServices({indexedHistory:true,initialHistoryRows:20,deferInitialFrame:true,api,baseServices:readEvents.channels,eventAdapter:readEvents,writable:true,modelSelections,resolveAttachment});
   const writes=createWriteServices({autoSteerActive:false,api,baseServices:conversations.channels,ledgerDir:join(stateDir,'commands'),modelSelections,resolveAttachment,native:{interruptExpected:params=>api.post('/api/interrupt-expected',params)},revisionGuard:params=>conversations.validateRevision(params),onChanged:async params=>{await sharedServices.project.readTree({refresh:true});await readEvents.pollNow();await conversations.refreshWorkspace(params);}});
   return{services:rejectMissingChannels(writes.channels),dispose(){conversations.dispose();controllerChanges.dispose();readEvents.dispose();controller.dispose();}};
 }

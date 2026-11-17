@@ -17,11 +17,11 @@ import { sendWorkspaceContent } from './file-content.mjs';
 import { TerminalManager } from './terminal.mjs';
 import { MessageQueue } from './queue.mjs';
 import { CapabilityCatalog } from './capabilities.mjs';
-import { DesktopBridge, trimIdleDesktopSubscriptions, desktopHistory as desktopSnapshotHistory } from './desktop-bridge.mjs';
+import { DesktopBridge, createHistoryOverlayReader, trimIdleDesktopSubscriptions, desktopHistory as desktopSnapshotHistory } from './desktop-bridge.mjs';
 import { MobileOrganization } from './organization.mjs';
 import { NativeOrganization } from './native-pins.mjs';
 import { CatalogCache, includePersistedCreations } from './catalog.mjs';
-import { DesktopIntent, ensureDesktopOwner } from './desktop-intent.mjs';
+import { DesktopIntent, ensureDesktopOwner, desktopSnapshotForOperation } from './desktop-intent.mjs';
 import { AutomationCatalog } from './automations.mjs';
 import { searchWorkspaceFiles } from './file-search.mjs';
 import { ProjectManager } from './projects.mjs';
@@ -135,9 +135,8 @@ async function desktopOwnerFor(id) { if (owned.has(id)) return null; try { const
 async function nativeForOperation(id) {
   if(threadSettings[id]?.needsDesktopRefresh){try{await archivedThreads.refreshDesktop(id,desktop);}catch(error){if(error.code==='THREAD_ARCHIVED')throw error;}}
   await ensureDesktopOwner(id,{isOwned:()=>owned.has(id),isStale:()=>desktopStale.has(id),owner:()=>desktopOwnerFor(id),attach:()=>nativeIntent.attach(id)});
-  let state;for(let attempt=0;attempt<2&&!state;attempt++){try{state=await desktop.snapshot(id,{fresh:true,timeout:15000});}catch{}}
-  const native=state?acceptDesktopHistory(id,desktopSnapshotHistory(state)):null;
-  if(!native)throw Object.assign(new Error('电脑端会话状态尚未同步，请重新连接并核对后再操作'),{statusCode:503});
+  const state=await desktopSnapshotForOperation(()=>desktop.snapshot(id,{fresh:true,timeout:15000}));
+  const native=acceptDesktopHistory(id,desktopSnapshotHistory(state));
   if(threadSettings[id]?.needsDesktopRefresh){threadSettings[id].needsDesktopRefresh=false;await saveSettings();}
   return native;
 }
@@ -267,22 +266,38 @@ async function readHistory(id, cursor) {
   const native = await nativeRequest;
   return {...historyMetadata(id,thread,native,page.settings),turns:(native&&!cursor?mergeDesktopTurns(page.data,native.turns):page.data).map(turn=>displayTurn(turn,{threadId:id})),nextCursor:page.nextCursor};
 }
-function historyMetadata(id,thread,native,pageSettings={}) {
-  const connection = desktopConnectionState(native, desktop.online && !desktopStale.has(id));
+function historyMetadata(id,thread,native,pageSettings={},readConfirmed=true) {
+  const connection = desktopConnectionState(native, readConfirmed && desktop.online && !desktopStale.has(id));
   thread = { id: thread.id, archived:!!thread.path?.includes('/archived_sessions/'), name: native?.thread?.name || threadSettings[id]?.name || thread.name, preview: cleanUserText(thread.preview || ''), cwd: thread.cwd, status: native && !connection.desktopConnected ? { type: 'unavailable' } : native?.thread?.status || thread.status, model: native?.settings?.model || thread.model, reasoningEffort: native?.settings?.effort || thread.reasoningEffort, projectId: thread.projectId, createdAt: thread.createdAt, updatedAt: thread.updatedAt };
   return { thread, desktop: !!native, ...connection, queue: messageQueue.get(id), settings: { model: thread.model, effort: thread.reasoningEffort, ...threadSettings[id], ...pageSettings, ...native?.settings }, tokenUsage: native?.tokenUsage || core.tokenUsage.get(id) || null, plan: native?.plan || core.turnPlans.get(id) || null, diff: native?.diff || core.turnDiffs.get(id)?.diff || null, approvals: [...[...core.requests.values()].filter(r => r.params?.threadId === id).map(r => ({ id: String(r.id), method: r.method, ...r.params })), ...(native?.approvals || [])], activeTurn: native ? connection.activeTurn : core.activeTurns.get(id) || null, attached: !!native || owned.has(id) };
 }
 const conversationIndex=new RolloutConversationIndex();
+// Reading persisted rows must not wait for an unresponsive desktop owner. This
+// soft deadline applies only to history-window presentation, never to writes.
+const historyOverlay=createHistoryOverlayReader({
+ read:id=>desktop.history(id,{timeout:1200}),
+ cached:id=>desktopHistories.get(id)||null,
+ accept:(id,value)=>acceptDesktopHistory(id,value),
+ failed:id=>{if(desktopHistories.has(id))desktopStale.add(id);},
+ changed:id=>{if(desktopAccess.has(id))publish({method:'bridge/historyReset',params:{threadId:id}});},
+});
 async function historyWindow(id,params){
  if(draftThreads.has(id)){const page=draftHistory(id);return{...page,rows:{window:[],totalCount:0,firstRowId:null},sourceEpoch:'draft:'+id,revision:'draft:'+id};}
- const [thread,native]=await Promise.all([threadRead(id),desktopHistoryFor(id)]);
+ if(!owned.has(id))touchDesktop(id);
+ const [thread,overlay]=await Promise.all([threadRead(id),owned.has(id)?null:historyOverlay.get(id)]);
+ const native=overlay?.history||null;
+ pruneDesktopIdle();
  const codexHome=resolve(process.env.CODEX_HOME||resolve(homedir(),'.codex'));
  if(!thread.path||!['sessions','archived_sessions'].some(folder=>thread.path.startsWith(codexHome+'/'+folder+'/')))throw Object.assign(new Error('此会话暂不支持索引窗口'),{code:'HISTORY_WINDOW_UNSUPPORTED',statusCode:501});
- const context=historyMetadata(id,thread,native);
+ // Trust is captured when this overlay read returns, before a slower threadRead.
+ const context=historyMetadata(id,thread,native,{},overlay?.confirmed===true);
  let result;
- try{result=await conversationIndex.read(thread.path,{threadId:id,thread:context.thread,nativeTurns:native?.turns||[],activeTurn:context.activeTurn,...params});}
+ try{result=await conversationIndex.read(thread.path,{threadId:id,thread:context.thread,nativeTurns:context.desktopConnected?(native?.turns||[]):[],activeTurn:context.activeTurn,...params});}
  catch(error){if(['ENOENT','EACCES','EPERM'].includes(error.code))throw Object.assign(new Error('此历史源暂不可建立索引窗口'),{code:'HISTORY_WINDOW_UNSUPPORTED',statusCode:501});throw error;}
- return{...historyMetadata(id,thread,native,result.settings),turns:result.lastTurn?[result.lastTurn]:[],rows:result.rows,sourceEpoch:result.sourceEpoch,revision:result.revision,hasMore:result.hasMore};
+ // Freeze this read's connection/active metadata with the revision input. A
+ // late overlay may clear global stale state during index IO; it must not make
+ // this older native object look freshly connected on the outgoing response.
+ return{...context,settings:{...context.settings,...result.settings,...native?.settings},turns:result.lastTurn?[result.lastTurn]:[],rows:result.rows,sourceEpoch:result.sourceEpoch,revision:result.revision,...(result.notModified?{notModified:true}:{}),hasMore:result.hasMore};
 }
 async function history(id, cursor) {
   const key = id + ':' + (cursor || '');
@@ -423,7 +438,7 @@ const server = http.createServer(async (req, res) => {
       if(req.method==='GET'&&pathname==='/api/history-window'){
         try{
           const parse=key=>{const value=u.searchParams.get(key);return value===null?undefined:/^(0|[1-9]\d*)$/.test(value)?Number(value):NaN;};
-          return send(res,200,await historyWindow(u.searchParams.get('threadId'),{limit:parse('limit')??60,beforeRowId:parse('beforeRowId'),fromRowId:parse('fromRowId'),sourceEpoch:u.searchParams.get('sourceEpoch')??undefined,metadataOnly:u.searchParams.get('metadataOnly')==='1'}));
+          return send(res,200,await historyWindow(u.searchParams.get('threadId'),{limit:parse('limit')??60,beforeRowId:parse('beforeRowId'),fromRowId:parse('fromRowId'),sourceEpoch:u.searchParams.get('sourceEpoch')??undefined,metadataOnly:u.searchParams.get('metadataOnly')==='1',ifRevision:u.searchParams.get('ifRevision')??undefined}));
         }catch(error){return send(res,error.statusCode||500,{error:error.message,code:error.code||'HISTORY_WINDOW_FAILED'});}
       }
       if (req.method === 'GET' && pathname === '/api/thread-metadata') return send(res, 200, await threadMetadata(u.searchParams.get('threadId'), {readThread:threadRead, drafts:draftThreads}));
@@ -671,5 +686,5 @@ if (!process.argv.includes('--no-tunnel') && (gateway || process.argv.includes('
   });
   tunnel.start();
 } else if (!gateway && !process.argv.includes('--no-tunnel')) { tunnelError = '固定服务器尚未配置'; }
-function stop(code = 0) { if (closing) return; closing = true; clearInterval(organizationTimer); tunnel?.stop(); desktop.stop(); terminals.closeAll(); core.stop(); server.close(); setTimeout(() => process.exit(code), 500); }
+function stop(code = 0) { if (closing) return; closing = true; clearInterval(organizationTimer); historyOverlay.dispose(); tunnel?.stop(); desktop.stop(); terminals.closeAll(); core.stop(); server.close(); setTimeout(() => process.exit(code), 500); }
 process.on('SIGTERM', () => stop(0)); process.on('SIGINT', () => stop(0));

@@ -5,7 +5,7 @@ import {promisify} from 'node:util';
 import {Transform} from 'node:stream';
 import {WebSocket,WebSocketServer} from 'ws';
 import {createDshProxy} from './dsh-proxy.mjs';
-import {isHubFrameRequest} from './mobile-entry.mjs';
+import {isHubFrameRequest,HUB_FALLBACK} from './mobile-entry.mjs';
 
 export const probeHtml=`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Codex 国内连接测试</title><style>body{font:17px system-ui;margin:40px auto;padding:0 24px;max-width:560px;color:#202124;background:#f7f8fa}h1{font-size:25px}li{margin:18px 0}button{font:inherit;padding:12px 20px;border:0;border-radius:12px;background:#202124;color:white}p{line-height:1.6;color:#60646b}</style><h1>Codex 国内连接测试</h1><p>此页面只测试网络，不包含你的项目、会话或控制权限。</p><ul><li id="https">页面已打开</li><li id="ws">双向连接：等待</li><li id="echo">消息往返：等待</li></ul><button id="retry">重新连接</button><script src="/probe.js"></script></html>`;
 export const probeScript=`let current;function connect(){current?.close();const w=new WebSocket(location.origin.replace(/^http/,'ws')+'/probe/ws');current=w;w.binaryType='arraybuffer';w.onopen=()=>{document.getElementById('ws').textContent='双向连接：已建立';w.send(new TextEncoder().encode('codex-network-probe'));};w.onmessage=e=>{window.__PROBE_OK__=new TextDecoder().decode(e.data)==='codex-network-probe';document.getElementById('echo').textContent=window.__PROBE_OK__?'消息往返：成功':'消息往返：异常';};w.onclose=()=>{document.getElementById('ws').textContent='双向连接：已断开，可重新连接';};w.onerror=()=>{document.getElementById('echo').textContent='消息往返：未成功';};}document.getElementById('https').textContent=location.protocol==='https:'?'HTTPS：已建立安全连接':'当前为本机测试';document.getElementById('retry').onclick=connect;connect();`;
@@ -92,6 +92,15 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
  }
  function allowed(req){return !!publicOrigin&&req.headers.host===new URL(publicOrigin).host&&(!requestOrigin(req)||requestOrigin(req)===publicOrigin)&&(req.headers['sec-fetch-site']!=='cross-site'||externalEntry(req));}
  function pathOf(req){try{const u=new URL(req.url,'http://ingress.invalid');if(u.origin!=='http://ingress.invalid'||!validPath(req.url.split('?')[0]))return null;return u.pathname;}catch{return null;}}
+ // Secure 只在请求确实经 HTTPS 时才补：隧道在边缘终止 TLS，靠 x-forwarded-proto；
+ // 直连 TLS 看 socket。回环或局域网 http 上补 Secure 会被浏览器直接丢弃 cookie，
+ // 下一次请求就没有凭证可带，登录随之 401。已带 Secure 的上游值保持原样。
+ function secureRequest(req){
+  if(req.socket?.encrypted===true)return true;
+  const proto=req.headers['x-forwarded-proto'];
+  const value=Array.isArray(proto)?proto[0]:proto;
+  return typeof value==='string'&&value.split(',')[0].trim().toLowerCase()==='https';
+ }
  function headers(req){const out={host:upstream.host};for(const k of safeHeaders)if(req.headers[k]!==undefined)out[k]=req.headers[k];if(externalEntry(req))out['sec-fetch-site']='none';if(req.headers.origin)out.origin=upstream.origin;if(versionedAsset(pathOf(req)||'')){out['accept-encoding']='identity';if(out['if-none-match'])out['if-none-match']=out['if-none-match'].replace(/W\/(?=")/g,'');}return out;}
  const wss=new WebSocketServer({noServer:true,maxPayload:64*1024});
  wss.on('connection',ws=>{let count=0;ws.on('error',()=>{});ws.on('message',(data,binary)=>{if(++count>100){ws.close(1008,'Probe limit');return;}ws.send(data,{binary});});});
@@ -102,7 +111,7 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
   // Old QR links navigate to the single hub. A trailing empty fragment clears
   // the legacy Codex pairing hash instead of inheriting it during redirect.
   if(mode==='codex-read'&&['GET','HEAD'].includes(req.method)&&retiredEntryPaths.has(path)&&!isHubFrameRequest(req,new URL(req.url,'http://ingress.invalid'))){
-   res.writeHead(302,{location:'/m/#'});res.end();return;
+   res.writeHead(302,{location:HUB_FALLBACK});res.end();return;
   }
   if(dsh&&dsh.handles(path))return dsh.forward(req,res);
   if(claudeProxy&&claudeProxy.handles(path))return claudeProxy.forward(req,res);
@@ -130,7 +139,7 @@ export function createIngress({backend='http://127.0.0.1:8796',instance=randomUU
     const vary=String(copied.vary||'').split(',').map(value=>value.trim()).filter(Boolean);
     if(!vary.some(value=>value.toLowerCase()==='cookie'))vary.push('Cookie');copied.vary=vary.join(', ');
    }else if(path.startsWith('/mobile/api/')||path.startsWith('/api/'))copied['cache-control']='no-store';
-   if(copied['set-cookie'])copied['set-cookie']=copied['set-cookie'].map(v=>/;\s*Secure\b/i.test(v)?v:v+'; Secure');
+   if(copied['set-cookie']&&secureRequest(req))copied['set-cookie']=copied['set-cookie'].map(v=>/;\s*Secure\b/i.test(v)?v:v+'; Secure');
    const asset=versionedAsset(path),encoding=preferredEncoding(req.headers['accept-encoding']),bodyLength=Number(copied['content-length']);
    const compress=encoding&&![204,206,304].includes(response.statusCode)&&!req.headers.range&&!copied['content-range']&&!copied['content-encoding']&&/text\/|javascript|json|svg/.test(copied['content-type']||'');
    if(asset||compress){varyEncoding(copied);weakEtag(copied);}

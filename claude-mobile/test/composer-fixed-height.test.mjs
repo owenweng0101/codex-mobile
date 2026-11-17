@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
+import {randomUUID} from 'node:crypto';
 import {createServer} from 'node:http';
 import {spawn} from 'node:child_process';
 import {chatHtml} from '../backend/lib/ui.mjs';
@@ -14,8 +15,8 @@ function fixture(){
   const input={value:'',scrollTop:0,style:new Proxy({},{set(){throw Error('input height must be owned by CSS');}}),addEventListener:(name,fn)=>handlers.set(name,fn)};
   Object.defineProperty(input,'scrollHeight',{get(){throw Error('content height must never resize the input');}});
   const state={attachments:[]};
-  const api=runInNewContext('let draftKey=null;'+['syncInputHeight','afterComposerVisible','saveDraft','restoreDraft'].map(actualFunction).join(String.fromCharCode(10))+'\n'+client.slice(client.indexOf("  input.addEventListener('input',"),client.indexOf('  bootstrap();'))+'\n({syncInputHeight,saveDraft,restoreDraft})',{
-    input,state,drafts,chatView:{classList:{contains:()=>false}},requestAnimationFrame:fn=>fn(),viewportChanged(){},renderAttachments(){},updateSendState(){updated++;},performance:{now:()=>now},send:value=>sent.push(value),composer:{addEventListener:(name,fn)=>submits.push(fn)},
+  const api=runInNewContext('let draftKey=null;'+['syncInputHeight','afterComposerVisible','persistDrafts','saveDraft','restoreDraft'].map(actualFunction).join(String.fromCharCode(10))+'\n'+client.slice(client.indexOf("  input.addEventListener('input',"),client.indexOf('  bootstrap();'))+'\n({syncInputHeight,saveDraft,restoreDraft})',{
+    input,state,drafts,draftStorage:'clm-drafts-v1',crypto:{randomUUID},sessionStorage:{setItem(){}},chatView:{classList:{contains:()=>false}},requestAnimationFrame:fn=>fn(),viewportChanged(){},renderAttachments(){},updateSendState(){updated++;},performance:{now:()=>now},send:value=>sent.push(value),composer:{addEventListener:(name,fn)=>submits.push(fn)},
   });
   return {api,input,state,drafts,sent,submits,handlers,updated:()=>updated,now:value=>now=value,key(extra={}){let prevented=false;handlers.get('keydown')({key:'Enter',preventDefault(){prevented=true;},...extra});return prevented;}};
 }
@@ -68,7 +69,7 @@ try{
   const installAssertions=()=>{
     window.composerErrors=[];addEventListener('unhandledrejection',event=>composerErrors.push(String(event.reason)));
     const input=document.getElementById('input');window.composerBaseline={height:input.getBoundingClientRect().height,form:document.getElementById('composer').getBoundingClientRect().height,box:input.parentElement.getBoundingClientRect().height};
-    if(composerBaseline.height!==44||composerBaseline.form!==103)throw Error('original empty input/composer height changed');
+    if(composerBaseline.height!==44||composerBaseline.form!==102)throw Error('fixed input or measured Codex composer height changed');
     window.assertComposer=(phase,overflow=false)=>{
       const input=document.getElementById('input'),form=document.getElementById('composer');
       const inputHeight=input.getBoundingClientRect().height,formHeight=form.getBoundingClientRect().height,boxHeight=input.parentElement.getBoundingClientRect().height;

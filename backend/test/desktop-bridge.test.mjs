@@ -11,12 +11,12 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 function fixtureState() {
   return { id:'test-thread',title:'Testing',cwd:'/tmp',latestModel:'test-model',latestReasoningEffort:'high',requests:[],currentPermissions:{approvalPolicy:'on-request',sandboxPolicy:{type:'workspaceWrite'}},turns:[],threadRuntimeStatus:{type:'idle'},turnHistory:{kind:'canonical',history:{islands:[{entries:[{key:'entry',value:'entry'}]}],entitiesByKey:{entry:{turnId:'prior-turn',status:'completed',params:{input:[{type:'text',text:'Hello'}]},turnStartedAtMs:1000,durationMs:100,items:[{type:'agentMessage',id:'message',text:'Prior reply'}]}}}} };
 }
-async function mock(t,{missingOwner=false,holdSend=false,startError=false,materializeOnError=false,emptySendReply=false,steerReply={result:{turnId:'new-turn'}}}={}) {
+async function mock(t,{snapshotVersion=11,missingOwner=false,holdSend=false,startError=false,materializeOnError=false,emptySendReply=false,steerReply={result:{turnId:'new-turn'}}}={}) {
   const directory=await mkdtemp(join(tmpdir(),'codex-desktop-test-'));await chmod(directory,0o700);
   const socketPath=join(directory,'ipc.sock'),sockets=new Set(),messages=[];let state=fixtureState(),client;
   const write=(s,message,fragment=false)=>{const bytes=encodeDesktopFrame(message);if(fragment){s.write(bytes.subarray(0,3));s.write(bytes.subarray(3,9));s.write(bytes.subarray(9));}else s.write(bytes);};
   const response=(s,r,result)=>write(s,{type:'response',requestId:r.requestId,resultType:'success',method:r.method,handledByClientId:'desktop-owner',result});
-  const snapshot=s=>write(s,{type:'broadcast',method:'thread-stream-state-changed',version:11,sourceClientId:'desktop-owner',params:{hostId:'local',conversationId:'test-thread',change:{type:'snapshot',revision:1,conversationState:state}}},true);
+  const snapshot=s=>write(s,{type:'broadcast',method:'thread-stream-state-changed',version:snapshotVersion,sourceClientId:'desktop-owner',params:{hostId:'local',conversationId:'test-thread',change:{type:'snapshot',revision:1,conversationState:state}}},true);
   const server=net.createServer(s=>{client=s;sockets.add(s);let buffer=Buffer.alloc(0);s.on('close',()=>sockets.delete(s));s.on('data',chunk=>{buffer=Buffer.concat([buffer,chunk]);while(buffer.length>=4){const size=buffer.readUInt32LE();if(buffer.length<size+4)return;const r=JSON.parse(buffer.subarray(4,size+4).toString());buffer=buffer.subarray(size+4);messages.push(r);
     if(r.type==='request') {
       if(r.method==='initialize')response(s,r,{clientId:'test-client'});
@@ -87,6 +87,61 @@ test('official coordinator handshake, owner lookup and fragmented snapshot norma
   const {bridge,messages}=await mock(t);await bridge.start();assert.equal(await bridge.owner('test-thread'),'desktop-owner');
   const history=await bridge.history('test-thread');assert.equal(history.turns.length,1);assert.equal(history.turns[0].items[0].type,'userMessage');assert.equal(history.turns[0].items[1].text,'Prior reply');assert.equal(history.desktop,true);
   assert.equal(messages[0].params.clientType,'codex-mobile');assert.equal(messages.find(m=>m.method==='thread-owner-discovery').version,1);assert.equal((await bridge.modelSettings('test-thread')).model,'test-model');
+});
+
+test('reviewed v13 snapshots preserve canonical history, permissions and native request identity with additive fields',async t=>{
+  const f=await mock(t,{snapshotVersion:13});
+  // Synthetic values using the structural contract observed in the installed
+  // Desktop v13 coordinator; never record user conversation contents in tests.
+  f.state.sessionId='native-session';f.state.latestThreadSettings={model:'v13-model',effort:'high',disabledPluginIds:[]};
+  f.state.canonicalVoiceHistory={};f.state.workspaceKind='local';f.state.threadRuntimeStatus={type:'idle',activeFlags:[]};
+  f.state.currentPermissions.activePermissionProfile={id:'fixture-profile'};
+  f.state.turnHistory.history.generation=1;f.state.turnHistory.history.isComplete=true;
+  Object.assign(f.state.turnHistory.history.islands[0],{id:'island',olderBoundary:{},newerBoundary:{}});
+  const turn=f.state.turnHistory.history.entitiesByKey.entry;turn.params.clientUserMessageId='v13-native-request';turn.rootTurnId='prior-turn';turn.completedItemIds={};turn.itemsPagination={};
+  const h=await f.bridge.history('test-thread');assert.equal(h.thread.id,'test-thread');assert.equal(h.turns[0].id,'prior-turn');assert.equal(h.turns[0].items[0].clientUserMessageId,'v13-native-request');assert.equal(h.settings.sandbox,'workspace-write');
+  assert.equal(f.bridge.states.get('test-thread').version,13);
+  f.push({type:'broadcast',method:'thread-stream-state-changed',version:13,sourceClientId:'desktop-owner',params:{hostId:'local',conversationId:'test-thread',change:{type:'patches',baseRevision:1,revision:2,patches:[{op:'replace',path:['turnHistory','history','entitiesByKey','entry','status'],value:'inProgress'}]}}});
+  await delay(15);assert.equal((await f.bridge.history('test-thread')).activeTurn,'prior-turn');
+  const receipt=await f.bridge.send('test-thread',{requestId:'v13-native-request',input:turn.params.input});assert.equal(receipt.turn.id,'prior-turn');assert.equal(f.messages.some(m=>m.method==='thread-follower-start-turn'),false);
+});
+
+test('unknown snapshot versions fail explicitly without a send or a fabricated connectivity timeout',async t=>{
+  for(const snapshotVersion of [12,14,'13',undefined]){
+    const f=await mock(t,{snapshotVersion:snapshotVersion??null});const diagnostics=[];f.bridge.on('diagnostic',message=>diagnostics.push(message));
+    await assert.rejects(f.bridge.send('test-thread',{requestId:'unsupported',input:[{type:'text',text:'fixture'}]}),{code:'DESKTOP_PROTOCOL_UNSUPPORTED',sent:false,outcomeUnknown:false});
+    assert.equal(f.bridge.states.has('test-thread'),false);assert.equal(f.messages.some(m=>m.method==='thread-follower-start-turn'),false);assert.ok(diagnostics.some(message=>message.includes('DESKTOP_PROTOCOL_UNSUPPORTED')));
+  }
+});
+
+test('v11 and v13 validate selected identity and required history shape while allowing new fields',async t=>{
+  for(const snapshotVersion of [11,13])for(const change of [
+    state=>{state.id='other-thread'},state=>{state.cwd='relative'},state=>{state.turnHistory.history.islands[0].entries=[null]},
+    state=>{state.turnHistory.history.islands[0].entries=[{key:'absent',value:'absent'}]},state=>{state.turnHistory.history.entitiesByKey.entry.items=[null]},
+  ]){
+    const f=await mock(t,{snapshotVersion});change(f.state);
+    await assert.rejects(f.bridge.send('test-thread',{requestId:'invalid-state',input:[{type:'text',text:'fixture'}]}),{code:'DESKTOP_STATE_INVALID',sent:false});
+    assert.equal(f.bridge.states.has('test-thread'),false);assert.equal(f.messages.some(m=>m.method==='thread-follower-start-turn'),false);
+  }
+});
+
+test('untrusted version announcements do not invalidate an authenticated owner snapshot',async t=>{
+  const f=await mock(t,{snapshotVersion:13});await f.bridge.history('test-thread');
+  for(const override of [{sourceClientId:'other-client'},{params:{hostId:'remote',conversationId:'test-thread'}},{targetClientIds:['other-client']}]){
+    const message={type:'broadcast',method:'thread-stream-state-changed',version:99,sourceClientId:'desktop-owner',params:{hostId:'local',conversationId:'test-thread'},...override};message.params.change={type:'snapshot',revision:2,conversationState:f.state};f.push(message);
+  }
+  await delay(10);assert.equal(f.bridge.states.get('test-thread').version,13);
+  f.push({type:'broadcast',method:'thread-stream-state-changed',version:99,sourceClientId:'desktop-owner',params:{hostId:'local',conversationId:'test-thread',change:{type:'snapshot',revision:2,conversationState:f.state}}});
+  await delay(10);assert.equal(f.bridge.states.has('test-thread'),false);
+});
+
+test('patches cannot replace the selected thread identity or retain stale state across protocol versions',async t=>{
+  const f=await mock(t,{snapshotVersion:13});await f.bridge.history('test-thread');
+  f.push({type:'broadcast',method:'thread-stream-state-changed',version:13,sourceClientId:'desktop-owner',params:{hostId:'local',conversationId:'test-thread',change:{type:'patches',baseRevision:1,revision:2,patches:[{op:'replace',path:['id'],value:'other-thread'}]}}});
+  await delay(10);assert.equal(f.bridge.states.has('test-thread'),false);
+  await f.bridge.history('test-thread');
+  f.push({type:'broadcast',method:'thread-stream-state-changed',version:11,sourceClientId:'desktop-owner',params:{hostId:'local',conversationId:'test-thread',change:{type:'patches',baseRevision:1,revision:2,patches:[{op:'replace',path:['title'],value:'must-not-apply'}]}}});
+  await delay(15);assert.notEqual(f.bridge.states.get('test-thread')?.state.title,'must-not-apply');assert.equal(f.bridge.states.get('test-thread').version,13);
 });
 
 test('a send blocked before desktop ownership is definitely not dispatched',async t=>{

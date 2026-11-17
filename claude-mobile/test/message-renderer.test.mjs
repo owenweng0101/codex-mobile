@@ -171,3 +171,24 @@ test('viewer teardown restores only the child document and Escape closes the pre
   const trigger=h.document.createElement('button');h.container.append(trigger);trigger.focus();h.window.claudePreviewImage('/chart.png','图');assert.equal(h.container.inert,true);
   h.key('Escape');assert.equal(h.container.inert,false);assert.equal(existing.inert,true);assert.equal(h.document.activeElement,trigger);assert.ok(h.viewer.classList.contains('hidden'));
 });
+
+test('inline data:image URLs render within the cap and oversized ones show a placeholder',()=>{
+  const h=harness();
+  const image='data:image/png;base64,iVBORw0KGgo=';
+  h.render('前\n\n![内联图]('+image+')\n\n后');
+  const node=h.container.querySelector('img');
+  assert.equal(node.src,image);assert.equal(node.alt,'内联图');
+  click(node);assert.equal(h.content.querySelector('.image-stage').querySelector('img').src,image);
+  h.close();
+  h.render('![太大]('+'data:image/png;base64,'+'A'.repeat(2*1024*1024)+')');
+  assert.equal(h.container.querySelector('img'),null);
+  assert.match(h.container.textContent,/图片过大，无法显示/);
+  const placeholder=h.container.querySelector('.inline-image-too-large');
+  assert.ok(placeholder.classList.contains('preview-status'));
+  assert.equal(placeholder.querySelector('button'),null);
+  // Non-image data URLs are still invalid values: no source, no preview hook.
+  h.render('![脚本](data:text/html;base64,PHNjcmlwdD4=)');
+  const dropped=h.container.querySelector('img');
+  assert.equal(dropped.getAttribute('src'),null);
+  assert.equal(dropped.onclick,undefined);
+});
