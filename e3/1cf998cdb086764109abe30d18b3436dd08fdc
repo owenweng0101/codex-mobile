@@ -1,0 +1,492 @@
+claude-mobile/backend/lib/hub-reload-safety.mjs
+  s_1bfbd0a5d9b4b3::t_a64bdae725c489 1-17,19-24
+  s_1bfbd0a5d9b4b3::t_0957788a95b240 18
+claude-mobile/test/native-control-rendering.test.mjs
+  s_1bfbd0a5d9b4b3::t_d6d7afbdc0f420 1-27
+AGENTS.md
+  s_a7287d67b91356::t_7b438ee1151b0d 9,13-15
+claude-mobile/test/phone-images.test.mjs
+  s_1bfbd0a5d9b4b3::t_9e65de06479bac 64
+  s_1bfbd0a5d9b4b3::t_9098a894d77d1d 17-19
+  s_1bfbd0a5d9b4b3::t_3ee3af0aa2b203 175-227
+  s_1bfbd0a5d9b4b3::t_d2588230cd8a9a 56
+  s_1bfbd0a5d9b4b3::t_0f7fb76231245b 16,20-21
+  s_1bfbd0a5d9b4b3::t_57cfffe8ddcaeb 50
+  s_1bfbd0a5d9b4b3::t_9214f2b06b3da5 1-15,22-31,33-42,44-46,48-49,51-55,57-63,65-174
+  s_1bfbd0a5d9b4b3::t_de381c6a4e31b2 47
+  s_1bfbd0a5d9b4b3::t_aca59e67401281 32
+  s_1bfbd0a5d9b4b3::t_80d63623b83fcf 43
+claude-mobile/test/navigation-interactions.test.mjs
+  s_1bfbd0a5d9b4b3::t_2856e4b6f43ce6 74
+  s_1bfbd0a5d9b4b3::t_1d1a5c74a0b55a 75
+  s_7aeab1be30a0ba::t_65571d8a330aa1 62-66,78,80,82,102-105,133,168
+claude-mobile/backend/server.mjs
+  s_1bfbd0a5d9b4b3::t_0a257c21d0e39f 23
+  s_1bfbd0a5d9b4b3::t_599fbce346f95f 485-487,491,494-495
+  s_1bfbd0a5d9b4b3::t_b58410a3d35969 467-469
+  s_1bfbd0a5d9b4b3::t_95d8e88b1672e6 65
+  s_1bfbd0a5d9b4b3::t_24ddb1ba659c1a 106
+  s_1bfbd0a5d9b4b3::t_f0b4a0c44f1d61 27
+  s_1bfbd0a5d9b4b3::t_1d22fc59651a32 51-54
+  s_1bfbd0a5d9b4b3::t_daea0aa2300e23 228,330,353,358
+  s_f2d33253ce1829::t_e97a6aa3fff80e 334-335
+  s_1bfbd0a5d9b4b3::t_fabd77654f2060 571,577-584,587,589-592,598
+  s_1bfbd0a5d9b4b3::t_12b60b654f1644 574-576
+  s_1bfbd0a5d9b4b3::t_ede9b6e461a981 67
+  s_1bfbd0a5d9b4b3::t_08374ca9053634 451
+  s_1bfbd0a5d9b4b3::t_cb17d8e28fc2ac 508-510,514-518
+  s_1bfbd0a5d9b4b3::t_60997736716d16 507
+  s_1bfbd0a5d9b4b3::t_68023015b7917f 220,225,356,364,369,397,409,430,440,447,452,540,547-552,567-568,570,585-586,588,593-597,599-603,624
+  s_1bfbd0a5d9b4b3::t_a1232a3cc8a407 478
+  s_1bfbd0a5d9b4b3::t_0a83ba05156864 534
+  s_1bfbd0a5d9b4b3::t_ac659863486c43 21-22
+  s_1bfbd0a5d9b4b3::t_9c8c7d5e7e091d 553-563
+  s_1bfbd0a5d9b4b3::t_857e1daae9ad2a 396,638-639,641-656,660
+  s_c5fc7f842f1145::t_e611a4be8b799c 4,7-8,48-49,55,59,66,68,107,154,221-224,226-227,229,276,279,299,331,336,352,354-355,357,359-363,365-368,370-374,378-389,391-395,398-408,410-429,431-439,441-446,454-461,470,476,479,496,519,535-539,541-546,572,604,614,617,620,661
+claude-mobile/backend/lib/phone-images.mjs
+  s_1bfbd0a5d9b4b3::t_b1ecc48d396bd8 1-117
+claude-mobile/test/transcript.test.mjs
+  s_f2d33253ce1829::t_e887d72a3895de 36,59,78-89
+  s_f2d33253ce1829::t_24c870e356d769 60,90-100
+  s_f2d33253ce1829::t_fa3e5016114b0a 61-77
+  s_1bfbd0a5d9b4b3::t_592db0155023f6 33-35
+  s_e5810da4fa174a::t_3b136c50bcd028 37-58
+claude-mobile/backend/lib/ui.mjs
+  s_1bfbd0a5d9b4b3::t_a9a0a4d4d01406 1378
+  s_1bfbd0a5d9b4b3::t_8f2c7c20ec1770 954
+  s_1bfbd0a5d9b4b3::t_9c5089433e6488 1467
+  s_1bfbd0a5d9b4b3::t_fce3e8eada14cc 1102
+  s_1bfbd0a5d9b4b3::t_b4c6d03503bbfe 1197
+  s_1bfbd0a5d9b4b3::t_4397d564239a9e 1923-1925,1927
+  s_1bfbd0a5d9b4b3::t_d0e5f9a22dec9e 387
+  s_1bfbd0a5d9b4b3::t_ad1980d993d9f6 1731
+  s_1bfbd0a5d9b4b3::t_1ebfeeb7c552f4 525
+  s_1bfbd0a5d9b4b3::t_6bb9df3f4cd220 438,440
+  s_1bfbd0a5d9b4b3::t_f3c0171f634409 1009,1012,1022
+  s_1bfbd0a5d9b4b3::t_b0de115ba92a70 1644-1646
+  s_1bfbd0a5d9b4b3::t_87484e4e3719c8 193,256-257,265,692,734,972,1233,1323,1383,1585,1728,1757-1758,1760-1767,1769-1777,1780
+  s_1bfbd0a5d9b4b3::t_2355b4deb6e614 494
+  s_f2d33253ce1829::t_a987b83cff156c 681-683
+  s_1bfbd0a5d9b4b3::t_eceeb09dc669a6 1589-1590
+  s_1bfbd0a5d9b4b3::t_3cf13fde9c6e37 420-423
+  s_1bfbd0a5d9b4b3::t_18a9b81195084b 1008,1010-1011,1013-1015,1019-1021,1023-1025
+  s_1bfbd0a5d9b4b3::t_db8b43dd75fce7 1262-1263,1266-1267
+  s_1bfbd0a5d9b4b3::t_b2fc0fb497b286 1744
+  s_f2d33253ce1829::t_89b3a48aa6e7f0 1295-1296,1299
+  s_1bfbd0a5d9b4b3::t_478c3b8753382f 651
+  s_1bfbd0a5d9b4b3::t_73a1f2a14e1ff1 1103-1112,1114-1143
+  s_1bfbd0a5d9b4b3::t_eb9c173bf3beb0 641
+  s_1bfbd0a5d9b4b3::t_1157ec9ec21a4d 1144-1150,1153-1155
+  s_1bfbd0a5d9b4b3::t_68db528ab89e54 1085-1086
+  s_1bfbd0a5d9b4b3::t_79bc679c6bf2bf 1190
+  s_1bfbd0a5d9b4b3::t_65861f235d51a1 392
+  s_1bfbd0a5d9b4b3::t_3a19b1f2938ae6 1362
+  s_1bfbd0a5d9b4b3::t_86eac8d1ca9d04 1670
+  s_1bfbd0a5d9b4b3::t_31d66d726c61f7 948-949
+  s_1bfbd0a5d9b4b3::t_97feb8c4d39b4e 1151-1152,1156-1170,1172,1174,1176,1178-1182,1198-1200,1203,1207-1208,1213-1214
+  s_1bfbd0a5d9b4b3::t_7139d8e319df10 1357
+  s_1bfbd0a5d9b4b3::t_4b21b2e6d12d8d 1465
+  s_1bfbd0a5d9b4b3::t_4552b8b2a830de 871,1392
+  s_1bfbd0a5d9b4b3::t_660bb65b674a2b 1477
+  s_1bfbd0a5d9b4b3::t_49700d63e13ab3 3
+  s_1bfbd0a5d9b4b3::t_216d9ad10971e4 386,388-391
+  s_1bfbd0a5d9b4b3::t_3b33a3e8ea5744 435-437
+  s_1bfbd0a5d9b4b3::t_b0ec18179f37ef 511
+  s_1bfbd0a5d9b4b3::t_059181d49a2da4 520-522
+  s_1bfbd0a5d9b4b3::t_184f223f60e3e5 928,930-933
+  s_1bfbd0a5d9b4b3::t_d4c49dcf0d4eca 1389-1390,1394
+  s_1bfbd0a5d9b4b3::t_e92ec9b9b369c1 399
+  s_1bfbd0a5d9b4b3::t_97cd2ad34ce8fd 1598-1612,1616-1621,1623-1632
+  s_f2d33253ce1829::t_de4e9bf8d25e1f 1885-1886
+  s_1bfbd0a5d9b4b3::t_6dcafbfea2b5b4 383-384
+  s_1bfbd0a5d9b4b3::t_1954a18ed0816b 1001-1002,1004
+  s_1bfbd0a5d9b4b3::t_57af2861643f6d 495-498
+  s_1bfbd0a5d9b4b3::t_9f7c9858070300 1083-1084
+  s_1bfbd0a5d9b4b3::t_a48dfb38e60ce5 1344,1346
+  s_1bfbd0a5d9b4b3::t_e3e978724e28f7 1520
+  s_1bfbd0a5d9b4b3::t_ecc4af4df0c19b 1113
+  s_1bfbd0a5d9b4b3::t_ef796ce44358ed 94-111,113-115
+  s_f2d33253ce1829::t_fd0c2d78ae3ba5 139-145,224
+  s_1bfbd0a5d9b4b3::t_97b37bd30880a1 505-507
+  s_1bfbd0a5d9b4b3::t_e89854bef5c631 555-556
+  s_1bfbd0a5d9b4b3::t_e316d8305ef0ce 1171,1175,1177
+  s_1bfbd0a5d9b4b3::t_d963428ec26395 1252-1255
+  s_f2d33253ce1829::t_d5853704580c25 640
+  s_1bfbd0a5d9b4b3::t_287e6aebb83529 1042-1048,1050-1058
+  s_1bfbd0a5d9b4b3::t_a50c93cf768257 1281-1282
+  s_1bfbd0a5d9b4b3::t_623d690456986d 1328,1330,1332,1335,1337-1340,1342
+  s_1bfbd0a5d9b4b3::t_636038772b1fe0 1371
+  s_1bfbd0a5d9b4b3::t_c6a01ac75b0e6a 701-733
+  s_1bfbd0a5d9b4b3::t_5f9129df196f86 1183-1189,1191-1196,1201-1202,1204,1206,1209-1210
+  s_1bfbd0a5d9b4b3::t_349c52e53dab72 1468-1469,1471-1472,1478-1482
+  s_1bfbd0a5d9b4b3::t_474c6b49f49172 229,278,653,918,1423-1430,1435,1438,1440-1458
+  s_1bfbd0a5d9b4b3::t_b852ad873d4c96 1790
+  s_1bfbd0a5d9b4b3::t_a795886b7ae5bd 513-515
+  s_1bfbd0a5d9b4b3::t_aaf0472c075bcf 597
+  s_1bfbd0a5d9b4b3::t_1b9a6fdc8301ea 483
+  s_1bfbd0a5d9b4b3::t_e0bafd0b60e182 1352,1402
+  s_1bfbd0a5d9b4b3::t_eda2372610f0a8 1543,1546-1547,1549,1551-1555
+  s_1bfbd0a5d9b4b3::t_0b8d3c89499766 1173
+  s_1bfbd0a5d9b4b3::t_37ed0573b41c07 1517
+  s_f2d33253ce1829::t_1d23812a5da7a6 1393
+  s_1bfbd0a5d9b4b3::t_cc87e98a8f56bb 175,182,186,195,212,237,271,289,297,700,735,971,1039,1291,1294,1319,1379,1578,1587,1652-1656,1658-1663,1665-1666,1669,1674-1679,1681-1683,1685-1694,1696-1705,1709-1713,1720,1727,1729,1898,1902
+  s_f2d33253ce1829::t_080b53dcc1fcb6 558
+  s_1bfbd0a5d9b4b3::t_a7d48ac006ba64 869
+  s_f2d33253ce1829::t_0fe31be24e1edd 549-552
+  s_1bfbd0a5d9b4b3::t_6c941e228b04bc 1684
+  s_1bfbd0a5d9b4b3::t_47bc66ee9698ac 1837
+  s_1bfbd0a5d9b4b3::t_d4f6113a0528ea 1297,1302-1304,1308,1310-1316,1318
+  s_1bfbd0a5d9b4b3::t_98a0818556ac58 648,650,661-669
+  s_1bfbd0a5d9b4b3::t_9ad88aa8e23ce5 835-843,846-860,863
+  s_1bfbd0a5d9b4b3::t_3f72c0295117e0 1494-1516,1518-1519,1527,1531-1542,1544-1545,1548,1550,1556-1577,1718
+  s_1bfbd0a5d9b4b3::t_72c6dc24626881 1205
+  s_f2d33253ce1829::t_c6006de346ea26 1285
+  s_1bfbd0a5d9b4b3::t_96fce663c97990 1523-1526,1528-1530
+  s_1bfbd0a5d9b4b3::t_20643b465e5750 1061
+  s_1bfbd0a5d9b4b3::t_2c6066647ac137 946-947,950-952
+  s_b5b3543adc69a6::t_be28bf76af6ebb 2,39-42,57-59,62-65,76-78,85,93,112,116-118,121,129-130,132,146-174,176-181,183-185,187-192,194,196-211,213-223,225-228,230-236,238-255,258-264,266-270,272-277,279-288,290-296,298-299,305-308,312,323-326,328-330,333,336-337,340-356,360-362,364-365,368-369,397,482,500-504,531-534,554,557,559,602,611-615,620,647,649,652,654-660,686-691,693-699,744-747,807,834,879-881,883,891,894,899,903,907-917,919-925,964-970,983,987,1035-1038,1063,1069,1093,1215,1230-1232,1234,1268-1269,1271-1276,1287-1290,1293,1298,1300-1301,1320-1322,1326-1327,1329,1331,1354,1365-1369,1372,1376,1380-1382,1408-1409,1412,1521-1522,1579-1584,1586,1717,1719,1721-1726,1730,1732,1741,1759,1867-1869,1896-1897,1899-1901
+claude-mobile/test/runtime-plan.test.mjs
+  s_1bfbd0a5d9b4b3::t_3a0a39c515b115 67
+  s_1bfbd0a5d9b4b3::t_d6bf46805f8536 1-62,64-66,68-78
+  s_1bfbd0a5d9b4b3::t_6688a3234236d5 63
+claude-mobile/desktop-plugin/.claude-plugin/marketplace.json
+  s_1bfbd0a5d9b4b3::t_04ee5bb9eaadb2 1-11
+claude-mobile/test/native-ui-delivery.test.mjs
+  s_1bfbd0a5d9b4b3::t_40559cc4a39536 134
+  s_1bfbd0a5d9b4b3::t_60b42a93b2f7fe 22-31
+  s_1bfbd0a5d9b4b3::t_2a1ebd0c1d474d 4,7
+  s_f2d33253ce1829::t_b3398c36cb8a4e 14,17-19
+scripts/test.mjs
+  s_a7287d67b91356::t_7b438ee1151b0d 7
+claude-mobile/backend/lib/claude-cli.mjs
+  s_f2d33253ce1829::t_5bd87479134713 110
+claude-mobile/backend/lib/native-plan.mjs
+  s_1bfbd0a5d9b4b3::t_9358a37e818874 1-42
+claude-mobile/README.md
+  s_a7287d67b91356::t_7b438ee1151b0d 3,30
+  s_1bfbd0a5d9b4b3::t_fed52c40ee8368 1,5,7-12,14,16,18-20,22,24,26,28,32,34-35,38
+claude-mobile/test/desktop-intent.test.mjs
+  s_1bfbd0a5d9b4b3::t_3fe83ae5544ade 61
+  s_1bfbd0a5d9b4b3::t_094b38d6a92572 200
+claude-mobile/test/desktop-delivery.test.mjs
+  s_1bfbd0a5d9b4b3::t_1bce7bde2491cf 772
+  s_1bfbd0a5d9b4b3::t_973117c2542b1b 666-672
+  s_e5810da4fa174a::t_3f7cc0a4593578 3,8,20,36-38,452-665,673-771,773-795
+claude-mobile/test/native-ui-fixture.mjs
+  s_1bfbd0a5d9b4b3::t_257c8f2880ee40 40
+  s_1bfbd0a5d9b4b3::t_d45fe2b34b8f92 28,30,35
+  s_1bfbd0a5d9b4b3::t_0225fcd2d8f9b7 42
+  s_1bfbd0a5d9b4b3::t_090e1ef72b4b63 62
+  s_1bfbd0a5d9b4b3::t_19b8988be599a7 70-71
+  s_1bfbd0a5d9b4b3::t_77fb8af502b45e 1-27,29,31-34,36-39,41,43-61,63-69,72-148,151-179
+  s_1bfbd0a5d9b4b3::t_1312c55ee73249 149-150
+claude-mobile/backend/lib/runtime-status.mjs
+  s_1bfbd0a5d9b4b3::t_a594aca7389b7f 1-22
+claude-mobile/backend/lib/native-user-bridge.mjs
+  s_1bfbd0a5d9b4b3::t_8ed7f00727ad3f 185,187-208,215,218-233,235,239-240
+  s_1bfbd0a5d9b4b3::t_4bf80398e2753a 1-6,8-70,72-105,107-138,140-142,144-151,157-167,169-173,175-184,186,209-214,216-217,234,236-237,241-244,250-251,253-283,285-286,288,291-303,306-310
+  s_1bfbd0a5d9b4b3::t_83c7cafc6e36f8 304-305
+  s_1bfbd0a5d9b4b3::t_8974a71684baf6 238
+  s_1bfbd0a5d9b4b3::t_dc89406c079251 152-156
+  s_1bfbd0a5d9b4b3::t_15c944f149e76f 174
+  s_1bfbd0a5d9b4b3::t_9a8183d30ff830 284
+  s_1bfbd0a5d9b4b3::t_64f1dffceef8ac 71
+  s_1bfbd0a5d9b4b3::t_20f4c2b38c38ca 139
+  s_1bfbd0a5d9b4b3::t_f7554f329e4b0f 7
+  s_1bfbd0a5d9b4b3::t_824a9826435e35 168
+  s_1bfbd0a5d9b4b3::t_ebf3e43c1af7fc 106
+  s_1bfbd0a5d9b4b3::t_075f978b75a3e2 290
+  s_1bfbd0a5d9b4b3::t_caf95459041130 287,289
+  s_1bfbd0a5d9b4b3::t_bbdf3012f3ffc1 245-249,252
+  s_c5fc7f842f1145::t_db6c5b9cca229f 143
+claude-mobile/test/shipped-scope.test.mjs
+  s_1bfbd0a5d9b4b3::t_0ab743503e58c6 1-30
+claude-mobile/test/session-list-refresh.test.mjs
+  s_1bfbd0a5d9b4b3::t_a1440db22b249c 43
+  s_1bfbd0a5d9b4b3::t_b08c1b01606936 28
+  s_1bfbd0a5d9b4b3::t_687f5345b4e03a 151
+  s_e5810da4fa174a::t_279dea68598659 6-10,64-150,152-212
+claude-mobile/backend/lib/sessions.mjs
+  s_1bfbd0a5d9b4b3::t_3b7cfef505fbdc 433,435-436
+  s_f2d33253ce1829::t_f5318bb0452dd6 469-473
+  s_1bfbd0a5d9b4b3::t_b35fa228742d67 3
+  s_1bfbd0a5d9b4b3::t_6370a69aa814d5 335-336,339-342,344-346
+  s_f2d33253ce1829::t_7edfac49f20e71 122,176,199,372-373,397-398,407,410-413,431,451
+  s_1bfbd0a5d9b4b3::t_41309d83701727 7
+  s_1bfbd0a5d9b4b3::t_ba76da62f865b0 385
+  s_1bfbd0a5d9b4b3::t_94204d7bf1858e 458-468,474-479
+  s_1bfbd0a5d9b4b3::t_4eb3815c7db442 386
+  s_1bfbd0a5d9b4b3::t_3107df299948f9 251
+  s_f2d33253ce1829::t_84a1adb66d0f94 111-115,124,133,154,180,204,262,313,376,454
+  s_1bfbd0a5d9b4b3::t_09d722a2e13d66 382-384,399-400,402-404,406,420-423,426-430,434,439-441,444-450
+  s_1bfbd0a5d9b4b3::t_85fb02c05b20d8 261
+  s_1bfbd0a5d9b4b3::t_4ad93ddba5c657 392
+  s_1bfbd0a5d9b4b3::t_0183e520dea81d 408-409
+  s_1bfbd0a5d9b4b3::t_c9073c1ab94281 26-29
+  s_1bfbd0a5d9b4b3::t_e762421a868247 405
+  s_f2d33253ce1829::t_09d2ec153d0c71 401
+  s_ce248e03a9449f::t_3b695caff341b4 4,30,79,96,102-110,116-121,123,125-129,134-153,155-175,177-179,181-198,201-203,206-218,246-248,252,256,268-270,331-332,334,347,350-371,374-375,377-381,387,393,414,416,437,456-457,480
+claude-mobile/backend/lib/desktop-intent.mjs
+  s_1bfbd0a5d9b4b3::t_e43eb8bbcb51da 183
+  s_1bfbd0a5d9b4b3::t_3414894ac2edb2 187
+  s_f2d33253ce1829::t_aa150ed1300b68 250
+  s_e5810da4fa174a::t_ceef96ca83573f 36-37
+claude-mobile/test/composer-fixed-height.test.mjs
+  s_1bfbd0a5d9b4b3::t_a6ba4259a904bd 72
+  s_1bfbd0a5d9b4b3::t_143eecfe92e3b9 4
+  s_1bfbd0a5d9b4b3::t_6ff67b1809c211 18-19
+claude-mobile/test/native-ui-reconciliation.test.mjs
+  s_1bfbd0a5d9b4b3::t_497057d1c707d5 1-4,7-49,162-332
+  s_1bfbd0a5d9b4b3::t_cbf53134627a57 73,75
+  s_1bfbd0a5d9b4b3::t_84e4dd9c99941a 156
+  s_1bfbd0a5d9b4b3::t_455139124491f7 130
+  s_1bfbd0a5d9b4b3::t_d2e9bfdc30b7d0 394
+  s_1bfbd0a5d9b4b3::t_71b86b28c4f9d5 333-393,395-418
+  s_1bfbd0a5d9b4b3::t_233239803d19e6 58,62-63
+  s_1bfbd0a5d9b4b3::t_8fc3e8ed893fae 5
+  s_1bfbd0a5d9b4b3::t_e5b97f4ac08c99 50-57,59-61,64-72,74,76-86
+  s_1bfbd0a5d9b4b3::t_aa3218f7c126c0 127
+  s_1bfbd0a5d9b4b3::t_684ffacaab76e0 6
+  s_1bfbd0a5d9b4b3::t_afd0355fe532eb 87-114
+  s_1bfbd0a5d9b4b3::t_e5a437174cb9cc 115-126,128-129,131-151
+  s_1bfbd0a5d9b4b3::t_3120d28ba33081 152-155,157-161
+claude-mobile/test/independent-interaction-audit.test.mjs
+  s_1bfbd0a5d9b4b3::t_552f9cd901bfda 4
+  s_1bfbd0a5d9b4b3::t_8771b4dc6e5bf8 6,9-10,12-13,16,20
+claude-mobile/test/stable-assistant-render.test.mjs
+  s_1bfbd0a5d9b4b3::t_87dbe4852c1f24 35
+  s_e5810da4fa174a::t_31493140f0b8a2 78-81,168-246
+claude-mobile/backend/lib/native-user-delivery.mjs
+  s_1bfbd0a5d9b4b3::t_c77932fb490a11 14-15
+  s_1bfbd0a5d9b4b3::t_9a9b5e8fcd8a5e 2
+  s_1bfbd0a5d9b4b3::t_4730ca2756032a 30-31,34
+  s_1bfbd0a5d9b4b3::t_69b84dfe7d45dc 6
+  s_1bfbd0a5d9b4b3::t_70a4c2f985e7d1 60-63
+  s_1bfbd0a5d9b4b3::t_3ffb4b26ead316 97,100-103,107-109,114-141,143-144
+  s_1bfbd0a5d9b4b3::t_84ed3a8e050a4c 156-160,162-172,175
+  s_1bfbd0a5d9b4b3::t_4ce5cbf35d7107 147
+  s_1bfbd0a5d9b4b3::t_210826de04e571 40
+  s_1bfbd0a5d9b4b3::t_040149e150be6b 69,71
+  s_1bfbd0a5d9b4b3::t_c6cd0d5e659561 191,196-198
+  s_1bfbd0a5d9b4b3::t_999aa4ecbae0ee 91
+  s_1bfbd0a5d9b4b3::t_e8648907e42e3f 188
+  s_1bfbd0a5d9b4b3::t_3e6701554f2f67 189
+  s_1bfbd0a5d9b4b3::t_a7180ea0fae998 17-18
+  s_1bfbd0a5d9b4b3::t_be277f714583e9 41
+  s_1bfbd0a5d9b4b3::t_624c2711d2eedc 1,3-5,7-12,16,19-29,32-33,35-39,42-59,64-68,70,72-90,94-96,98-99,104-106,110-113,142,145-146,148-155,161,173-174,176-187,190,192-195,199-221
+  s_1bfbd0a5d9b4b3::t_c768714845c14a 13
+  s_1bfbd0a5d9b4b3::t_74533a2416ea6d 92-93
+claude-mobile/test/hub-dsh-motion.test.mjs
+  s_f2d33253ce1829::t_942a3407cd536e 172,184,194,202,206,209,211,215-216,222,224-235,241,246,256,266,273,281,306
+  s_f2d33253ce1829::t_2f4a5c974e060d 169-171
+  s_f2d33253ce1829::t_d98a62b88ab35e 173-175,181-183
+  s_f2d33253ce1829::t_95738536bb98c5 185-187,191-193
+  s_f2d33253ce1829::t_e4b947b5a46ae4 195-197,199-201
+  s_f2d33253ce1829::t_efc3dc2e0106f0 203-205
+  s_f2d33253ce1829::t_5b7fcecb3b229e 207-208
+  s_f2d33253ce1829::t_937d55f392e501 210
+  s_f2d33253ce1829::t_1a545348abc927 212-214
+  s_f2d33253ce1829::t_92c8e7ef3cbcdc 217-221
+  s_f2d33253ce1829::t_522fc2ba68b998 223
+  s_f2d33253ce1829::t_cf8f84f286bf03 236-240
+  s_f2d33253ce1829::t_d042b3b3a4095b 242-245
+  s_f2d33253ce1829::t_311323e487c59d 247-249,253-255
+  s_f2d33253ce1829::t_59b3528f240a0a 257-259,263-265
+  s_f2d33253ce1829::t_33c11601c3d2dc 267-272
+  s_f2d33253ce1829::t_430b385563264f 274-276,278-280
+  s_f2d33253ce1829::t_a8e770e6f58c25 282-284,303-305
+  s_f2d33253ce1829::t_9e20c1108a9e22 307-309
+claude-mobile/backend/lib/hub-chrome.js
+  s_f2d33253ce1829::t_3e1b7ef7906ce9 247-250
+  s_f2d33253ce1829::t_527bb752754a69 44-46
+  s_f2d33253ce1829::t_54001033caf58d 41-43
+  s_f2d33253ce1829::t_17db1191c2788f 244-246
+claude-mobile/test/command-ledger.test.mjs
+  s_1bfbd0a5d9b4b3::t_2d92525ad50ab8 251-254
+  s_1bfbd0a5d9b4b3::t_e4241025544ea9 274-292
+claude-mobile/test/chat-receipt.test.mjs
+  s_1bfbd0a5d9b4b3::t_eac2bc38b05b2d 30
+  s_1bfbd0a5d9b4b3::t_5bcc23ba9a4d1e 18
+  s_1bfbd0a5d9b4b3::t_0e082799d5a373 4,6,9,14-17,19-29,31-40,43-50,76-93
+  s_1bfbd0a5d9b4b3::t_eb2ca8d7e270ee 51-75
+  s_1bfbd0a5d9b4b3::t_886652620b463f 7
+README.md
+  s_a7287d67b91356::t_7b438ee1151b0d 59,66
+  s_a7287d67b91356::t_15b395bb42e6ed 58
+  s_a7287d67b91356::t_39742aaf826f15 53
+claude-mobile/test/native-read-client.test.mjs
+  s_1bfbd0a5d9b4b3::t_dd2aebc7c807a9 38
+  s_1bfbd0a5d9b4b3::t_f7cdb9784f9992 4-5,13-22
+claude-mobile/desktop-plugin/.claude-plugin/plugin.json
+  s_1bfbd0a5d9b4b3::t_ceacb70ca725e5 3
+  s_c5fc7f842f1145::t_3fc41ee6ee2092 1-2,4-6
+claude-mobile/test/native-user-bridge.test.mjs
+  s_1bfbd0a5d9b4b3::t_59f997490b9868 36
+  s_1bfbd0a5d9b4b3::t_2e14f3c7801382 53-54
+  s_1bfbd0a5d9b4b3::t_ea9cfbbdc453f0 11-13
+  s_1bfbd0a5d9b4b3::t_0a31986b35b141 1-10,14-18,21-29,31-35,37-52,55-162,164,171-172,217-236
+  s_1bfbd0a5d9b4b3::t_8059e49a36dd67 20
+  s_1bfbd0a5d9b4b3::t_543112d7a7c634 30
+  s_1bfbd0a5d9b4b3::t_f44412c33563e0 163,165-170,173-216
+  s_1bfbd0a5d9b4b3::t_11c13d68836da8 19
+claude-mobile/test/desktop-catalog.test.mjs
+  s_1bfbd0a5d9b4b3::t_a2b4c4a1913ed5 27
+  s_1bfbd0a5d9b4b3::t_fe9f7d4588af38 30
+claude-mobile/backend/lib/command-ledger.mjs
+  s_1bfbd0a5d9b4b3::t_cf1685335d5e36 98-103
+  s_1bfbd0a5d9b4b3::t_014d028d02195e 108
+  s_1bfbd0a5d9b4b3::t_c91fb216a66ac3 116
+  s_1bfbd0a5d9b4b3::t_ac139effdd5f65 117-120
+  s_1bfbd0a5d9b4b3::t_d72c0f2c5814d4 149
+claude-mobile/backend/lib/live.mjs
+  s_1bfbd0a5d9b4b3::t_dc20609ffd4025 39
+  s_1bfbd0a5d9b4b3::t_b1f954c877915f 31,34,42-49
+claude-mobile/test/hub-reload-safety.test.mjs
+  s_1bfbd0a5d9b4b3::t_2ccbec3ed313c7 1-29
+adapter/codex-entry.mjs
+  s_b5b3543adc69a6::t_6d5f80fd6ebc68 10-39,48,79-80,86-96,101-107,110,113-117,119,121-124,134-140,143,146-147
+adapter/frontend-stage/adapter-stage.test.mjs
+  s_c2595d2b115f6d::t_b59e5370b2b70f 107-109
+adapter/frontend-stage/inline-input-state.mjs
+  s_b5b3543adc69a6::t_4daa71d43dac08 12,19
+adapter/frontend-stage/mobile-bundle-split.test.mjs
+  s_c2595d2b115f6d::t_7515517af88e36 16
+adapter/frontend-stage/reviewed-compat-patches.json
+  s_c2595d2b115f6d::t_78cac24b0c75b1 103-108,110
+adapter/mobile-theme.css
+  s_c5fc7f842f1145::t_87a87da3f1e109 56-62
+adapter/read-services/files.mjs
+  s_c2595d2b115f6d::t_7e3519d91e0c88 35-37
+adapter/read-services/test/files.test.mjs
+  s_c2595d2b115f6d::t_5e2b7877e4308e 37-42
+adapter/test/composition-reload.test.mjs
+  s_b5b3543adc69a6::t_7293921c706ee9 1-37
+adapter/test/retired-experiments.test.mjs
+  s_c5fc7f842f1145::t_34298385d4e0fa 1-65
+adapter/write-services/README.md
+  s_b5b3543adc69a6::t_f922119ecb9438 41,77
+adapter/write-services/index.mjs
+  s_b5b3543adc69a6::t_f93a8b4e84113b 26-30,56-69
+backend/core.mjs
+  s_c2595d2b115f6d::t_99a51e3ef4b137 8-11,107
+backend/test/workspace.test.mjs
+  s_c2595d2b115f6d::t_ff99a81cd426e1 7,26,29
+claude-mobile/desktop-plugin/hooks/hooks.json
+  s_1bfbd0a5d9b4b3::t_a36758a7bad969 1-3
+claude-mobile/desktop-plugin/hooks/register.ts
+  s_c5fc7f842f1145::t_eb2f12e2ec6088 1-544
+claude-mobile/desktop-plugin/tests/critical.test.mjs
+  s_1bfbd0a5d9b4b3::t_bc65322773df20 1-281
+claude-mobile/desktop-plugin/tests/native.test.ts
+  s_1bfbd0a5d9b4b3::t_840bb63ac049cd 1-644
+claude-mobile/desktop-plugin/types/index.d.ts
+  s_c5fc7f842f1145::t_dac6a6c130609d 1-87
+claude-mobile/test/hub-refresh-lifecycle.test.mjs
+  s_b5b3543adc69a6::t_b42f00148b8db4 1-262
+claude-mobile/test/subpage-readiness.test.mjs
+  s_e5810da4fa174a::t_0882e014ea3476 1-44
+dsh-mobile/backend/draft-navigation.mjs
+  s_b5b3543adc69a6::t_52e9ffa9158cd7 1-46
+dsh-mobile/backend/loading-gate.mjs
+  s_b5b3543adc69a6::t_a91f81fde76f07 1-43
+dsh-mobile/backend/reload-safety.mjs
+  s_b5b3543adc69a6::t_f7d80612bcdf22 1-72
+dsh-mobile/test/draft-navigation.test.mjs
+  s_b5b3543adc69a6::t_5a6c3d03673f9a 1-104
+dsh-mobile/test/loading-gate.test.mjs
+  s_b5b3543adc69a6::t_3facffbe7e633e 1-47
+dsh-mobile/test/reload-safety.test.mjs
+  s_b5b3543adc69a6::t_f939f70c3b8b85 1-186
+dsh-mobile/test/session-restore.test.mjs
+  s_e5810da4fa174a::t_9625d47b3ba927 5,87-104,137-141
+dsh-mobile/backend/session-restore.mjs
+  s_1070dc8994ccf4::t_2bb8fed9845f1d 15,19-26,34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "e31cf998cdb086764109abe30d18b3436dd08fdc",
+  "prompts": {},
+  "sessions": {
+    "s_1070dc8994ccf4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ad6b1693cf2cc43f4",
+        "model": "unknown"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    },
+    "s_1bfbd0a5d9b4b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c5f64a4-ce99-484d-8de9-2e9c6ace1e43",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    },
+    "s_7aeab1be30a0ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ab8b9eaaeec972d4f",
+        "model": "unknown"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    },
+    "s_a7287d67b91356": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e776-8dd5-7161-80bd-aad99ca0c043",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    },
+    "s_b5b3543adc69a6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1dcfe-47f2-7513-ba27-18a0b4463e30",
+        "model": "jd2/gt-6-as-a"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    },
+    "s_c2595d2b115f6d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e3ed-968e-78a3-ab18-c9c473a263da",
+        "model": "jd2/gt-6-as-a"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    },
+    "s_c5fc7f842f1145": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1d945-974c-73b3-acdc-929411bc6c10",
+        "model": "jd2/gt-6-as-a"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    },
+    "s_ce248e03a9449f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1d95e-1705-7470-857d-fe2260cc688a",
+        "model": "jd2/gt-6-as-a"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    },
+    "s_e5810da4fa174a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1d598-9abc-7822-ba0b-e5cfc8eb5af1",
+        "model": "jd2/gt-6-as-a"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    },
+    "s_f2d33253ce1829": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e565b150-48e3-45be-b61c-1f6c3f541cc4",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "wengqiang.5 <wengqiang.5@jd.com>"
+    }
+  }
+}
